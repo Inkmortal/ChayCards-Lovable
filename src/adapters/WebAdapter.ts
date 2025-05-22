@@ -4,7 +4,7 @@ import { PlatformAdapter, AppConfig } from '../types';
 export class WebAdapter implements PlatformAdapter {
   getConfig(): AppConfig {
     return {
-      apiBaseUrl: process.env.REACT_APP_API_URL || 'http://localhost:3001',
+      apiBaseUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001',
       platform: 'web',
       version: '1.0.0'
     };
