@@ -1,225 +1,142 @@
+# ChayCards
 
-# Cross-Platform Task Manager
+ChayCards is your all-in-one digital workspace that seamlessly combines document management, task tracking, and knowledge retention. Built for students and professionals who need a unified platform for managing their digital life, ChayCards brings together the best aspects of note-taking apps, task managers, and learning tools into one cohesive system.
 
-A modern task management application built with React that runs both as a web application and as an Electron desktop app, sharing the same codebase and backend interfaces.
+## 🌟 Vision
 
-## 🏗️ Architecture Overview
+ChayCards aims to be your central hub for digital document management and knowledge work. While other tools excel at specific tasks, ChayCards provides a unified platform where your documents, tasks, and learning materials work together seamlessly. Whether you're a student managing coursework, a researcher organizing papers, or a professional tracking projects, ChayCards adapts to your workflow.
 
-This application demonstrates a clean separation of concerns with shared business logic:
+## ✨ Core Features
 
-- **Shared Core**: React components, hooks, and business logic
-- **Platform Adapters**: Abstraction layer for platform-specific functionality
-- **Backend Services**: Unified API layer that works across both platforms
-- **Modern UI**: Responsive design with smooth animations using shadcn/ui
+- 📝 **Universal Document Management**
+  - Support for multiple document types (notes, cards, canvases)
+  - Rich text editing with Markdown support
+  - Seamless linking between documents
+  - Version history and collaboration features
 
-## 🚀 Features
+- 📚 **Smart Knowledge Management**
+  - AI-powered document querying and analysis
+  - Automatic knowledge extraction
+  - Spaced repetition learning system
+  - Dynamic flashcard generation from notes
 
-- ✅ Cross-platform compatibility (Web + Desktop)
-- 📱 Responsive design
-- 🎯 Task management with priorities
-- 💾 Import/Export functionality
-- 🔔 Native notifications
-- 🎨 Modern, clean interface
-- ⚡ Fast and efficient
+- ✅ **Task & Project Management**
+  - Integrated task tracking
+  - Project organization
+  - Priority management
+  - Progress tracking and analytics
 
-## 🛠️ Tech Stack
+- 🔍 **Intelligent Search & Organization**
+  - Full-text search across all documents
+  - Smart tagging and categorization
+  - AI-assisted document organization
+  - Custom organizational systems
 
-- **Frontend**: React 18, TypeScript, Tailwind CSS
-- **UI Components**: shadcn/ui
-- **State Management**: TanStack Query
-- **Desktop**: Electron
-- **Build Tools**: Vite, Electron Builder
+## 🧩 Plugin Ecosystem
 
-## 📦 Installation & Setup
+ChayCards is built with extensibility at its core. Our plugin system allows the community to expand functionality in countless ways:
+
+- 📅 **Calendar Integration**: Visualize tasks and deadlines
+- 🤖 **AI Enhancements**: 
+  - Automatic note generation from meetings
+  - Task suggestions based on document content
+  - Smart document summarization
+- 🔄 **External Integrations**:
+  - GitHub issue tracking
+- 📊 **Custom Views**: Create specialized views for different types of work
+
+## 🎯 Perfect For
+
+- 👩‍🎓 **Students**
+  - Organize course materials
+  - Create study guides automatically
+  - Track assignments and deadlines
+  - Generate flashcards from notes
+
+- 👩‍💼 **Professionals**
+  - Manage project documentation
+  - Track tasks and deliverables
+  - Organize meeting notes
+  - Build knowledge bases
+
+- 👩‍🔬 **Researchers**
+  - Organize research papers
+  - Take structured notes
+  - Track experiments
+  - Build literature reviews
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- Git
+1. Install [Node.js](https://nodejs.org/) (version 16 or higher)
+2. Install [Git](https://git-scm.com/downloads) for your operating system
 
-### Clone and Install
+### Installation
 
+1. Clone the repository:
 ```bash
-git clone <your-repo-url>
-cd cross-platform-task-manager
+git clone https://github.com/yourusername/chaycards.git
+cd chaycards
+```
+
+2. Install dependencies:
+```bash
 npm install
 ```
 
-## 🌐 Running as Web App
+### Running the Application
 
+1. Start the development server:
 ```bash
-# Development
 npm run dev
-
-# Build for production
-npm run build
-npm run preview
 ```
 
-The web app will be available at `http://localhost:8080`
-
-## 🖥️ Running as Electron Desktop App
-
-### Development Mode
-
-```bash
-# Start the web dev server and Electron together
-npm run electron:dev
+2. The application should automatically open in a new window. If you need to access it manually, the development server runs at:
+```
+http://localhost:5173
 ```
 
-### Build Desktop App
+### Troubleshooting
 
-```bash
-# Build the web app first
-npm run build
+- If you see `node_modules` related errors, try removing the directory and reinstalling:
+  ```bash
+  rm -rf node_modules
+  npm install
+  ```
 
-# Build Electron app for your platform
-npm run electron:build
+- For permission errors on Windows, run PowerShell as Administrator
+- For permission errors on Mac/Linux, you might need to use `sudo`
 
-# Build for specific platforms
-npm run electron:build:mac
-npm run electron:build:win
-npm run electron:build:linux
-```
+Need help? Check our [Knowledge Base](docs/knowledge-base.md) or open an issue on GitHub.
 
-Built apps will be in the `dist-electron` directory.
+## 📚 Documentation
 
-## 📋 Package.json Scripts
+For users:
+- [Knowledge Base](docs/knowledge-base.md)
+- [Theming Guide](docs/theming.md)
 
-Add these scripts to your `package.json`:
+For developers:
+- [Technical Overview](docs/technical-overview.md)
+- [Development Guide](docs/development.md)
+- [Plugin Development](docs/plugin-development.md)
+- [API Reference](docs/api-reference.md)
 
-```json
-{
-  "scripts": {
-    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:8080 && electron electron/main.js\"",
-    "electron:build": "electron-builder",
-    "electron:build:mac": "electron-builder --mac",
-    "electron:build:win": "electron-builder --win",
-    "electron:build:linux": "electron-builder --linux"
-  }
-}
-```
+## 🛠️ Built With
 
-## 🏗️ Platform Abstraction
-
-The application uses a platform adapter pattern to handle differences between web and desktop:
-
-### Web Platform Features
-- Browser notifications (with permission)
-- File download/upload via HTML5 APIs
-- External links open in new tabs
-
-### Desktop Platform Features  
-- Native system notifications
-- Native file dialogs for save/open
-- External links open in default browser
-- Better file system access
-
-### Shared Interface
-
-```typescript
-interface PlatformAdapter {
-  getConfig(): AppConfig;
-  showNotification(title: string, body: string): void;
-  openExternal(url: string): void;
-  saveFile(data: string, filename: string): Promise<void>;
-  readFile(): Promise<string | null>;
-}
-```
-
-## 🔧 Development
-
-### Project Structure
-
-```
-src/
-├── adapters/          # Platform-specific implementations
-├── components/        # Shared React components  
-├── hooks/            # Custom React hooks
-├── services/         # Business logic and API layer
-├── types/            # TypeScript interfaces
-└── pages/            # Application pages
-
-electron/
-├── main.js           # Electron main process
-└── preload.js        # Secure IPC bridge
-```
-
-### Adding New Features
-
-1. **Platform-agnostic features**: Add to shared components and services
-2. **Platform-specific features**: Extend the platform adapters
-3. **New pages**: Add to both routing and navigation
-
-### Environment Variables
-
-Create `.env` files for different environments:
-
-```bash
-# .env.development
-REACT_APP_API_URL=http://localhost:3001
-
-# .env.production  
-REACT_APP_API_URL=https://your-api.com
-```
-
-## 📱 Mobile Support
-
-While this focuses on web and desktop, the responsive design works well on mobile browsers. For native mobile apps, consider extending the platform adapter pattern with Capacitor.
-
-## 🔒 Security
-
-The Electron app follows security best practices:
-- Context isolation enabled
-- Node integration disabled  
-- Secure IPC communication via preload script
-- External content restrictions
+- Electron
+- React
+- TypeScript
+- TailwindCSS
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test on both web and desktop
-5. Submit a pull request
+We welcome contributions! Whether you're fixing bugs, adding features, or improving documentation, please check out our [Development Guide](docs/development.md) to get started.
 
 ## 📄 License
 
-MIT License - feel free to use this architecture for your own projects!
-
-## 🆘 Troubleshooting
-
-### Common Issues
-
-**Electron app won't start in development:**
-- Ensure the web dev server is running first
-- Check that port 8080 is available
-
-**Build failures:**
-- Clear `node_modules` and reinstall
-- Ensure all dependencies are compatible
-
-**Platform adapter not working:**
-- Check that the correct adapter is being instantiated
-- Verify IPC handlers are registered in main.js
-
-### Getting Help
-
-- Check the console for error messages
-- Ensure all dependencies are installed correctly
-- Test the web version first to isolate issues
-
-## 🚀 Deployment
-
-### Web App
-Deploy the built web app to any static hosting service (Vercel, Netlify, etc.)
-
-### Desktop App
-Distribute the built Electron apps via:
-- Direct download from your website
-- App stores (Mac App Store, Microsoft Store)
-- Package managers (Homebrew, Chocolatey)
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ---
 
-This architecture provides a solid foundation for building cross-platform applications that share code while leveraging platform-specific capabilities where needed.
+ChayCards is an open-source project focused on making knowledge work more effective and enjoyable. While we're proud of our core features, the real power lies in the platform's extensibility - enabling the community to build and share tools that make digital work better for everyone.
