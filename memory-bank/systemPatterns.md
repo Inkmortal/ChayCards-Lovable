@@ -19,20 +19,20 @@
 └─────────────────────────────────────────────────┘
 ```
 
-### Plugin Architecture
+### Plugin Architecture (Simplified)
 ```
 ┌─────────────────────────────────────┐
-│          Plugin Host                 │
-│    (Loads and manages plugins)       │
+│        Plugin Manager                │
+│    (Singleton, holds registry)       │
 ├─────────────────────────────────────┤
-│          Event Bus                   │
-│   (Inter-plugin communication)       │
+│        Plugin Registry               │
+│   (Maps: components, services)       │
 ├─────────────────────────────────────┤
-│      Plugin API Surface              │
-│   (What plugins can access)          │
+│        Plugin Loader                 │
+│   (Dependency resolution)            │
 ├─────────────────────────────────────┤
-│         Plugin Sandbox               │
-│    (Isolated execution context)      │
+│         Plugin Host                  │
+│    (Dynamic component rendering)     │
 └─────────────────────────────────────┘
 ```
 
@@ -44,9 +44,9 @@
 - **Benefits**: 95% code reuse, consistent behavior
 
 ### 2. Plugin System Design
-- **Decision**: Everything is a plugin (documents, tasks, knowledge)
-- **Implementation**: Event-driven communication, sandboxed execution
-- **Benefits**: Extensible, maintainable, community-friendly
+- **Decision**: Everything is a plugin, game-mod style freedom
+- **Implementation**: Simple registry-based, no sandboxing
+- **Benefits**: Maximum flexibility, easy to understand, powerful
 
 ### 3. Storage Architecture
 - **Decision**: Abstract storage interface
@@ -60,36 +60,40 @@
 
 ## Design Patterns in Use
 
-### Operation Pattern
+### Plugin Registry Pattern
 ```typescript
-interface Operation<T> {
-  validate(): Promise<ValidationResult>
-  detectConflicts(): Promise<ConflictResult>
-  execute(): Promise<T>
-  rollback?(): Promise<void>
+class PluginRegistry {
+  components = new Map<string, React.ComponentType>()
+  services = new Map<string, any>()
+  
+  getComponent(name: string) { return this.components.get(name) }
+  setComponent(name: string, component: React.ComponentType) { 
+    this.components.set(name, component) 
+  }
 }
 ```
-Every data mutation follows this pattern for consistency and error handling.
+Simple Map-based storage for all plugin assets.
 
-### Storage Adapter Pattern
+### Component Namespacing
 ```typescript
-interface IStorage {
-  get<T>(collection: string, id: string): Promise<T>
-  set<T>(collection: string, data: T): Promise<void>
-  query<T>(collection: string, filter: any): Promise<T[]>
-}
+// Components registered with plugin prefix
+registry.setComponent('core.documents/DocumentCard', DocumentCard)
+registry.setComponent('ai-enhance/DocumentCard', EnhancedCard)
+
+// No collisions, clear ownership
 ```
-Allows swapping storage backends without changing application code.
 
-### Event-Driven Plugin Communication
+### Plugin Enhancement Pattern
 ```typescript
-// Plugin A emits
-eventBus.emit('document:created', { id, title })
-
-// Plugin B listens
-eventBus.on('document:created', (data) => {
-  // React to document creation
-})
+// Get original, wrap it, replace it
+const Original = registry.getComponent('core.documents/DocumentCard')
+const Enhanced = (props) => (
+  <>
+    <AIFeatures {...props} />
+    <Original {...props} />
+  </>
+)
+registry.setComponent('core.documents/DocumentCard', Enhanced)
 ```
 
 ### Platform Service Pattern
@@ -104,11 +108,13 @@ adapter.showNotification(title, body)
 
 ### Core Dependencies
 ```
+AppShell → PluginManager → PluginRegistry
+                        ↓
+                    Plugins register components/services
+                        ↓
+PluginHost → Resolves and renders components
+
 PlatformService → PlatformAdapter → (ElectronAdapter | WebAdapter)
-                                   ↓
-Express Server → IStorage → (LocalStorage | CloudStorage)
-                           ↓
-Plugin System → EventBus → Plugins
 ```
 
 ### Data Flow
@@ -122,13 +128,15 @@ Plugin System → EventBus → Plugins
 ## Critical Implementation Paths
 
 ### Plugin Loading Sequence
-1. Read plugin manifest
-2. Validate permissions
-3. Create sandboxed context
-4. Load plugin bundle
-5. Initialize plugin with API
-6. Register event listeners
-7. Add to plugin registry
+1. Import plugin modules
+2. Sort by dependencies
+3. For each plugin:
+   - Register components with namespace
+   - Register services with namespace
+   - Register routes
+   - Call onLoad(registry)
+4. Build navigation from all plugins
+5. Ready for rendering
 
 ### Storage Operation Flow
 1. Receive request at API endpoint
@@ -152,14 +160,14 @@ const adapter = isElectron
 
 ## Security Considerations
 
-### Plugin Sandboxing
-- Plugins run in isolated contexts
-- Limited API surface exposure
-- Permission-based access control
-- No direct file system access
+### Plugin Trust Model
+- No sandboxing - full trust like game mods
+- Plugins can modify anything
+- Users responsible for what they install
+- Version compatibility in manifests
 
-### Data Security
-- Local: Encrypted SQLite database
-- Cloud: TLS + encryption at rest
-- API: JWT authentication
-- Plugins: Signed bundles only
+### Future Security (When Needed)
+- Plugin signing for marketplace
+- Basic permission declarations
+- User consent for sensitive operations
+- But start simple - no restrictions

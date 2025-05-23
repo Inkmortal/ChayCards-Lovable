@@ -1,132 +1,98 @@
-# Plugins Directory
+# Plugins - AI Context
 
-## Purpose
-This directory contains the source code for ChayCards' built-in plugins. These plugins are developed and maintained by the core team but follow the same architecture as community plugins.
-
-## Built-in Plugins
-- `documents/` - Document management (notes, markdown, rich text)
-- `tasks/` - Task and project management
-- `knowledge/` - Spaced repetition and learning
+## What This Is
+ALL features live here as plugins. Every feature = a plugin. No exceptions.
 
 ## Plugin Structure
-Each plugin follows this structure:
 ```
 plugin-name/
-├── manifest.json      # Plugin metadata
-├── index.ts          # Entry point
-├── components/       # React components
-├── api/             # API routes (if any)
-├── types/           # TypeScript types
-└── README.md        # Documentation
+├── components/       # UI components
+├── services/        # Business logic
+├── hooks/          # Custom hooks
+├── types.ts        # TypeScript types
+└── index.ts        # Plugin definition
 ```
 
-## Plugin Manifest
-```json
-{
-  "id": "documents",
-  "name": "Documents",
-  "version": "1.0.0",
-  "description": "Document management plugin",
-  "permissions": [
-    "storage:read",
-    "storage:write",
-    "events:emit"
-  ],
-  "extensionPoints": {
-    "documentTypes": {
-      "description": "Register new document types"
-    }
-  },
-  "dependencies": {}
-}
-```
+## Core Plugins (Built-in)
+- `core-ui/` - Shared UI components (Card, PageHeader, etc.)
+- `core-documents/` - Document management
+- `core-tasks/` - Task management
+- `core-knowledge/` - Flashcards & learning
 
-## Key Patterns
-
-### Plugin API Usage
-Plugins can only use the exposed Plugin API:
+## Plugin Definition Pattern
 ```typescript
-export default class DocumentsPlugin {
-  constructor(private api: PluginAPI) {}
+// index.ts
+export const MyPlugin: Plugin = {
+  id: 'my-plugin',
+  name: 'My Plugin',
+  requires: ['core.ui'],  // Dependencies
   
-  async onLoad() {
-    // Register routes
-    this.api.registerRoute('/documents', documentRoutes)
-    
-    // Listen to events
-    this.api.events.on('app:ready', this.initialize)
-    
-    // Store data
-    await this.api.storage.set('config', defaultConfig)
-  }
+  components: {
+    'MyList': MyList,  // Registry name: 'my-plugin/MyList'
+    'MyCard': MyCard   // Registry name: 'my-plugin/MyCard'
+  },
+  
+  services: {
+    'myService': new MyService()
+  },
+  
+  routes: [{
+    path: '/my-feature',
+    component: 'my-plugin/MyList',  // Full namespaced name!
+    label: 'My Feature',
+    icon: 'Star'
+  }]
 }
 ```
 
-### Inter-Plugin Communication
+## Using Other Plugins
 ```typescript
-// Emit events
-this.api.events.emit('document:created', { id, title })
+// Always use core.ui for visual consistency
+const ui = usePlugin('core.ui');
+const Card = ui.getComponent('Card');
+const PageHeader = ui.getComponent('PageHeader');
 
-// Call other plugins
-const tasks = await this.api.plugins.call('tasks.getTasks', { 
-  documentId: doc.id 
-})
+// Access other plugins (namespaced)
+const DocCard = usePlugin().getComponent('core.documents/DocumentCard');
 ```
 
-### Extension Points
-```typescript
-// Define extension point
-this.api.extensions.define('documentTypes', {
-  register: (type: DocumentType) => {
-    this.documentTypes.set(type.id, type)
-  }
-})
+## Critical Rules
+1. **RECOMMENDED** use core.ui components for consistency (but not required)
+2. **NEVER** import directly from other plugins
+3. Components auto-namespaced: 'plugin-id/ComponentName'
+4. Declare dependencies in 'requires' array
+5. Services also namespaced: 'plugin-id/serviceName'
 
-// Other plugins extend
-api.extensions.extend('documents.documentTypes', {
-  id: 'markdown',
-  name: 'Markdown Document',
-  component: MarkdownEditor
-})
+## Component Pattern
+```typescript
+// components/MyList.tsx
+export const MyList = () => {
+  // Get UI components
+  const ui = usePlugin('core.ui');
+  const PageHeader = ui.getComponent('PageHeader');
+  const Card = ui.getComponent('Card');
+  const EmptyState = ui.getComponent('EmptyState');
+  
+  // Get own service
+  const { getService } = usePlugin('my-plugin');
+  const myService = getService('myService');
+  
+  return (
+    <>
+      <PageHeader title="My Feature" />
+      {items.length === 0 ? (
+        <EmptyState title="No items yet" />
+      ) : (
+        items.map(item => <Card key={item.id}>{item.name}</Card>)
+      )}
+    </>
+  );
+};
 ```
 
-## Important Notes
-
-### Development Guidelines
-- Built-in plugins follow the SAME rules as community plugins
-- No special access or privileges
-- Must use Plugin API only
-- Serve as examples for community
-
-### Testing Approach
-- Test as if external plugin
-- Mock the Plugin API
-- Test in isolation
-- Verify permissions
-
-### Distribution
-- Built-in plugins are bundled with app
-- Still loaded through plugin system
-- Can be disabled by users
-- Updates with app updates
-
-## Common Tasks
-
-### Creating a Built-in Plugin
-1. Create directory structure
-2. Write manifest.json
-3. Implement plugin class
-4. Register with plugin system
-5. Add tests
-
-### Adding Features
-1. Check if it needs new permissions
-2. Update manifest if needed
-3. Use only Plugin API
-4. Emit events for others
-
-### Debugging
-- Use plugin dev tools
-- Check permission errors
-- Verify event flow
-- Test in isolation
+## Quick Start New Plugin
+1. Create: `src/plugins/my-feature/`
+2. Add index.ts with Plugin export
+3. Import & use core.ui components
+4. Register in main.tsx plugin loader
+5. Plugin auto-provides navigation & routes

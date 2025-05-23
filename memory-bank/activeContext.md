@@ -3,43 +3,51 @@
 ## Current Work Focus
 
 We are building the foundation architecture for ChayCards with a focus on:
-1. Setting up dual-platform support (Electron + Web)
-2. Creating the plugin system infrastructure
-3. Implementing shared backend architecture
+1. ~~Setting up dual-platform support (Electron + Web)~~ ✅ Complete
+2. Creating the plugin system infrastructure - **IN PROGRESS**
+3. Building the frontend with plugin architecture
 
 ## Recent Changes
 
-### Architecture Decisions (May 22, 2025)
-- Moved from Lovable's task manager demo to clean ChayCards foundation
-- Implemented Electron-first folder structure with shared code
-- Set up platform detection (Electron vs Web)
-- Created complete directory structure for future features
+### Plugin System Design (May 23, 2025)
+- Analyzed original ChayCards codebase for reusable patterns
+- Designed game-mod inspired plugin system (simple, powerful)
+- Created comprehensive plugin documentation
+- Established frontend architecture where EVERYTHING is a plugin
 
-### Key Refactoring
-- Removed Bun dependency, standardized on npm
-- Cleaned up Lovable boilerplate code
-- Moved shared code to `src/shared/` directory
-- Fixed ES modules vs CommonJS issues for Electron
+### Frontend Architecture Decisions
+- **Plugin-First**: All features are plugins, including core functionality
+- **Component Registry**: Dynamic component resolution with namespacing
+- **No Direct Imports**: Plugins communicate through registry only
+- **Optional Core UI**: Shared components available but not required
+- **Simple Over Safe**: Like game mods - freedom over protection
+
+### Documentation Created
+- `/memory-bank/docs/PLUGIN_SYSTEM.md` - Complete plugin architecture
+- `/memory-bank/docs/FRONTEND_ARCHITECTURE.md` - Frontend patterns
+- CLAUDE.md files in key directories for AI guidance
 
 ## Next Steps
 
 ### Immediate (High Priority)
-1. Implement Express server that runs both locally and in cloud
-2. Create storage abstraction layer (IStorage interface)
-3. Build basic plugin loading system
-4. Test cross-platform functionality
+1. Implement basic AppShell with plugin loading
+2. Create PluginRegistry and PluginManager
+3. Build core.ui plugin with shared components
+4. Implement PluginHost for dynamic rendering
+5. Create usePlugin hook for easy access
 
 ### Short Term
-1. Implement first built-in plugin (documents)
-2. Create plugin API surface
-3. Set up inter-plugin communication
-4. Build plugin permission system
+1. Build core.documents plugin with localStorage
+2. Create core.tasks plugin
+3. Implement plugin navigation integration
+4. Add theme system with toggle
+5. Test plugin enhancement/wrapping
 
 ### Medium Term
-1. Cloud deployment setup
-2. Plugin marketplace infrastructure
-3. User authentication system
-4. Data synchronization
+1. Backend API with Express
+2. Storage abstraction (IStorage)
+3. Plugin marketplace infrastructure
+4. Cloud deployment setup
 
 ## Active Decisions and Considerations
 
@@ -51,10 +59,11 @@ We are building the foundation architecture for ChayCards with a focus on:
 - **Storage**: SQLite (local) / PostgreSQL (cloud) with same interface
 
 ### Architecture Patterns
-- **Operation System**: Validate → Conflict Detection → Execute pattern
-- **Storage Abstraction**: Interface-based for platform flexibility
-- **Plugin Communication**: Event-driven via EventBus
+- **Plugin System**: Simple registry-based, like game mods
+- **Component Namespacing**: `plugin-id/ComponentName` prevents collisions
+- **Dynamic Resolution**: Components resolved at runtime from registry
 - **Platform Detection**: Runtime detection, not build-time
+- **Frontend-First**: Build UI with mocks, add backend later
 
 ## Important Patterns and Preferences
 
@@ -75,5 +84,7 @@ We are building the foundation architecture for ChayCards with a focus on:
 1. **Lovable Compatibility**: Must keep gptengineer.js script and lovable-tagger
 2. **WSL vs Windows**: Node modules installed in one environment won't work in the other
 3. **ES Modules**: Package.json "type": "module" affects all .js files
-4. **Plugin Architecture**: Community plugins should be pre-compiled bundles, not source
-5. **Storage Scaling**: Share plugin bundles via CDN, not duplicate per user
+4. **Plugin Architecture**: Simple is better - like game mods, not enterprise
+5. **Theme System**: Original project has excellent CSS variable-based theming
+6. **Frontend Approach**: Everything is a plugin from the start, no migration needed
+7. **Component Sharing**: Optional core.ui plugin provides consistency without forcing it

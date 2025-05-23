@@ -23,6 +23,13 @@
 - TailwindCSS styling functional
 - Path aliases configured (`@/`)
 
+### ✅ Plugin Architecture Design
+- Comprehensive plugin system documented
+- Frontend architecture defined
+- Component registry pattern established
+- Game-mod inspired approach chosen
+- CLAUDE.md files created for AI guidance
+
 ## What's Left to Build
 
 ### 🔲 Backend Infrastructure
@@ -32,19 +39,20 @@
 - [ ] Cloud storage implementation (PostgreSQL)
 - [ ] API route structure
 
-### 🔲 Plugin System
-- [ ] Plugin loader implementation
-- [ ] Plugin API definition
-- [ ] Event bus for communication
-- [ ] Plugin manifest schema
-- [ ] Sandboxing mechanism
-- [ ] Permission system
+### 🔲 Plugin System Implementation
+- [ ] PluginRegistry class (Map-based)
+- [ ] PluginManager singleton
+- [ ] PluginLoader with dependency resolution
+- [ ] PluginHost component for rendering
+- [ ] usePlugin React hook
+- [ ] Component namespacing system
 
 ### 🔲 Built-in Plugins
-- [ ] Documents plugin
-- [ ] Tasks plugin  
-- [ ] Knowledge/Learning plugin
-- [ ] Search plugin
+- [ ] core.ui plugin (shared components)
+- [ ] core.documents plugin (with localStorage)
+- [ ] core.tasks plugin  
+- [ ] core.knowledge plugin (flashcards)
+- [ ] Theme toggle functionality
 
 ### 🔲 Core Features
 - [ ] User authentication
@@ -63,11 +71,12 @@
 ## Current Status
 
 ### Development Phase
-We are in the **Foundation Building** phase:
+We are in the **Plugin Architecture** phase:
 - ✅ Structure defined
 - ✅ Basic app running
-- 🟡 Backend in progress
-- ⚪ Features not started
+- ✅ Plugin system designed
+- 🟡 Frontend implementation starting
+- ⚪ Backend postponed (frontend-first approach)
 
 ### Technical Debt
 - None yet (clean foundation)
@@ -103,27 +112,33 @@ We are in the **Foundation Building** phase:
 ### Key Learnings
 1. **Platform differences matter early** - Set up dual support from start
 2. **Plugin architecture needs planning** - Can't bolt it on later
-3. **Storage abstraction is critical** - Enables platform flexibility
-4. **Keep dependencies minimal** - Easier to maintain
+3. **Simple beats complex** - Game mod approach over enterprise patterns
+4. **Frontend-first works** - Build UI with mocks, add backend later
+5. **Theme system is solid** - Original CSS variable approach is excellent
+6. **Optional consistency** - core.ui provides shared components without forcing
 
 ## Next Milestones
 
-### Milestone 1: Working Backend (Current)
-- [ ] Express server running locally
-- [ ] Basic CRUD operations
-- [ ] Storage abstraction working
+### Milestone 1: Plugin Infrastructure (Current)
+- [ ] AppShell with dynamic navigation
+- [ ] PluginRegistry and PluginManager
+- [ ] PluginHost component working
+- [ ] usePlugin hook implemented
 
-### Milestone 2: Plugin System MVP
-- [ ] Load a simple plugin
-- [ ] Plugin can store/retrieve data
-- [ ] Basic permission checking
+### Milestone 2: Core UI Plugin
+- [ ] Basic shared components (Card, List, etc.)
+- [ ] PageHeader pattern
+- [ ] EmptyState component
+- [ ] Theme toggle in header
 
-### Milestone 3: First Built-in Plugin
-- [ ] Documents plugin functional
-- [ ] Create, read, update, delete docs
-- [ ] Basic UI for management
+### Milestone 3: Documents Plugin MVP
+- [ ] Document list view (grid/list)
+- [ ] Create/delete documents
+- [ ] Basic markdown editor
+- [ ] localStorage persistence
 
-### Milestone 4: Multi-plugin Demo
-- [ ] Two plugins communicating
-- [ ] Event system proven
-- [ ] UI showing multiple plugins
+### Milestone 4: Plugin Enhancement Demo
+- [ ] Second plugin enhancing documents
+- [ ] Component wrapping working
+- [ ] Navigation from multiple plugins
+- [ ] Theme persistence
