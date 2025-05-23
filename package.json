@@ -10,7 +10,9 @@
     "build": "vite build",
     "build:electron": "vite build && electron-builder",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:win": "node electron-win.js",
+    "setup:win": "cmd /c setup-windows.bat"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
