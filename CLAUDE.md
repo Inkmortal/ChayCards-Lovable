@@ -1,5 +1,6 @@
 # CLAUDE.md
 @memory-bank-instructions.md
+@notion.md
 
 ## Project: ChayCards
 

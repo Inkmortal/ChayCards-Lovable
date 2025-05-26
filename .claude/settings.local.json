@@ -8,7 +8,23 @@
       "Bash(rm:*)",
       "Bash(mv:*)",
       "Bash(ls:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:github.com)",
+      "mcp__notion__API-post-database-query",
+      "mcp__notion__API-get-block-children",
+      "mcp__notion__API-post-search",
+      "mcp__notion__API-update-a-database",
+      "mcp__notion__API-patch-page",
+      "mcp__notion__API-patch-block-children",
+      "mcp__notion__API-update-a-block",
+      "mcp__notion__API-retrieve-a-block",
+      "mcp__notion__API-post-page",
+      "mcp__notion__API-retrieve-a-database",
+      "mcp__notion__API-delete-a-block",
+      "mcp__puppeteer__puppeteer_navigate",
+      "mcp__puppeteer__puppeteer_screenshot",
+      "mcp__puppeteer__puppeteer_evaluate"
     ],
     "deny": []
   }
