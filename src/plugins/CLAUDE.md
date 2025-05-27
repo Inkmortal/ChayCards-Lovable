@@ -40,20 +40,28 @@ export const MyPlugin: Plugin = {
     path: '/my-feature',
     component: 'my-plugin/MyList',  // Full namespaced name!
     label: 'My Feature',
-    icon: 'Star'
+    icon: 'Star',
+    showInNav: true,
+    order: 50
   }]
 }
 ```
 
 ## Using Other Plugins
 ```typescript
-// Always use core.ui for visual consistency
-const ui = usePlugin('core.ui');
-const Card = ui.getComponent('Card');
-const PageHeader = ui.getComponent('PageHeader');
+// Components are always namespaced as 'plugin-id/ComponentName'
+const manager = PluginManager.getInstance();
 
-// Access other plugins (namespaced)
-const DocCard = usePlugin().getComponent('core.documents/DocumentCard');
+// Get core UI components
+const Card = manager.getComponent('core.ui/Card');
+const PageHeader = manager.getComponent('core.ui/PageHeader');
+
+// Get components from other plugins
+const DocCard = manager.getComponent('core.documents/DocumentCard');
+
+// Or use the usePlugin hook (wrapper around manager)
+const { getComponent } = usePlugin();
+const TaskList = getComponent('core.tasks/TaskList');
 ```
 
 ## Critical Rules
@@ -67,15 +75,15 @@ const DocCard = usePlugin().getComponent('core.documents/DocumentCard');
 ```typescript
 // components/MyList.tsx
 export const MyList = () => {
-  // Get UI components
-  const ui = usePlugin('core.ui');
-  const PageHeader = ui.getComponent('PageHeader');
-  const Card = ui.getComponent('Card');
-  const EmptyState = ui.getComponent('EmptyState');
+  const manager = PluginManager.getInstance();
   
-  // Get own service
-  const { getService } = usePlugin('my-plugin');
-  const myService = getService('myService');
+  // Get UI components (always use full namespace)
+  const PageHeader = manager.getComponent('core.ui/PageHeader');
+  const Card = manager.getComponent('core.ui/Card');
+  const EmptyState = manager.getComponent('core.ui/EmptyState');
+  
+  // Get own service (also namespaced)
+  const myService = manager.getService('my-plugin/myService');
   
   return (
     <>

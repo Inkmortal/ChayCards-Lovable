@@ -10,7 +10,7 @@ Simple game-mod style system where plugins can replace/wrap ANY component or ser
 
 ### PluginRegistry.ts
 ```typescript
-// Central registry - just Maps
+// Low-level storage - just Maps
 class PluginRegistry {
   components = new Map<string, React.ComponentType>()
   services = new Map<string, any>()
@@ -19,6 +19,30 @@ class PluginRegistry {
   getComponent(name: string) { return this.components.get(name) }
   setComponent(name: string, component: React.ComponentType) { this.components.set(name, component) }
   // ... same for services, routes
+}
+```
+
+### PluginManager.ts
+```typescript
+// High-level API and orchestrator
+class PluginManager {
+  private registry = new PluginRegistry()
+  private navigationItems: NavigationItem[] = []
+  private regions = new Map<string, RegionComponent[]>()
+  
+  static getInstance() { /* singleton */ }
+  
+  // Navigation management
+  addNavigationItem(item) { /* sort by order */ }
+  getNavigationItems() { return [...this.navigationItems] }
+  
+  // Region management for AppShell
+  addToRegion(region, component) { /* add and sort */ }
+  getRegionComponents(region) { return this.regions.get(region) || [] }
+  
+  // Delegate to registry
+  getComponent(name) { return this.registry.getComponent(name) }
+  setComponent(name, comp) { this.registry.setComponent(name, comp) }
 }
 ```
 
@@ -46,10 +70,11 @@ interface Plugin {
 ```
 
 ## How Plugins Work
-1. Plugin gets registry in `onLoad`
-2. Plugin can `getComponent('DocumentCard')` to get original
-3. Plugin can `setComponent('DocumentCard', Enhanced)` to replace
-4. Last plugin loaded wins
+1. Plugin gets PluginManager in `onLoad`
+2. Plugin can `getComponent('core.documents/DocumentCard')` to get original
+3. Plugin can `setComponent('core.documents/DocumentCard', Enhanced)` to replace
+4. Plugin can add navigation items, region components, etc.
+5. Last plugin loaded wins
 
 ## Important Patterns
 - **No safety rails** - plugins can break things (like game mods)
@@ -63,15 +88,15 @@ interface Plugin {
 export const AIPlugin: Plugin = {
   id: 'ai-enhance',
   requires: ['core.documents'],
-  onLoad: (registry) => {
-    const Original = registry.getComponent('DocumentCard')
+  onLoad: (manager) => {
+    const Original = manager.getComponent('core.documents/DocumentCard')
     const Enhanced = (props) => (
       <>
         <AITags doc={props.doc} />
         <Original {...props} />
       </>
     )
-    registry.setComponent('DocumentCard', Enhanced)
+    manager.setComponent('core.documents/DocumentCard', Enhanced)
   }
 }
 ```

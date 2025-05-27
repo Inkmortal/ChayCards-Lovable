@@ -1,6 +1,7 @@
 # CLAUDE.md
 @memory-bank-instructions.md
 @notion.md
+@puppeteer.md
 
 ## Project: ChayCards
 

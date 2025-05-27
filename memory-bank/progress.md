@@ -29,6 +29,13 @@
 - Component registry pattern established
 - Game-mod inspired approach chosen
 - CLAUDE.md files created for AI guidance
+- AppShell architecture designed with regions
+- Theme system designed as plugin pattern
+
+### ✅ Development Tools Integration
+- Notion MCP integrated for task tracking
+- Puppeteer MCP integrated for frontend testing
+- Documentation created for MCP usage
 
 ## What's Left to Build
 
@@ -40,19 +47,21 @@
 - [ ] API route structure
 
 ### 🔲 Plugin System Implementation
+- [ ] AppShell with region support - **NEXT TASK**
 - [ ] PluginRegistry class (Map-based)
-- [ ] PluginManager singleton
+- [ ] PluginManager singleton with region management
 - [ ] PluginLoader with dependency resolution
-- [ ] PluginHost component for rendering
+- [x] PluginHost component exists (needs region integration)
 - [ ] usePlugin React hook
 - [ ] Component namespacing system
 
 ### 🔲 Built-in Plugins
-- [ ] core.ui plugin (shared components)
+- [ ] theme-system plugin (base theme infrastructure)
+- [ ] chay-themes plugin (pink aesthetic themes)
+- [ ] core.ui plugin (depends on theme-system)
 - [ ] core.documents plugin (with localStorage)
 - [ ] core.tasks plugin  
 - [ ] core.knowledge plugin (flashcards)
-- [ ] Theme toggle functionality
 
 ### 🔲 Core Features
 - [ ] User authentication
@@ -71,12 +80,20 @@
 ## Current Status
 
 ### Development Phase
-We are in the **Plugin Architecture** phase:
+We are in the **Plugin System Implementation** phase:
 - ✅ Structure defined
 - ✅ Basic app running
 - ✅ Plugin system designed
-- 🟡 Frontend implementation starting
+- ✅ AppShell architecture planned
+- 🟡 AppShell implementation next
+- 🟡 Frontend implementation in progress
 - ⚪ Backend postponed (frontend-first approach)
+
+### Active Tasks (from Notion)
+1. **Implement AppShell with plugin loading** (High Priority - Not Started)
+2. **Create PluginRegistry and PluginManager** (High Priority - Not Started)
+3. **Implement Theme System** (High Priority - Not Started, depends on AppShell)
+4. **Build core.ui plugin** (High Priority - Not Started, depends on Theme System)
 
 ### Technical Debt
 - None yet (clean foundation)
@@ -116,20 +133,29 @@ We are in the **Plugin Architecture** phase:
 4. **Frontend-first works** - Build UI with mocks, add backend later
 5. **Theme system is solid** - Original CSS variable approach is excellent
 6. **Optional consistency** - core.ui provides shared components without forcing
+7. **Everything is a plugin** - Even themes are plugins that can enhance each other
+8. **AppShell stays minimal** - Just layout, no features or business logic
 
 ## Next Milestones
 
 ### Milestone 1: Plugin Infrastructure (Current)
-- [ ] AppShell with dynamic navigation
+- [ ] AppShell with region support
 - [ ] PluginRegistry and PluginManager
-- [ ] PluginHost component working
+- [ ] Region component management
+- [ ] Plugin dependency resolution
 - [ ] usePlugin hook implemented
 
-### Milestone 2: Core UI Plugin
+### Milestone 2: Theme System
+- [ ] theme-system plugin with base variables
+- [ ] ThemeProvider wrapper
+- [ ] chay-themes plugin with pink aesthetic
+- [ ] Theme persistence in localStorage
+
+### Milestone 3: Core UI Plugin  
 - [ ] Basic shared components (Card, List, etc.)
 - [ ] PageHeader pattern
 - [ ] EmptyState component
-- [ ] Theme toggle in header
+- [ ] Depends on theme system
 
 ### Milestone 3: Documents Plugin MVP
 - [ ] Document list view (grid/list)

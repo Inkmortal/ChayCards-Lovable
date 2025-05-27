@@ -22,6 +22,9 @@
 ### Plugin Architecture (Simplified)
 ```
 ┌─────────────────────────────────────┐
+│          AppShell                    │
+│    (Minimal layout with regions)     │
+├─────────────────────────────────────┤
 │        Plugin Manager                │
 │    (Singleton, holds registry)       │
 ├─────────────────────────────────────┤
@@ -34,6 +37,18 @@
 │         Plugin Host                  │
 │    (Dynamic component rendering)     │
 └─────────────────────────────────────┘
+```
+
+### AppShell Architecture
+```
+AppShell (minimal stage)
+├── Header Region
+├── Sidebar Region (with navigation)
+├── Main Region (routes)
+└── Footer Region
+
+Each region can host plugin components
+Theme is provided by a plugin, not AppShell
 ```
 
 ## Key Technical Decisions
@@ -57,6 +72,12 @@
 - **Decision**: Same Express server runs locally and in cloud
 - **Implementation**: Storage adapter injection
 - **Benefits**: Consistent API, reduced complexity
+
+### 5. Theme System as Plugin
+- **Decision**: Themes are plugins, not built into core
+- **Implementation**: Theme plugin wraps AppShell, provides CSS variables
+- **Benefits**: Themes can be enhanced by other plugins, fully replaceable
+- **Pattern**: Base theme provides guaranteed variables, enhancement plugins add more
 
 ## Design Patterns in Use
 
@@ -109,10 +130,14 @@ adapter.showNotification(title, body)
 ### Core Dependencies
 ```
 AppShell → PluginManager → PluginRegistry
-                        ↓
-                    Plugins register components/services
-                        ↓
+    ↓                   ↓
+Provides regions    Plugins register components/services
+    ↓                   ↓
 PluginHost → Resolves and renders components
+
+Theme Plugin → Wraps AppShell → Provides theme context
+                             ↓
+                    Other plugins access theme
 
 PlatformService → PlatformAdapter → (ElectronAdapter | WebAdapter)
 ```
