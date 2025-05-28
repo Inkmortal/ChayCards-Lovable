@@ -8,29 +8,28 @@ Simple game-mod style system where plugins can replace/wrap ANY component or ser
 
 ## Core Components You'll Implement Here
 
-### PluginRegistry.ts
-```typescript
-// Low-level storage - just Maps
-class PluginRegistry {
-  components = new Map<string, React.ComponentType>()
-  services = new Map<string, any>()
-  routes = new Map<string, Route>()
-  
-  getComponent(name: string) { return this.components.get(name) }
-  setComponent(name: string, component: React.ComponentType) { this.components.set(name, component) }
-  // ... same for services, routes
-}
-```
-
 ### PluginManager.ts
 ```typescript
-// High-level API and orchestrator
+// Single class handles everything - no separate Registry
 class PluginManager {
-  private registry = new PluginRegistry()
+  // Storage
+  private components = new Map<string, React.ComponentType>()
+  private services = new Map<string, any>()
+  private routes = new Map<string, Route>()
+  
+  // Plugin management
+  private eventBus = new EventBus()
   private navigationItems: NavigationItem[] = []
   private regions = new Map<string, RegionComponent[]>()
   
   static getInstance() { /* singleton */ }
+  
+  // Component/Service access
+  getComponent(name) { return this.components.get(name) }
+  setComponent(name, comp) { 
+    this.components.set(name, comp)
+    this.eventBus.emit('component:registered', { name })
+  }
   
   // Navigation management
   addNavigationItem(item) { /* sort by order */ }
@@ -40,20 +39,19 @@ class PluginManager {
   addToRegion(region, component) { /* add and sort */ }
   getRegionComponents(region) { return this.regions.get(region) || [] }
   
-  // Delegate to registry
-  getComponent(name) { return this.registry.getComponent(name) }
-  setComponent(name, comp) { this.registry.setComponent(name, comp) }
+  // Event bus access
+  getEventBus() { return this.eventBus }
 }
 ```
 
 ### PluginLoader.ts
 ```typescript
 // Loads plugins in dependency order
-function loadPlugins(plugins: Plugin[]): PluginRegistry {
+function loadPlugins(plugins: Plugin[]): void {
+  const manager = PluginManager.getInstance()
   // 1. Resolve dependencies
   // 2. Load in order
-  // 3. Call each plugin's onLoad(registry)
-  // 4. Return populated registry
+  // 3. Call each plugin's onLoad(manager)
 }
 ```
 
@@ -65,7 +63,7 @@ interface Plugin {
   components?: Record<string, React.ComponentType>
   services?: Record<string, any>
   routes?: Route[]
-  onLoad?: (registry: PluginRegistry) => void
+  onLoad?: (manager: PluginManager) => void
 }
 ```
 
@@ -104,18 +102,19 @@ export const AIPlugin: Plugin = {
 ## File Structure Here
 ```
 plugin-system/
-  PluginRegistry.ts    # The Map-based registry
-  PluginLoader.ts      # Dependency resolution & loading
-  PluginManager.ts     # High-level API (singleton)
+  PluginManager.ts     # Everything - storage, loading, events (singleton)
+  PluginLoader.ts      # Dependency resolution & dynamic imports
+  EventBus.ts          # Simple pub/sub implementation
   types.ts             # Plugin interface & types
   index.ts             # Public exports
 ```
 
 ## Key Decisions
+- No separate Registry class - PluginManager handles everything
 - No hooks/slots/extension points - just replace components
 - No version checking in code - manifest handles compatibility  
 - No plugin sandboxing - full trust model
-- Global registry accessible everywhere via PluginManager.getInstance()
+- Global access via PluginManager.getInstance()
 
 ## Related
 - Actual plugins live in `/src/plugins/`

@@ -31,6 +31,9 @@
 - CLAUDE.md files created for AI guidance
 - AppShell architecture designed with regions
 - Theme system designed as plugin pattern
+- PluginRegistry merged into PluginManager for simplicity
+- Plugin communication patterns established (EventBus + services)
+- EVENT_BUS_ARCHITECTURE.md documented
 
 ### ✅ Development Tools Integration
 - Notion MCP integrated for task tracking
@@ -47,9 +50,9 @@
 - [ ] API route structure
 
 ### 🔲 Plugin System Implementation
-- [ ] AppShell with region support - **NEXT TASK**
-- [ ] PluginRegistry class (Map-based)
-- [ ] PluginManager singleton with region management
+- [ ] AppShell with region support - **READY TO IMPLEMENT**
+- [ ] PluginManager singleton (includes registry, regions, EventBus) - **READY TO IMPLEMENT**
+- [ ] EventBus for async communication - **READY TO IMPLEMENT**
 - [ ] PluginLoader with dependency resolution
 - [x] PluginHost component exists (needs region integration)
 - [ ] usePlugin React hook
@@ -85,8 +88,9 @@ We are in the **Plugin System Implementation** phase:
 - ✅ Basic app running
 - ✅ Plugin system designed
 - ✅ AppShell architecture planned
-- 🟡 AppShell implementation next
-- 🟡 Frontend implementation in progress
+- ✅ Documentation phase complete
+- 🟡 Implementation phase starting
+- 🟡 AppShell, PluginManager, EventBus ready to code
 - ⚪ Backend postponed (frontend-first approach)
 
 ### Active Tasks (from Notion)

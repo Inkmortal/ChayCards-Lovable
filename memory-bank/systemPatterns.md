@@ -26,13 +26,11 @@
 │    (Minimal layout with regions)     │
 ├─────────────────────────────────────┤
 │        Plugin Manager                │
-│    (Singleton, holds registry)       │
-├─────────────────────────────────────┤
-│        Plugin Registry               │
-│   (Maps: components, services)       │
-├─────────────────────────────────────┤
-│        Plugin Loader                 │
-│   (Dependency resolution)            │
+│  (Singleton, handles everything)     │
+│  - Storage (components, services)    │
+│  - Plugin loading & dependencies     │
+│  - Navigation & regions              │
+│  - Event bus                         │
 ├─────────────────────────────────────┤
 │         Plugin Host                  │
 │    (Dynamic component rendering)     │
@@ -81,25 +79,28 @@ Theme is provided by a plugin, not AppShell
 
 ## Design Patterns in Use
 
-### Plugin Registry Pattern
+### Plugin Manager Pattern
 ```typescript
-class PluginRegistry {
-  components = new Map<string, React.ComponentType>()
-  services = new Map<string, any>()
+class PluginManager {
+  private components = new Map<string, React.ComponentType>()
+  private services = new Map<string, any>()
+  private eventBus = new EventBus()
   
+  // Direct access to storage, plus business logic
   getComponent(name: string) { return this.components.get(name) }
   setComponent(name: string, component: React.ComponentType) { 
-    this.components.set(name, component) 
+    this.components.set(name, component)
+    this.eventBus.emit('component:registered', { name })
   }
 }
 ```
-Simple Map-based storage for all plugin assets.
+Single manager handles storage, events, and logic.
 
 ### Component Namespacing
 ```typescript
 // Components registered with plugin prefix
-registry.setComponent('core.documents/DocumentCard', DocumentCard)
-registry.setComponent('ai-enhance/DocumentCard', EnhancedCard)
+manager.setComponent('core.documents/DocumentCard', DocumentCard)
+manager.setComponent('ai-enhance/DocumentCard', EnhancedCard)
 
 // No collisions, clear ownership
 ```
@@ -107,14 +108,14 @@ registry.setComponent('ai-enhance/DocumentCard', EnhancedCard)
 ### Plugin Enhancement Pattern
 ```typescript
 // Get original, wrap it, replace it
-const Original = registry.getComponent('core.documents/DocumentCard')
+const Original = manager.getComponent('core.documents/DocumentCard')
 const Enhanced = (props) => (
   <>
     <AIFeatures {...props} />
     <Original {...props} />
   </>
 )
-registry.setComponent('core.documents/DocumentCard', Enhanced)
+manager.setComponent('core.documents/DocumentCard', Enhanced)
 ```
 
 ### Platform Service Pattern
@@ -129,11 +130,15 @@ adapter.showNotification(title, body)
 
 ### Core Dependencies
 ```
-AppShell → PluginManager → PluginRegistry
+AppShell → PluginManager (singleton)
     ↓                   ↓
-Provides regions    Plugins register components/services
+Provides regions    Stores components/services
     ↓                   ↓
-PluginHost → Resolves and renders components
+    ↓              Manages navigation
+    ↓                   ↓
+    ↓              Provides EventBus
+    ↓                   ↓
+PluginHost ← Gets components from PluginManager
 
 Theme Plugin → Wraps AppShell → Provides theme context
                              ↓
@@ -196,3 +201,20 @@ const adapter = isElectron
 - Basic permission declarations
 - User consent for sensitive operations
 - But start simple - no restrictions
+
+## Plugin Communication Patterns
+
+### Synchronous Communication
+- **Method**: Direct service calls through PluginManager
+- **Use Case**: Immediate responses, API calls, data access
+- **Example**: `manager.getService('documents/api').createDocument()`
+
+### Asynchronous Communication
+- **Method**: EventBus for decoupled messaging
+- **Use Case**: Notifications, state changes, plugin coordination
+- **Example**: `eventBus.emit('document:created', { id, title })`
+
+### Component Enhancement
+- **Method**: Region-based component registration
+- **Pattern**: Get original component, wrap it, re-register
+- **Benefit**: Clean enhancement without direct dependencies

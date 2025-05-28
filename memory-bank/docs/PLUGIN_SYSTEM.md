@@ -34,34 +34,49 @@ interface Plugin {
   migrations?: Migration[];
   
   // Lifecycle hooks
-  onLoad?: (registry: PluginRegistry) => void;
+  onLoad?: (manager: PluginManager) => void;
   onUnload?: () => void;
 }
 ```
 
 ## Plugin System Architecture
 
-The plugin system consists of two main components:
-
-### Plugin Registry
-The low-level data store that holds all plugin assets:
+The plugin system is managed by a single PluginManager that handles everything:
 
 ```typescript
-class PluginRegistry {
-  private components = new Map<string, React.ComponentType>();
-  private routes = new Map<string, Route>();
-  private services = new Map<string, any>();
+class PluginManager {
+  private static instance: PluginManager;
   
-  // Get/Set components
+  // Storage - just Maps, no separate Registry needed
+  private components = new Map<string, React.ComponentType>();
+  private services = new Map<string, any>();
+  private routes = new Map<string, Route>();
+  
+  // Plugin management
+  private loadedPlugins = new Map<string, Plugin>();
+  private eventBus = new EventBus();
+  
+  // UI management
+  private navigationItems: NavigationItem[] = [];
+  private regions = new Map<string, RegionComponent[]>();
+  
+  // Singleton access
+  static getInstance(): PluginManager {
+    if (!this.instance) this.instance = new PluginManager();
+    return this.instance;
+  }
+  
+  // Component management
   getComponent(name: string): React.ComponentType | undefined {
     return this.components.get(name);
   }
   
   setComponent(name: string, component: React.ComponentType): void {
     this.components.set(name, component);
+    this.eventBus.emit('component:registered', { name });
   }
   
-  // Get/Set services
+  // Service management
   getService(name: string): any {
     return this.services.get(name);
   }
@@ -70,27 +85,13 @@ class PluginRegistry {
     this.services.set(name, service);
   }
   
-  // Get all routes for React Router
+  // Route management
+  addRoute(route: Route): void {
+    this.routes.set(route.path, route);
+  }
+  
   getAllRoutes(): Route[] {
     return Array.from(this.routes.values());
-  }
-}
-```
-
-### Plugin Manager
-The high-level orchestrator that manages plugins and provides the main API:
-
-```typescript
-class PluginManager {
-  private static instance: PluginManager;
-  private registry: PluginRegistry;
-  private navigationItems: NavigationItem[] = [];
-  private regions: Map<string, RegionComponent[]> = new Map();
-  
-  // Singleton access
-  static getInstance(): PluginManager {
-    if (!this.instance) this.instance = new PluginManager();
-    return this.instance;
   }
   
   // Navigation management
@@ -116,16 +117,36 @@ class PluginManager {
     return this.regions.get(region) || [];
   }
   
-  // Delegate to registry for components/services
-  getComponent(name: string): React.ComponentType | undefined {
-    return this.registry.getComponent(name);
+  // Event bus access
+  getEventBus(): EventBus {
+    return this.eventBus;
   }
   
-  setComponent(name: string, component: React.ComponentType): void {
-    this.registry.setComponent(name, component);
+  // Plugin loading with dependency resolution
+  async loadPlugin(plugin: Plugin): Promise<void> {
+    // Complex loading logic here
+  }
+  
+  private sortNavigationItems(): void {
+    this.navigationItems.sort((a, b) => (a.order || 50) - (b.order || 50));
+  }
+  
+  private sortRegionComponents(region: string): void {
+    const components = this.regions.get(region);
+    if (components) {
+      components.sort((a, b) => (a.order || 50) - (b.order || 50));
+    }
   }
 }
 ```
+
+**PluginManager handles everything:**
+- Storage (components, services, routes)
+- Plugin loading and dependencies
+- Navigation and region management
+- Event bus for communication
+- Sorting and filtering
+- Namespacing
 
 ## Plugin Loading
 
@@ -180,6 +201,65 @@ function loadPlugins(plugins: Plugin[]): void {
 }
 ```
 
+## Dynamic Plugin Loading
+
+### How Plugins Are Actually Imported
+
+The above `loadPlugins` function shows the logic, but here's how plugins are dynamically imported:
+
+```typescript
+// In development, use Vite's glob imports
+const pluginModules = import.meta.glob('/src/plugins/*/index.ts');
+
+async function loadPluginModule(pluginId: string): Promise<Plugin> {
+  const modulePath = `/src/plugins/${pluginId}/index.ts`;
+  
+  if (!pluginModules[modulePath]) {
+    throw new Error(`Plugin not found: ${pluginId}`);
+  }
+  
+  // Dynamic import - creates separate chunk
+  const module = await pluginModules[modulePath]();
+  
+  // Plugin should export default
+  if (!module.default) {
+    throw new Error(`Plugin ${pluginId} has no default export`);
+  }
+  
+  return module.default;
+}
+
+// Complete loading process
+async function loadAllPlugins(): Promise<void> {
+  const manager = PluginManager.getInstance();
+  
+  // 1. Discover available plugins (could read manifest.json files)
+  const pluginIds = Object.keys(pluginModules)
+    .map(path => path.split('/')[3]); // Extract plugin ID from path
+  
+  // 2. Load plugin modules
+  const plugins: Plugin[] = [];
+  for (const id of pluginIds) {
+    try {
+      const plugin = await loadPluginModule(id);
+      plugins.push(plugin);
+    } catch (error) {
+      console.error(`Failed to load plugin ${id}:`, error);
+    }
+  }
+  
+  // 3. Load in dependency order
+  loadPlugins(plugins);
+}
+```
+
+**Why this approach?**
+- **Code Splitting**: Each plugin is a separate chunk
+- **Lazy Loading**: Plugins load only when needed
+- **Type Safety**: TypeScript understands dynamic imports
+- **HMR Support**: Hot reload works in development
+- **Tree Shaking**: Unused plugin code isn't bundled
+
 ## Extension Patterns
 
 ### 1. Component Wrapping
@@ -191,9 +271,9 @@ const EnhancedDocumentsPlugin: Plugin = {
   id: 'enhanced-documents',
   requires: ['core.documents'],
   
-  onLoad: (registry) => {
+  onLoad: (manager) => {
     // Get the original component
-    const OriginalDocumentCard = registry.getComponent('DocumentCard');
+    const OriginalDocumentCard = manager.getComponent('core.documents/DocumentCard');
     
     // Create enhanced version
     const EnhancedDocumentCard = (props) => (
@@ -205,7 +285,7 @@ const EnhancedDocumentsPlugin: Plugin = {
     );
     
     // Replace in registry
-    registry.setComponent('DocumentCard', EnhancedDocumentCard);
+    manager.setComponent('core.documents/DocumentCard', EnhancedDocumentCard);
   }
 };
 ```
@@ -219,8 +299,8 @@ const AnalyticsPlugin: Plugin = {
   id: 'analytics',
   requires: ['core.documents'],
   
-  onLoad: (registry) => {
-    const docService = registry.getService('documentService');
+  onLoad: (manager) => {
+    const docService = manager.getService('core.documents/documentService');
     const originalSave = docService.save;
     
     // Wrap save method to add analytics
@@ -260,8 +340,8 @@ const DocumentMetadataPlugin: Plugin = {
   id: 'document-metadata',
   requires: ['core.documents'],
   
-  onLoad: (registry) => {
-    const docService = registry.getService('documentService');
+  onLoad: (manager) => {
+    const docService = manager.getService('core.documents/documentService');
     const originalCreate = docService.create;
     
     docService.create = async (doc) => {
@@ -278,6 +358,202 @@ const DocumentMetadataPlugin: Plugin = {
     };
   }
 };
+```
+
+## Plugin Communication Patterns
+
+Plugins communicate through well-defined patterns that maintain loose coupling while enabling rich interactions.
+
+### Communication Methods
+
+#### 1. Event Bus (Asynchronous, Decoupled)
+Best for: Notifications, state changes, user actions
+
+```typescript
+// Publishing plugin
+manager.emit('documents:created', { 
+  id: doc.id, 
+  title: doc.title,
+  tags: doc.tags 
+});
+
+// Subscribing plugin
+manager.on('documents:created', (data) => {
+  // React to new document
+  if (data.tags.includes('important')) {
+    this.addToKnowledgeBase(data);
+  }
+});
+```
+
+#### 2. Service Calls (Synchronous, Direct)
+Best for: Data queries, computations, immediate results
+
+```typescript
+// Service provider
+plugin.services = {
+  DocumentService: {
+    async search(query: string): Promise<Document[]> {
+      return this.searchIndex.find(query);
+    },
+    getById(id: string): Document | null {
+      return this.documents.get(id);
+    }
+  }
+};
+
+// Service consumer
+const docService = manager.getService('core.documents/DocumentService');
+const results = await docService.search('project notes');
+```
+
+#### 3. Shared State (Through Services)
+Best for: Global settings, user preferences, app state
+
+```typescript
+// Theme plugin provides state service
+plugin.services = {
+  ThemeState: {
+    current: 'light',
+    available: ['light', 'dark', 'pink'],
+    setTheme(theme: string) {
+      this.current = theme;
+      manager.emit('theme:changed', { theme });
+    }
+  }
+};
+
+// Other plugins react to theme
+const themeState = manager.getService('core.theme/ThemeState');
+const isDark = themeState.current === 'dark';
+```
+
+#### 4. Component Enhancement (Visual Integration)
+Best for: UI composition, adding features to existing components
+
+```typescript
+// Base plugin provides extension points
+<PluginHost region="document-toolbar" context={{ docId }} />
+
+// Enhancement plugin registers components
+manager.registerRegion('document-toolbar', {
+  component: ShareButton,
+  order: 10
+});
+```
+
+### Decision Guide: Which Pattern to Use?
+
+```
+┌─ Need immediate response? ─┐
+│                             │
+├─ YES ─→ Service Call        │
+│                             │
+└─ NO ──┬─ UI Integration? ───┤
+        │                     │
+        ├─ YES → Component    │
+        │        Enhancement  │
+        │                     │
+        └─ NO ─┬─ Multiple    │
+               │  Listeners?   │
+               │              │
+               ├─ YES → Event │
+               │        Bus   │
+               │              │
+               └─ NO → Shared │
+                      State   │
+```
+
+### Communication Best Practices
+
+#### DO:
+- Use namespaced event names: `plugin-id:event-name`
+- Document your public APIs in plugin README
+- Version your service interfaces
+- Handle missing services gracefully
+- Emit events after state changes, not before
+- Include enough data in events to be useful
+
+#### DON'T:
+- Don't assume plugins are loaded (check first)
+- Don't emit events in tight loops
+- Don't expose internal state directly
+- Don't make synchronous calls in event handlers
+- Don't create circular dependencies
+
+### Example: Multi-Plugin Workflow
+
+Here's how plugins might collaborate on a "Smart Tag" feature:
+
+```typescript
+// 1. Document plugin emits creation event
+manager.emit('documents:created', {
+  id: 'doc-123',
+  content: 'Meeting notes about Q4 planning'
+});
+
+// 2. AI plugin listens and suggests tags
+manager.on('documents:created', async (doc) => {
+  const tags = await this.suggestTags(doc.content);
+  manager.emit('ai:tags-suggested', { 
+    docId: doc.id, 
+    tags 
+  });
+});
+
+// 3. Task plugin extracts action items
+manager.on('documents:created', async (doc) => {
+  const tasks = await this.extractTasks(doc.content);
+  tasks.forEach(task => {
+    manager.emit('tasks:created', { 
+      task,
+      source: `doc:${doc.id}` 
+    });
+  });
+});
+
+// 4. Knowledge plugin indexes for search
+manager.on('documents:created', (doc) => {
+  this.indexDocument(doc);
+});
+
+// 5. UI plugin shows notifications
+manager.on('ai:tags-suggested', (data) => {
+  this.showNotification(`Suggested tags: ${data.tags.join(', ')}`);
+});
+```
+
+### Performance Considerations
+
+1. **Event Bus**: Very fast for publishing, slight overhead for many listeners
+2. **Service Calls**: Direct function calls, minimal overhead
+3. **Component Enhancement**: React reconciliation cost, optimize with memo
+4. **Shared State**: Consider using signals/observables for reactive updates
+
+### Testing Plugin Communication
+
+```typescript
+// Mock the plugin manager for tests
+const mockManager = {
+  emit: jest.fn(),
+  on: jest.fn(),
+  getService: jest.fn().mockReturnValue({
+    search: jest.fn().mockResolvedValue([])
+  })
+};
+
+// Test event emission
+myPlugin.handleCreate(data);
+expect(mockManager.emit).toHaveBeenCalledWith(
+  'myplugin:created',
+  expect.objectContaining({ id: data.id })
+);
+
+// Test service consumption
+await myPlugin.searchDocuments('test');
+expect(mockManager.getService).toHaveBeenCalledWith(
+  'core.documents/DocumentService'
+);
 ```
 
 ## Storage Patterns
