@@ -51,16 +51,29 @@ mcp__notion__API-patch-block-children
 
 ## Querying Tasks
 
-To see all tasks:
+To see all incomplete tasks (default):
+```
+mcp__notion__API-post-database-query
+- database_id: "1fcbbd9b-1a29-8037-93a7-f8088c952035"
+- filter: {
+    "or": [
+      {"property": "Status", "status": {"equals": "Not started"}},
+      {"property": "Status", "status": {"equals": "In progress"}}
+    ]
+  }
+- sorts: [{"property": "Priority", "direction": "ascending"}]
+```
+
+To filter by specific status:
+```
+- filter: {"property": "Status", "status": {"equals": "In progress"}}
+```
+
+To see all tasks (including completed):
 ```
 mcp__notion__API-post-database-query
 - database_id: "1fcbbd9b-1a29-8037-93a7-f8088c952035"
 - sorts: [{"property": "Priority", "direction": "ascending"}]
-```
-
-To filter by status:
-```
-- filter: {"property": "Status", "select": {"equals": "In progress"}}
 ```
 
 ## Updating Tasks

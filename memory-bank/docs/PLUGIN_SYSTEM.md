@@ -148,6 +148,47 @@ class PluginManager {
 - Sorting and filtering
 - Namespacing
 
+## Core Services
+
+The plugin system provides these built-in services that all plugins can use:
+
+### StorageService
+
+Provides persistent storage that works in both local and cloud modes:
+
+```typescript
+interface StorageService {
+  // Basic operations
+  get(key: string): Promise<any>;
+  set(key: string, value: any): Promise<void>;
+  delete(key: string): Promise<void>;
+  
+  // Batch operations
+  list(pattern: string): Promise<any[]>;  // e.g., 'theme/custom/*'
+  clear(pattern: string): Promise<void>;
+  
+  // Transactions (for complex updates)
+  transaction(fn: (tx: Transaction) => Promise<void>): Promise<void>;
+}
+```
+
+Access via: `manager.getService('core/storageService')`
+
+### EventBus
+
+Built into PluginManager for cross-plugin communication:
+
+```typescript
+interface EventBus {
+  emit(event: string, data?: any): void;
+  on(event: string, handler: (data: any) => void): void;
+  off(event: string, handler: (data: any) => void): void;
+  once(event: string, handler: (data: any) => void): void;
+}
+```
+
+Access via: `manager.emit()`, `manager.on()`, etc.
+
 ## Plugin Loading
 
 Plugins are loaded in dependency order by the PluginManager:
@@ -371,14 +412,14 @@ Best for: Notifications, state changes, user actions
 
 ```typescript
 // Publishing plugin
-manager.emit('documents:created', { 
+manager.emit('core.documents:created', { 
   id: doc.id, 
   title: doc.title,
   tags: doc.tags 
 });
 
 // Subscribing plugin
-manager.on('documents:created', (data) => {
+manager.on('core.documents:created', (data) => {
   // React to new document
   if (data.tags.includes('important')) {
     this.addToKnowledgeBase(data);
@@ -403,7 +444,7 @@ plugin.services = {
 };
 
 // Service consumer
-const docService = manager.getService('core.documents/DocumentService');
+const docService = manager.getService('core.documents/documentService');
 const results = await docService.search('project notes');
 ```
 
@@ -418,13 +459,13 @@ plugin.services = {
     available: ['light', 'dark', 'pink'],
     setTheme(theme: string) {
       this.current = theme;
-      manager.emit('theme:changed', { theme });
+      manager.emit('core.theme:changed', { theme });
     }
   }
 };
 
 // Other plugins react to theme
-const themeState = manager.getService('core.theme/ThemeState');
+const themeState = manager.getService('core.theme/themeState');
 const isDark = themeState.current === 'dark';
 ```
 
@@ -487,25 +528,25 @@ Here's how plugins might collaborate on a "Smart Tag" feature:
 
 ```typescript
 // 1. Document plugin emits creation event
-manager.emit('documents:created', {
+manager.emit('core.documents:created', {
   id: 'doc-123',
   content: 'Meeting notes about Q4 planning'
 });
 
 // 2. AI plugin listens and suggests tags
-manager.on('documents:created', async (doc) => {
+manager.on('core.documents:created', async (doc) => {
   const tags = await this.suggestTags(doc.content);
-  manager.emit('ai:tags-suggested', { 
+  manager.emit('ai-enhance:tags-suggested', { 
     docId: doc.id, 
     tags 
   });
 });
 
 // 3. Task plugin extracts action items
-manager.on('documents:created', async (doc) => {
+manager.on('core.documents:created', async (doc) => {
   const tasks = await this.extractTasks(doc.content);
   tasks.forEach(task => {
-    manager.emit('tasks:created', { 
+    manager.emit('core.tasks:created', { 
       task,
       source: `doc:${doc.id}` 
     });
@@ -513,12 +554,12 @@ manager.on('documents:created', async (doc) => {
 });
 
 // 4. Knowledge plugin indexes for search
-manager.on('documents:created', (doc) => {
+manager.on('core.documents:created', (doc) => {
   this.indexDocument(doc);
 });
 
 // 5. UI plugin shows notifications
-manager.on('ai:tags-suggested', (data) => {
+manager.on('ai-enhance:tags-suggested', (data) => {
   this.showNotification(`Suggested tags: ${data.tags.join(', ')}`);
 });
 ```
