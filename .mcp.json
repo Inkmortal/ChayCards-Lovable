@@ -1,5 +1,5 @@
 {
-  "servers": {
+  "mcpServers": {
     "puppeteer": {
       "type": "stdio",
       "command": "npx",

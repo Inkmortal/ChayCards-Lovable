@@ -33,9 +33,15 @@ interface Plugin {
   schemas?: Record<string, SchemaDefinition>;
   migrations?: Migration[];
   
+  // Python backend configuration (optional)
+  python?: {
+    entry: string;        // 'backend/main.py'
+    requirements: string; // 'backend/requirements.txt'
+  };
+  
   // Lifecycle hooks
-  onLoad?: (manager: PluginManager) => void;
-  onUnload?: () => void;
+  onLoad?: (manager: PluginManager) => void | Promise<void>;
+  onUnload?: () => void | Promise<void>;
 }
 ```
 
@@ -881,6 +887,10 @@ Each plugin should have a manifest file (`plugin.json`):
   "requires": {
     "core.documents": "^1.0.0",
     "core.tasks": "^1.0.0"
+  },
+  "python": {
+    "entry": "backend/main.py",
+    "requirements": "backend/requirements.txt"
   }
 }
 ```
@@ -915,8 +925,18 @@ Each plugin should have a manifest file (`plugin.json`):
 
 5. **Clean Unload**: Implement onUnload to clean up
    ```typescript
-   onUnload: () => {
+   onUnload: async () => {
      // Remove event listeners, restore originals, etc.
+     // Stop Python processes if any
+     await this.pythonService?.stop();
+   }
+   ```
+
+6. **Python Process Management**: If using Python backend, manage lifecycle properly
+   ```typescript
+   onLoad: async (manager) => {
+     const service = manager.getService('my-plugin/pythonService');
+     await service.start();
    }
    ```
 
@@ -967,6 +987,44 @@ export const AIDocumentsPlugin: Plugin = {
   }
 };
 ```
+
+## Python Backend Support
+
+Plugins can include Python backends for compute-intensive tasks like AI/ML, data processing, or integrating Python-only libraries. See [Plugin Python Backend Documentation](./PLUGIN_PYTHON_BACKEND.md) for detailed implementation guide.
+
+### Quick Example
+
+```typescript
+export const AIPlugin: Plugin = {
+  id: 'ai-plugin',
+  name: 'AI Assistant Plugin',
+  
+  python: {
+    entry: 'backend/main.py',
+    requirements: 'backend/requirements.txt'
+  },
+  
+  services: {
+    'assistantService': new AssistantService() // Manages Python process
+  },
+  
+  onLoad: async (manager) => {
+    const service = manager.getService('ai-plugin/assistantService');
+    await service.startPythonBackend();
+  },
+  
+  onUnload: async () => {
+    const service = manager.getService('ai-plugin/assistantService');
+    await service.stopPythonBackend();
+  }
+}
+```
+
+### Key Points
+- Python runs as child processes managed by plugin services
+- Python runtime is bundled with Electron app (no user installation needed)
+- Same Python code works in both Electron and cloud deployments
+- Each plugin manages its own Python lifecycle
 
 ## Plugin Management
 
@@ -1033,3 +1091,12 @@ A: Yes, plugins are your IP. Marketplace will support paid plugins.
 
 **Q: Can plugins manage other plugins?**
 A: Yes! Even plugin management is a plugin. Users can install alternative plugin managers.
+
+**Q: Can plugins include Python backends?**
+A: Yes! Plugins can bundle Python code that runs as managed child processes. See the [Python Backend documentation](./PLUGIN_PYTHON_BACKEND.md).
+
+**Q: How are Python dependencies handled?**
+A: Python dependencies are installed during build and bundled with the Electron app. In cloud deployments, they use the server's Python environment.
+
+**Q: Do users need Python installed?**
+A: No, the Electron app bundles a Python runtime. Everything is included in the installer.

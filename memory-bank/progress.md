@@ -34,6 +34,8 @@
 - PluginRegistry merged into PluginManager for simplicity
 - Plugin communication patterns established (EventBus + services)
 - EVENT_BUS_ARCHITECTURE.md documented
+- Python backend support added to plugin architecture
+- Live2D AI Assistant plugin feasibility confirmed
 
 ### ✅ Development Tools Integration
 - Notion MCP integrated for task tracking
@@ -65,6 +67,11 @@
 - [ ] core.documents plugin (with localStorage)
 - [ ] core.tasks plugin  
 - [ ] core.knowledge plugin (flashcards)
+
+### 🔲 Advanced Plugins (Future)
+- [ ] ai-assistant plugin (Live2D, voice, Python backend)
+- [ ] mcp-tools plugin (tool calling integration)
+- [ ] code-sandbox plugin (Docker-based execution)
 
 ### 🔲 Core Features
 - [ ] User authentication
@@ -139,6 +146,8 @@ We are in the **Plugin System Implementation** phase:
 6. **Optional consistency** - core.ui provides shared components without forcing
 7. **Everything is a plugin** - Even themes are plugins that can enhance each other
 8. **AppShell stays minimal** - Just layout, no features or business logic
+9. **Python backends are just services** - Plugins can spawn child processes without core changes
+10. **Runtime > build-time** - Platform detection at runtime is cleaner than separate builds
 
 ## Next Milestones
 
