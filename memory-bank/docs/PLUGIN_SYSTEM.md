@@ -33,10 +33,12 @@ interface Plugin {
   schemas?: Record<string, SchemaDefinition>;
   migrations?: Migration[];
   
-  // Python backend configuration (optional)
-  python?: {
-    entry: string;        // 'backend/main.py'
-    requirements: string; // 'backend/requirements.txt'
+  // Backend configuration (optional)
+  backend?: {
+    python?: {
+      entry: string;        // 'backend/main.py'
+      requirements: string; // 'backend/requirements.txt'
+    };
   };
   
   // Lifecycle hooks
@@ -193,7 +195,7 @@ interface EventBus {
 }
 ```
 
-Access via: `manager.emit()`, `manager.on()`, etc.
+Access via: `manager.getEventBus()`, then use `eventBus.emit()`, `eventBus.on()`, etc.
 
 ## Plugin Loading
 
@@ -418,14 +420,16 @@ Best for: Notifications, state changes, user actions
 
 ```typescript
 // Publishing plugin
-manager.emit('core.documents:created', { 
+const eventBus = manager.getEventBus();
+eventBus.emit('core.documents:created', { 
   id: doc.id, 
   title: doc.title,
   tags: doc.tags 
 });
 
 // Subscribing plugin
-manager.on('core.documents:created', (data) => {
+const eventBus = manager.getEventBus();
+eventBus.on('core.documents:created', (data) => {
   // React to new document
   if (data.tags.includes('important')) {
     this.addToKnowledgeBase(data);
@@ -465,7 +469,8 @@ plugin.services = {
     available: ['light', 'dark', 'pink'],
     setTheme(theme: string) {
       this.current = theme;
-      manager.emit('core.theme:changed', { theme });
+      const eventBus = manager.getEventBus();
+      eventBus.emit('core.theme:changed', { theme });
     }
   }
 };
@@ -483,8 +488,9 @@ Best for: UI composition, adding features to existing components
 <PluginHost region="document-toolbar" context={{ docId }} />
 
 // Enhancement plugin registers components
-manager.registerRegion('document-toolbar', {
-  component: ShareButton,
+manager.addToRegion('document-toolbar', {
+  id: 'share-button',
+  component: 'share-plugin/ShareButton',
   order: 10
 });
 ```
@@ -534,25 +540,28 @@ Here's how plugins might collaborate on a "Smart Tag" feature:
 
 ```typescript
 // 1. Document plugin emits creation event
-manager.emit('core.documents:created', {
+const eventBus = manager.getEventBus();
+eventBus.emit('core.documents:created', {
   id: 'doc-123',
   content: 'Meeting notes about Q4 planning'
 });
 
 // 2. AI plugin listens and suggests tags
-manager.on('core.documents:created', async (doc) => {
+const eventBus = manager.getEventBus();
+eventBus.on('core.documents:created', async (doc) => {
   const tags = await this.suggestTags(doc.content);
-  manager.emit('ai-enhance:tags-suggested', { 
+  eventBus.emit('ai-enhance:tags-suggested', { 
     docId: doc.id, 
     tags 
   });
 });
 
 // 3. Task plugin extracts action items
-manager.on('core.documents:created', async (doc) => {
+const eventBus = manager.getEventBus();
+eventBus.on('core.documents:created', async (doc) => {
   const tasks = await this.extractTasks(doc.content);
   tasks.forEach(task => {
-    manager.emit('core.tasks:created', { 
+    eventBus.emit('core.tasks:created', { 
       task,
       source: `doc:${doc.id}` 
     });
@@ -560,12 +569,14 @@ manager.on('core.documents:created', async (doc) => {
 });
 
 // 4. Knowledge plugin indexes for search
-manager.on('core.documents:created', (doc) => {
+const eventBus = manager.getEventBus();
+eventBus.on('core.documents:created', (doc) => {
   this.indexDocument(doc);
 });
 
 // 5. UI plugin shows notifications
-manager.on('ai-enhance:tags-suggested', (data) => {
+const eventBus = manager.getEventBus();
+eventBus.on('ai-enhance:tags-suggested', (data) => {
   this.showNotification(`Suggested tags: ${data.tags.join(', ')}`);
 });
 ```
@@ -581,9 +592,15 @@ manager.on('ai-enhance:tags-suggested', (data) => {
 
 ```typescript
 // Mock the plugin manager for tests
-const mockManager = {
+const mockEventBus = {
   emit: jest.fn(),
   on: jest.fn(),
+  off: jest.fn(),
+  once: jest.fn()
+};
+
+const mockManager = {
+  getEventBus: jest.fn().mockReturnValue(mockEventBus),
   getService: jest.fn().mockReturnValue({
     search: jest.fn().mockResolvedValue([])
   })
@@ -591,7 +608,7 @@ const mockManager = {
 
 // Test event emission
 myPlugin.handleCreate(data);
-expect(mockManager.emit).toHaveBeenCalledWith(
+expect(mockEventBus.emit).toHaveBeenCalledWith(
   'myplugin:created',
   expect.objectContaining({ id: data.id })
 );
@@ -605,9 +622,61 @@ expect(mockManager.getService).toHaveBeenCalledWith(
 
 ## Storage Patterns
 
-### Each Plugin Owns Its Storage
+### Unified Storage API
 
-Plugins should store their data in separate tables/collections, not modify core plugin schemas:
+All storage operations go through the Express API, providing consistent patterns for both local and cloud deployments:
+
+```typescript
+// Plugin code is IDENTICAL for local and cloud
+class MyPluginService {
+  constructor(private storage: StorageAdapter) {}
+  
+  async savePreferences(prefs: any) {
+    // Storage adapter handles user context automatically
+    // Local: Stores in SQLite with single user
+    // Cloud: Stores in PostgreSQL with user isolation
+    await this.storage.set('preferences', prefs);
+  }
+  
+  async getHistory() {
+    // Same API, different implementation
+    return await this.storage.get('history');
+  }
+}
+```
+
+### Storage Adapter Pattern
+
+The storage adapter provides a consistent interface while handling platform differences:
+
+```typescript
+interface StorageAdapter {
+  get<T>(key: string): Promise<T>;
+  set<T>(key: string, value: T): Promise<void>;
+  append<T>(key: string, item: T): Promise<void>;
+  delete(key: string): Promise<void>;
+  list(pattern: string): Promise<string[]>;
+}
+
+// Implementation routes through Express API
+class PluginStorageAdapter implements StorageAdapter {
+  constructor(private pluginId: string, private http: HttpClient) {}
+  
+  async get<T>(key: string): Promise<T> {
+    // Makes request to: /api/storage/{pluginId}/{key}
+    const response = await this.http.get(`/api/storage/${this.pluginId}/${key}`);
+    return response.data;
+  }
+  
+  async set<T>(key: string, value: T): Promise<void> {
+    await this.http.post(`/api/storage/${this.pluginId}/${key}`, value);
+  }
+}
+```
+
+### Each Plugin Owns Its Storage Namespace
+
+Plugins store data in their own namespace, isolated from other plugins:
 
 ```typescript
 export const AIEnhancePlugin: Plugin = {
@@ -776,11 +845,124 @@ export const AnalyticsPlugin: Plugin = {
 
 ### Best Practices for Plugin Storage
 
-1. **Use Reference IDs** - Store foreign keys to link with core data
-2. **Namespace Tables** - Prefix with plugin ID to avoid collisions
+1. **Use the Storage Adapter** - Never access database directly
+2. **Namespace Your Keys** - Storage is already namespaced by plugin ID
 3. **Handle Missing Data** - Core data might exist without enhancement data
 4. **Async Enhancement** - Don't block core operations for enhancement features
-5. **Cache Strategically** - Cache merged data if performance requires it
+5. **Let Platform Handle User Context** - Don't manage user IDs yourself
+
+## Backend Adapter Pattern
+
+Plugins can include Python backends that are accessed through a unified API pattern:
+
+### Backend Configuration
+
+```typescript
+export const AIAssistantPlugin: Plugin = {
+  id: 'ai-assistant',
+  
+  // Declare backend requirements
+  backend: {
+    python: {
+      entry: 'backend/main.py',
+      requirements: 'backend/requirements.txt'
+    }
+  },
+  
+  services: {
+    ai: class AIService {
+      constructor(private adapters: PluginAdapters) {}
+      
+      async processQuery(text: string) {
+        // Backend adapter handles all complexity
+        return await this.adapters.backend.request('ai-assistant', {
+          action: 'process',
+          text: text
+        });
+      }
+    }
+  }
+}
+```
+
+### Backend Adapter Interface
+
+```typescript
+interface BackendAdapter {
+  // Send request to plugin's backend
+  request(pluginId: string, data: any): Promise<any>;
+  
+  // Stream data from backend
+  stream(pluginId: string, data: any): AsyncIterator<any>;
+  
+  // Check if backend is available
+  isAvailable(pluginId: string): boolean;
+}
+
+// Plugin receives adapter through constructor
+class PluginService {
+  constructor(private adapters: PluginAdapters) {
+    this.storage = adapters.storage;
+    this.backend = adapters.backend;
+  }
+}
+```
+
+### How Backend Routing Works
+
+1. **Build Time**: System auto-detects `backend/main.py` in plugins
+2. **Local Deployment**: 
+   - Python processes spawned and managed by Express
+   - Requests routed through `/api/python/{pluginId}/*`
+   - Reverse proxy handles routing to correct process
+3. **Cloud Deployment**:
+   - Python backends deployed as separate services
+   - Service discovery uses pattern: `{pluginId}-backend`
+   - Express routes requests to appropriate service
+
+### Complete Plugin Example with Storage and Backend
+
+```typescript
+export const SmartNotesPlugin: Plugin = {
+  id: 'smart-notes',
+  
+  backend: {
+    python: {
+      entry: 'backend/main.py',
+      requirements: 'backend/requirements.txt'
+    }
+  },
+  
+  services: {
+    notes: class NotesService {
+      constructor(private adapters: PluginAdapters) {}
+      
+      async createNote(content: string) {
+        // Save to storage
+        const note = {
+          id: generateId(),
+          content,
+          created: new Date()
+        };
+        await this.adapters.storage.set(`notes/${note.id}`, note);
+        
+        // Get AI summary from Python backend
+        const summary = await this.adapters.backend.request('smart-notes', {
+          action: 'summarize',
+          content: content
+        });
+        
+        // Save summary
+        await this.adapters.storage.set(`summaries/${note.id}`, summary);
+        
+        return { note, summary };
+      }
+    }
+  }
+}
+```
+
+The beauty of this pattern is that plugin code remains identical whether running locally or in the cloud - the adapters handle all platform-specific implementation details.
 
 ## Core Plugins
 
@@ -904,7 +1086,7 @@ Each plugin should have a manifest file (`plugin.json`):
 
 2. **Preserve Original Functionality**: When wrapping, call the original
    ```typescript
-   const Original = registry.getComponent('DocumentCard');
+   const Original = manager.getComponent('core.documents/DocumentCard');
    return <div><Extra /><Original {...props} /></div>;
    ```
 
@@ -960,23 +1142,23 @@ export const AIDocumentsPlugin: Plugin = {
     'aiService': new AIService()
   },
   
-  onLoad: (registry) => {
+  onLoad: (manager) => {
     // Enhance document cards
-    const OriginalCard = registry.getComponent('DocumentCard');
+    const OriginalCard = manager.getComponent('core.documents/DocumentCard');
     const EnhancedCard = (props) => (
       <>
         <AITagBar documentId={props.doc.id} />
         <OriginalCard {...props} />
       </>
     );
-    registry.setComponent('DocumentCard', EnhancedCard);
+    manager.setComponent('core.documents/DocumentCard', EnhancedCard);
     
     // Add AI analysis to document creation
-    const docService = registry.getService('documentService');
+    const docService = manager.getService('core.documents/documentService');
     const originalCreate = docService.create;
     
     docService.create = async (doc) => {
-      const aiService = registry.getService('aiService');
+      const aiService = manager.getService('ai-documents/aiService');
       const enhanced = {
         ...doc,
         aiTags: await aiService.generateTags(doc.content),

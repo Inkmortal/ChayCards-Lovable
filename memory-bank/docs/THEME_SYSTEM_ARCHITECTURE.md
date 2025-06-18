@@ -185,7 +185,8 @@ class ThemeServiceImpl implements ThemeService {
     await this.storage.set('theme/active', themeId);
     
     // Notify other plugins
-    this.manager.emit('core.theme:changed', { theme });
+    const eventBus = this.manager.getEventBus();
+    eventBus.emit('core.theme:changed', { theme });
   }
   
   private applyTheme(theme: Theme): void {
@@ -247,7 +248,8 @@ export const CodeThemePlugin: Plugin = {
   
   onLoad: (manager) => {
     // Listen for theme changes
-    manager.on('core.theme:changed', ({ theme }) => {
+    const eventBus = manager.getEventBus();
+    eventBus.on('core.theme:changed', ({ theme }) => {
       const root = document.documentElement;
       
       // Apply code-specific colors based on theme

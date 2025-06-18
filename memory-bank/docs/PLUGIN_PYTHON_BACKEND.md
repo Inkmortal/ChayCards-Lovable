@@ -2,14 +2,17 @@
 
 ## Overview
 
-Plugins can include Python backends for compute-intensive tasks like AI/ML, data processing, or integrating Python-only libraries. Python processes are managed as plugin services and bundled with the Electron app.
+Plugins can include Python backends for compute-intensive tasks like AI/ML, data processing, or integrating Python-only libraries. The unified backend adapter pattern ensures plugin code remains identical for both local and cloud deployments.
 
 ## Architecture
 
-Python backends run as child processes managed by plugin services:
+All Python backend communication goes through the Express API:
 
 ```
-Plugin TypeScript Service → Spawns Python Process → Communicates via WebSocket/IPC
+Plugin Service → Backend Adapter → Express API → Python Service
+                                        ↓
+                              Local: Reverse Proxy → Python Process
+                              Cloud: API Gateway → Python Container
 ```
 
 ## Plugin Structure with Python
@@ -41,75 +44,64 @@ export const MyAIPlugin: Plugin = {
   id: 'my-ai-plugin',
   name: 'My AI Plugin',
   
+  // Declare Python backend
+  backend: {
+    python: {
+      entry: 'backend/main.py',
+      requirements: 'backend/requirements.txt'
+    }
+  },
+  
   services: {
-    'pythonService': new PythonService()
-  },
-  
-  onLoad: async (manager) => {
-    const service = manager.getService('my-ai-plugin/pythonService');
-    await service.start();  // Start Python process
-  },
-  
-  onUnload: async () => {
-    const service = manager.getService('my-ai-plugin/pythonService');
-    await service.stop();   // Clean shutdown
+    ai: class AIService {
+      constructor(private adapters: PluginAdapters) {}
+      
+      async processQuery(text: string) {
+        // Use backend adapter - same code for local and cloud!
+        return await this.adapters.backend.request('my-ai-plugin', {
+          action: 'process',
+          text: text
+        });
+      }
+    }
   }
 }
 ```
 
-### 2. Python Service Manager
+### 2. Using Backend and Storage Adapters
 
 ```typescript
-// services/PythonService.ts
-import { spawn, ChildProcess } from 'child_process';
-import WebSocket from 'ws';
-
-export class PythonService {
-  private process?: ChildProcess;
-  private ws?: WebSocket;
-  private port?: number;
+// services/AIService.ts
+export class AIService {
+  constructor(private adapters: PluginAdapters) {}
   
-  async start() {
-    // Allocate port
-    this.port = await findAvailablePort(40000, 50000);
+  async processUserQuery(query: string): Promise<Response> {
+    // Storage adapter handles user context automatically
+    // Local: SQLite with single user
+    // Cloud: PostgreSQL with user from auth
+    const preferences = await this.adapters.storage.get('preferences');
+    const history = await this.adapters.storage.get('history');
     
-    // Get Python executable path
-    const pythonPath = this.getPythonPath();
-    const scriptPath = path.join(__dirname, '../backend/main.py');
-    
-    // Spawn Python process
-    this.process = spawn(pythonPath, [scriptPath, '--port', this.port], {
-      cwd: path.join(__dirname, '../backend'),
-      env: {
-        ...process.env,
-        PYTHONUNBUFFERED: '1'  // Important for real-time output
+    // Backend adapter handles routing
+    // Local: http://localhost:3000/api/python/ai-assistant
+    // Cloud: https://api.chaycards.com/python/ai-assistant
+    const response = await this.adapters.backend.request('ai-assistant', {
+      action: 'process',
+      query: query,
+      context: {
+        preferences,
+        recentHistory: history.slice(-10)
       }
     });
     
-    // Wait for Python to be ready
-    await this.waitForReady();
+    // Save to user's storage namespace
+    await this.adapters.storage.append('history', {
+      query,
+      response: response.text,
+      timestamp: Date.now()
+    });
     
-    // Connect WebSocket
-    this.ws = new WebSocket(`ws://localhost:${this.port}`);
-  }
-  
-  private getPythonPath(): string {
-    if (window.electron) {
-      // Use bundled Python in production
-      return path.join(process.resourcesPath, 'python/python');
-    }
-    // Development: use system Python
-    return 'python3';
-  }
-  
-  async stop() {
-    this.ws?.close();
-    this.process?.kill('SIGTERM');
-  }
-  
-  // Service methods
-  async processData(data: any): Promise<any> {
-    return this.sendCommand('process', data);
+    return response;
   }
 }
 ```
@@ -118,41 +110,41 @@ export class PythonService {
 
 ```python
 # backend/main.py
-import asyncio
-import json
-import argparse
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI
 import uvicorn
+import argparse
 
 app = FastAPI()
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
-            data = await websocket.receive_json()
-            command = data.get('command')
-            
-            if command == 'process':
-                result = await process_data(data['payload'])
-                await websocket.send_json({
-                    'id': data.get('id'),
-                    'result': result
-                })
-    except Exception as e:
-        print(f"Error: {e}")
+@app.post("/process")
+async def process_request(request: dict):
+    """Handle requests from the backend adapter"""
+    action = request.get('action')
+    
+    if action == 'process':
+        # Your AI/ML logic here
+        query = request.get('query')
+        context = request.get('context', {})
+        
+        result = await process_query(query, context)
+        return {"text": result, "success": True}
+    
+    return {"error": "Unknown action", "success": False}
 
-async def process_data(data):
+async def process_query(query: str, context: dict):
     # Your Python logic here
-    return {"processed": data}
+    # Access preferences: context.get('preferences')
+    # Access history: context.get('recentHistory', [])
+    return f"Processed: {query}"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--port', type=int, default=8000)
+    parser.add_argument('--port', type=int, default=5000)
     args = parser.parse_args()
     
-    uvicorn.run(app, host="127.0.0.1", port=args.port)
+    # Local: Runs on assigned port
+    # Cloud: Runs in container on port 5000
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
 ```
 
 ## Build Process
@@ -201,15 +193,15 @@ setupPython().catch(console.error);
 
 ### Electron (Local)
 - Python bundled with app in `resources/python/`
-- Each plugin spawns its own Python process
+- Shared Python service for all users (single-user local deployment)
 - Communicates via localhost WebSocket/HTTP
-- Process lifecycle tied to plugin lifecycle
+- Process lifecycle managed by app, not individual plugins
 
 ### Cloud (Web)
-- Express backend spawns Python processes
-- Can use connection pooling for efficiency
-- Same Python code, different process management
-- May add request queuing for scale
+- Express backend manages shared Python services
+- Multi-tenant: user context passed with each request
+- Same Python code, user isolation through middleware
+- Horizontal scaling by adding more service instances
 
 ## Best Practices
 
@@ -272,7 +264,8 @@ export const AIAssistantPlugin: Plugin = {
     await service.start();
     
     // Register event handlers
-    manager.on('app:closing', () => service.stop());
+    const eventBus = manager.getEventBus();
+    eventBus.on('app:closing', () => service.stop());
   }
 }
 ```
