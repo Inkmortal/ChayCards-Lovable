@@ -1,8 +1,6 @@
 import { Button } from "@/renderer/components/ui/button";
 import { Card } from "@/renderer/components/ui/card";
 import { BookOpen, FileText, CheckSquare, Search, ArrowRight, Play } from "lucide-react";
-import wuxiaBg from "@/assets/wuxia-bg.jpg";
-import cloudDecoration from "@/assets/cloud-decoration.png";
 
 const Index = () => {
   const isElectron = window.electronAPI !== undefined;
@@ -31,42 +29,21 @@ const Index = () => {
   ];
 
   return (
-    <div 
-      className="min-h-screen bg-background relative overflow-hidden"
-      style={{
-        backgroundImage: `url(${wuxiaBg})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}
-    >
-      {/* Overlay for content readability */}
-      <div className="absolute inset-0 bg-background/90 backdrop-blur-sm"></div>
-      
-      {/* Decorative cloud elements */}
-      <div className="absolute top-20 right-10 opacity-20 z-0">
-        <img src={cloudDecoration} alt="" className="w-32 h-16" />
-      </div>
-      <div className="absolute bottom-20 left-10 opacity-20 transform rotate-180 z-0">
-        <img src={cloudDecoration} alt="" className="w-32 h-16" />
-      </div>
-      
-      <div className="relative z-10">
-        {/* Header */}
-        <header className="border-b border-border px-6 py-4 bg-card/50 backdrop-blur-sm relative z-20">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border px-6 py-4 bg-card/50 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div 
               className="w-12 h-12 rounded-3xl flex items-center justify-center hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
               style={{ 
-                background: 'linear-gradient(145deg, hsl(var(--jade)), hsl(var(--forest)))', 
-                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--gold) / 0.3)',
-                border: '2px solid hsl(var(--gold) / 0.2)'
+                background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))', 
+                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--primary) / 0.3)' 
               }}
             >
               <BookOpen className="w-7 h-7" style={{ 
-                color: 'hsl(var(--jade-foreground))', 
-                filter: 'drop-shadow(0 2px 4px hsl(var(--jade-foreground) / 0.3))',
+                color: 'hsl(var(--primary-foreground))', 
+                filter: 'drop-shadow(0 2px 4px hsl(var(--primary-foreground) / 0.3))',
                 strokeWidth: '2.5'
               }} />
             </div>
@@ -93,11 +70,10 @@ const Index = () => {
               size="sm" 
               className="font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150" 
               style={{ 
-                background: 'linear-gradient(145deg, hsl(var(--jade)), hsl(var(--forest)))', 
-                color: 'hsl(var(--jade-foreground))', 
-                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--gold) / 0.3)',
-                textShadow: '0 1px 2px hsl(var(--jade-foreground) / 0.3)',
-                border: '2px solid hsl(var(--gold) / 0.2)'
+                background: 'linear-gradient(145deg, hsl(var(--blue)), hsl(var(--blue) / 0.85))', 
+                color: 'hsl(var(--blue-foreground))', 
+                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--blue) / 0.3)',
+                textShadow: '0 1px 2px hsl(var(--blue-foreground) / 0.3)'
               }}
             >
               Get started
@@ -187,9 +163,9 @@ const Index = () => {
           <div className="grid md:grid-cols-3 gap-8">
             {features.map((feature, index) => {
               const colors = [
-                { bg: 'hsl(var(--gold))', fg: 'hsl(var(--gold-foreground))', accent: 'hsl(var(--gold) / 0.1)' },
-                { bg: 'hsl(var(--jade))', fg: 'hsl(var(--jade-foreground))', accent: 'hsl(var(--jade) / 0.1)' },
-                { bg: 'hsl(var(--imperial))', fg: 'hsl(var(--imperial-foreground))', accent: 'hsl(var(--imperial) / 0.1)' }
+                { bg: 'hsl(var(--orange))', fg: 'hsl(var(--orange-foreground))', accent: 'hsl(var(--orange) / 0.1)' },
+                { bg: 'hsl(var(--blue))', fg: 'hsl(var(--blue-foreground))', accent: 'hsl(var(--blue) / 0.1)' },
+                { bg: 'hsl(var(--purple))', fg: 'hsl(var(--purple-foreground))', accent: 'hsl(var(--purple) / 0.1)' }
               ];
               const color = colors[index];
               
@@ -239,9 +215,9 @@ const Index = () => {
           
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              { step: 1, title: "Write documents", desc: "Create notes, research, or any content using our markdown editor.", color: 'hsl(var(--jade))' },
-              { step: 2, title: "AI extracts knowledge", desc: "Key concepts become flashcards. Tasks are identified automatically.", color: 'hsl(var(--gold))' },
-              { step: 3, title: "Learn & stay organized", desc: "Review with spaced repetition. Track tasks. Search everything.", color: 'hsl(var(--imperial))' }
+              { step: 1, title: "Write documents", desc: "Create notes, research, or any content using our markdown editor.", color: 'hsl(var(--teal))' },
+              { step: 2, title: "AI extracts knowledge", desc: "Key concepts become flashcards. Tasks are identified automatically.", color: 'hsl(var(--pink))' },
+              { step: 3, title: "Learn & stay organized", desc: "Review with spaced repetition. Track tasks. Search everything.", color: 'hsl(var(--green))' }
             ].map((item, index) => (
               <Card key={index} className="p-6 border-2 border-transparent hover:scale-105 transition-all duration-300 rounded-2xl shadow-lg">
                 <div 
@@ -317,7 +293,6 @@ const Index = () => {
           © 2024 ChayCards. Made for knowledge workers and lifelong learners.
         </div>
       </footer>
-      </div>
     </div>
   );
 };
