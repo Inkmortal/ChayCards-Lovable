@@ -16,7 +16,7 @@ We are building the foundation architecture for ChayCards with a focus on:
 
 **Current Status**: Multi-platform strategy finalized, ready for implementation
 - **Architecture Decision**: Stick with Electron + Capacitor (not Tauri)
-- **Game Plugin**: Dwarf Fortress-style gamified task/habit tracking
+- **Game Plugin**: Chinese cultivation + Dwarf Fortress + comprehensive life gamification
 - Comprehensive documentation completed
 - Architecture solidified with merged PluginManager approach
 - Plugin communication patterns established (EventBus for async, services for sync)

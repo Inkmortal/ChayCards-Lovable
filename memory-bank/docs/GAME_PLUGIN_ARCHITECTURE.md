@@ -1,38 +1,39 @@
 # Game Plugin Architecture
 
-## Vision: Dwarf Fortress Meets Productivity
+## Vision: Chinese Cultivation + Dwarf Fortress + Life Gamification
 
-The ChayCards Game Plugin transforms task and habit tracking into an engaging simulation game where completing real-world tasks drives in-game time progression and colony development.
+The ChayCards Game Plugin is a **Chinese cultivation-themed** simulation game that transforms all aspects of life tracking into engaging cultivation progression. Users advance through cultivation realms by completing real-world activities across multiple life domains - productivity, fitness, nutrition, mindfulness, etc.
 
 ## Core Game Mechanics
 
-### Time-Based Progression System
-- **Game Time = Task Completion Time**
-  - Complete a 2-hour work task → Game advances 2 hours
-  - Check off daily habits → Game advances 1 day
-  - Finish long-term projects → Seasonal progression
-- **Idle State**: Game pauses when no tasks are being worked on
-- **Task Types Affect Game Speed**:
-  - Focus tasks: 1:1 time ratio
-  - Maintenance tasks: 2:1 ratio (2 hours real = 1 hour game)
-  - Learning tasks: 1:2 ratio (accelerated game time)
+### Multi-Domain Life Tracking Integration
+- **Data Sources**: Game consumes from multiple ChayCards plugins
+  - `core.tasks` → Task completion, focus time, productivity
+  - `core.habits` → Daily habits, streaks, consistency
+  - `connector.fitness` → Exercise, steps, heart rate (via fitness APIs)
+  - `connector.nutrition` → Meals, macros, hydration (via nutrition apps)
+  - `connector.sleep` → Sleep quality, duration (via sleep trackers)
+  - `connector.mindfulness` → Meditation, journaling (via meditation apps)
 
-### Colony/Settlement Simulation
-- **Dwarf Fortress Style**: Manage a small settlement/colony
-- **Citizens**: Each represents a life area (work, health, learning, relationships)
-- **Resources**: Generated through task completion
-  - Work tasks → Gold/Materials
-  - Health tasks → Food/Medicine
-  - Learning tasks → Knowledge/Technology
-  - Social tasks → Happiness/Culture
+### Cultivation Progression System
+- **Cultivation Realms**: Mortal → Qi Gathering → Foundation Building → Core Formation → Golden Core → Nascent Soul...
+- **Core Stats**:
+  - Spiritual Power (meditation, learning, mindfulness)
+  - Physical Strength (exercise, nutrition, sleep)
+  - Mental Clarity (task completion, focus time)
+  - Social Harmony (relationships, social interactions)
+- **Resources**:
+  - Qi (daily habit completion)
+  - Spiritual Stones (major achievements)
+  - Techniques (unlocked through consistency)
 
-### Gamification Elements
-- **Buildings**: Unlock through consistent habit completion
-  - Workshop (work habits) → Productivity bonuses
-  - Library (learning habits) → Skill development
-  - Garden (health habits) → Well-being bonuses
-- **Seasons/Events**: Long-term goal achievement triggers major events
-- **Crisis Management**: Neglected areas create challenges requiring attention
+### Real-World Activity → Game Progression
+- **Time Advancement**: Real activities = game time progression
+  - 30min meditation → 1 game hour + spiritual power
+  - 2hr deep work → 4 game hours + mental clarity
+  - Complete workout → 2 game hours + physical strength
+- **Idle State**: Game pauses when no life activities tracked
+- **Progression Buffs**: Better habits = faster cultivation advancement
 
 ## Technical Architecture
 
@@ -67,41 +68,57 @@ src/plugins/game-fortress/
     └── ServerConnection.ts # Godot server communication
 ```
 
-### Integration with ChayCards Plugin System
+### Plugin Data Integration Architecture
 
-#### Component Registration
+#### Multi-Plugin Data Consumption
 ```typescript
-// Game plugin registers multiple components across different regions
-manager.setComponent('fortress.main/GameView', GameCanvas)
-manager.setComponent('fortress.sidebar/GamePanel', GameHUD)
-manager.setComponent('fortress.header/GameStatus', StatusBar)
+// Game plugin consumes from multiple data source plugins
+manager.setService('cultivation-game/engine', new CultivationEngine())
 
-// Enhances existing task components
-const OriginalTaskCard = manager.getComponent('core.tasks/TaskCard')
-const GameTaskCard = (props) => (
-  <div>
-    <GameTaskRewards taskId={props.id} />
-    <OriginalTaskCard {...props} />
-  </div>
-)
-manager.setComponent('core.tasks/TaskCard', GameTaskCard)
+// Data provider plugins register standardized services
+manager.setService('fitness/tracker', new FitnessService())
+manager.setService('nutrition/tracker', new NutritionService())
+manager.setService('habits/tracker', new HabitService())
+manager.setService('tasks/tracker', new TaskService())
+
+// Game subscribes to all data sources
+const gameService = manager.getService('cultivation-game/engine')
+gameService.subscribeToDataFeeds([
+  'fitness/tracker', 'nutrition/tracker',
+  'habits/tracker', 'tasks/tracker'
+])
 ```
 
-#### Event Bus Integration
+#### Standardized Life Tracking Schema
 ```typescript
-// Listen for task events and convert to game events
-eventBus.on('task:completed', (event) => {
-  const gameEvent = mapTaskToGameEvent(event)
-  gameServer.sendEvent(gameEvent)
-})
+interface LifeTrackingData {
+  category: 'physical' | 'mental' | 'spiritual' | 'social' | 'productive'
+  subcategory: string
+  value: number
+  unit: string
+  timestamp: Date
+  source: string
+  metadata?: Record<string, any>
+}
 
-eventBus.on('habit:streak-broken', (event) => {
-  gameServer.sendEvent({
-    type: 'CRISIS',
-    area: mapHabitToGameArea(event.habitType),
-    severity: calculateSeverity(event.streakLength)
-  })
+// Real-time event conversion to cultivation mechanics
+eventBus.on('life:activity', (data: LifeTrackingData) => {
+  switch(data.category) {
+    case 'spiritual': gameEngine.increaseStat('spiritualPower', data.value); break
+    case 'physical': gameEngine.increaseStat('physicalStrength', data.value); break
+    case 'productive': gameEngine.increaseStat('mentalClarity', data.value); break
+  }
 })
+```
+
+#### External Service Connectors (Non-UI Plugins)
+```typescript
+// Connector plugins translate external APIs to standard format
+- connector.fitbit → Fitness data (steps, workouts, heart rate)
+- connector.myfitnesspal → Nutrition (macros, meals, water intake)
+- connector.headspace → Mindfulness (meditation sessions, mood)
+- connector.strava → Exercise (runs, cycles, strength training)
+- connector.oura → Recovery (sleep quality, HRV, readiness)
 ```
 
 ### Game Server (Godot) Architecture
