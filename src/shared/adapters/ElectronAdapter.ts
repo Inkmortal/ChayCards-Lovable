@@ -1,17 +1,6 @@
 
 import { PlatformAdapter, AppConfig } from '../types';
 
-declare global {
-  interface Window {
-    electronAPI?: {
-      getConfig(): AppConfig;
-      showNotification(title: string, body: string): void;
-      openExternal(url: string): void;
-      saveFile(data: string, filename: string): Promise<void>;
-      readFile(): Promise<string | null>;
-    };
-  }
-}
 
 export class ElectronAdapter implements PlatformAdapter {
   getConfig(): AppConfig {

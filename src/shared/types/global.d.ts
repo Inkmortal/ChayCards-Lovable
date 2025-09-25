@@ -3,9 +3,11 @@
 interface Window {
   electronAPI?: {
     getVersion: () => string;
+    getConfig(): import('./index').AppConfig;
+    showNotification(title: string, body: string): void;
+    openExternal(url: string): void;
     saveFile: (data: string, filename: string) => Promise<void>;
     readFile: () => Promise<string | null>;
-    // Add more as needed
   };
 }
 
