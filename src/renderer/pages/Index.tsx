@@ -36,25 +36,45 @@ const Index = () => {
           <div className="flex items-center space-x-3">
             <div 
               className="w-12 h-12 rounded-3xl flex items-center justify-center hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
-              style={{ background: 'hsl(var(--primary))', boxShadow: 'var(--shadow-3d-thick)' }}
+              style={{ 
+                background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))', 
+                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--primary) / 0.3)' 
+              }}
             >
-              <BookOpen className="w-7 h-7" style={{ color: 'hsl(var(--primary-foreground))', filter: 'drop-shadow(0 1px 2px hsl(var(--primary-foreground) / 0.2))' }} />
+              <BookOpen className="w-7 h-7" style={{ 
+                color: 'hsl(var(--primary-foreground))', 
+                filter: 'drop-shadow(0 2px 4px hsl(var(--primary-foreground) / 0.3))',
+                strokeWidth: '2.5'
+              }} />
             </div>
-            <h1 className="text-3xl font-bold text-foreground">ChayCards</h1>
+            <h1 className="text-3xl font-bold" style={{ 
+              color: 'hsl(var(--foreground))', 
+              textShadow: '0 2px 4px hsl(var(--foreground) / 0.15)' 
+            }}>ChayCards</h1>
           </div>
           <div className="flex items-center space-x-4">
             <Button 
               variant="outline" 
               size="sm" 
               className="border-2 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
-              style={{ boxShadow: 'var(--shadow-3d-thick)' }}
+              style={{ 
+                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--background))',
+                background: 'hsl(var(--background))',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))'
+              }}
             >
               Log in
             </Button>
             <Button 
               size="sm" 
               className="font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150" 
-              style={{ background: 'hsl(var(--blue))', color: 'hsl(var(--blue-foreground))', boxShadow: 'var(--shadow-3d-thick)' }}
+              style={{ 
+                background: 'linear-gradient(145deg, hsl(var(--blue)), hsl(var(--blue) / 0.85))', 
+                color: 'hsl(var(--blue-foreground))', 
+                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--blue) / 0.3)',
+                textShadow: '0 1px 2px hsl(var(--blue-foreground) / 0.3)'
+              }}
             >
               Get started
             </Button>
@@ -70,7 +90,10 @@ const Index = () => {
               <span style={{ color: 'hsl(var(--foreground))' }}>Your digital brain</span>
               <span className="block" style={{ color: 'hsl(var(--primary))' }}>for everything</span>
             </h2>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+            <p className="text-xl max-w-3xl mx-auto leading-relaxed" style={{ 
+              color: 'hsl(var(--muted-foreground))', 
+              textShadow: '0 1px 2px hsl(var(--muted-foreground) / 0.1)' 
+            }}>
               ChayCards transforms how you work with knowledge. Write documents, 
               create flashcards, manage tasks - all connected by AI in one beautiful workspace.
             </p>
@@ -79,18 +102,29 @@ const Index = () => {
               <Button 
                 size="lg" 
                 className="px-12 py-6 text-lg font-semibold rounded-2xl hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150"
-                style={{ background: 'hsl(var(--green))', color: 'hsl(var(--green-foreground))', boxShadow: 'var(--shadow-3d-chunky)' }}
+                style={{ 
+                  background: 'linear-gradient(145deg, hsl(var(--green)), hsl(var(--green) / 0.85))', 
+                  color: 'hsl(var(--green-foreground))', 
+                  boxShadow: 'var(--shadow-3d-chunky), inset 0 2px 0 hsl(var(--green) / 0.3)',
+                  textShadow: '0 1px 2px hsl(var(--green-foreground) / 0.3)'
+                }}
               >
                 Start building
-                <ArrowRight className="w-6 h-6 ml-3" />
+                <ArrowRight className="w-6 h-6 ml-3" style={{ strokeWidth: '2.5' }} />
               </Button>
               <Button 
                 variant="outline" 
                 size="lg"
                 className="px-12 py-6 text-lg font-semibold rounded-2xl border-2 hover:translate-y-[-4px] active:translate-y-[-1px] transition-all duration-150"
-                style={{ boxShadow: 'var(--shadow-3d-thick)' }}
+                style={{ 
+                  boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--background))',
+                  background: 'hsl(var(--background))',
+                  borderColor: 'hsl(var(--border))',
+                  color: 'hsl(var(--foreground))',
+                  textShadow: '0 1px 2px hsl(var(--foreground) / 0.2)'
+                }}
               >
-                <Play className="w-6 h-6 mr-3" />
+                <Play className="w-6 h-6 mr-3" style={{ strokeWidth: '2.5' }} />
                 Watch demo
               </Button>
             </div>
@@ -145,12 +179,22 @@ const Index = () => {
                   }}
                 >
                   <div 
-                    className="w-16 h-16 rounded-3xl flex items-center justify-center mb-6 hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
-                    style={{ background: color.bg, boxShadow: 'var(--shadow-3d-chunky)' }}
+                    className="w-16 h-16 rounded-3xl flex items-center justify-center mb-6 hover:translate-y-[-2px] transition-all duration-150"
+                    style={{ 
+                      background: `linear-gradient(145deg, ${color.bg}, ${color.bg}dd)`, 
+                      boxShadow: 'var(--shadow-3d-chunky), inset 0 2px 0 ' + color.bg + '40' 
+                    }}
                   >
-                    <feature.icon className="w-8 h-8" style={{ color: color.fg, filter: 'drop-shadow(0 1px 2px hsl(var(--foreground) / 0.2))' }} />
+                    <feature.icon className="w-8 h-8" style={{ 
+                      color: color.fg, 
+                      filter: 'drop-shadow(0 2px 4px hsl(var(--foreground) / 0.2))',
+                      strokeWidth: '2.5'
+                    }} />
                   </div>
-                  <h4 className="text-2xl font-bold text-foreground mb-4">
+                  <h4 className="text-2xl font-bold mb-4" style={{ 
+                    color: 'hsl(var(--foreground))', 
+                    textShadow: '0 1px 3px hsl(var(--foreground) / 0.15)' 
+                  }}>
                     {feature.title}
                   </h4>
                   <p className="text-muted-foreground text-lg leading-relaxed">
