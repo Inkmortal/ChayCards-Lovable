@@ -43,7 +43,7 @@ const Index = () => {
             <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
               Log in
             </Button>
-            <Button size="sm" className="bg-blue text-blue-foreground shadow-3d hover:translate-y-[-2px] transition-transform duration-200" style={{ background: 'hsl(var(--blue))', color: 'hsl(var(--blue-foreground))' }}>
+            <Button size="sm" className="text-blue-foreground shadow-3d-thick hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150" style={{ background: 'hsl(var(--blue))', color: 'hsl(var(--blue-foreground))', boxShadow: 'var(--shadow-3d-thick)' }}>
               Get started
             </Button>
           </div>
@@ -66,8 +66,8 @@ const Index = () => {
             <div className="flex flex-col sm:flex-row gap-6 justify-center">
               <Button 
                 size="lg" 
-                className="px-12 py-6 text-lg font-semibold rounded-2xl shadow-3d hover:translate-y-[-3px] transition-all duration-200"
-                style={{ background: 'hsl(var(--green))', color: 'hsl(var(--green-foreground))' }}
+                className="px-12 py-6 text-lg font-semibold rounded-2xl hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150"
+                style={{ background: 'hsl(var(--green))', color: 'hsl(var(--green-foreground))', boxShadow: 'var(--shadow-3d-chunky)' }}
               >
                 Start building
                 <ArrowRight className="w-6 h-6 ml-3" />
@@ -75,7 +75,8 @@ const Index = () => {
               <Button 
                 variant="outline" 
                 size="lg"
-                className="px-12 py-6 text-lg font-semibold rounded-2xl border-2 shadow-md hover:shadow-lg hover:translate-y-[-2px] transition-all duration-200"
+                className="px-12 py-6 text-lg font-semibold rounded-2xl border-2 hover:translate-y-[-4px] active:translate-y-[-1px] transition-all duration-150"
+                style={{ boxShadow: 'var(--shadow-3d-thick)' }}
               >
                 <Play className="w-6 h-6 mr-3" />
                 Watch demo
@@ -132,8 +133,8 @@ const Index = () => {
                   }}
                 >
                   <div 
-                    className="w-16 h-16 rounded-3xl flex items-center justify-center mb-6 shadow-3d hover:translate-y-[-2px] transition-transform duration-200"
-                    style={{ background: color.bg }}
+                    className="w-16 h-16 rounded-3xl flex items-center justify-center mb-6 hover:translate-y-[-4px] active:translate-y-[-1px] transition-all duration-150"
+                    style={{ background: color.bg, boxShadow: 'var(--shadow-3d-thick)' }}
                   >
                     <feature.icon className="w-8 h-8" style={{ color: color.fg }} />
                   </div>
@@ -165,8 +166,8 @@ const Index = () => {
             ].map((item, index) => (
               <Card key={index} className="p-6 border-2 border-transparent hover:scale-105 transition-all duration-300 rounded-2xl shadow-lg">
                 <div 
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-white font-bold text-lg shadow-3d"
-                  style={{ background: item.color }}
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-white font-bold text-lg hover:translate-y-[-4px] active:translate-y-[-1px] transition-all duration-150"
+                  style={{ background: item.color, boxShadow: 'var(--shadow-3d-thick)' }}
                 >
                   {item.step}
                 </div>
@@ -185,8 +186,8 @@ const Index = () => {
         <div className="max-w-4xl mx-auto">
           <Card className="p-12 text-center border-2 shadow-xl rounded-3xl bg-gradient-to-br from-card to-background">
             <div 
-              className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-3d hover:translate-y-[-3px] transition-transform duration-200"
-              style={{ background: 'hsl(var(--primary))' }}
+              className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150"
+              style={{ background: 'hsl(var(--primary))', boxShadow: 'var(--shadow-3d-chunky)' }}
             >
               <BookOpen className="w-10 h-10 text-primary-foreground" />
             </div>
@@ -202,8 +203,8 @@ const Index = () => {
             <div className="flex flex-col sm:flex-row gap-6 justify-center">
               <Button 
                 size="lg" 
-                className="px-12 py-6 text-lg font-semibold rounded-2xl shadow-3d hover:translate-y-[-3px] transition-all duration-200"
-                style={{ background: 'hsl(var(--green))', color: 'hsl(var(--green-foreground))' }}
+                className="px-12 py-6 text-lg font-semibold rounded-2xl hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150"
+                style={{ background: 'hsl(var(--green))', color: 'hsl(var(--green-foreground))', boxShadow: 'var(--shadow-3d-chunky)' }}
               >
                 Start for free
                 <ArrowRight className="w-6 h-6 ml-3" />
@@ -211,7 +212,8 @@ const Index = () => {
               <Button 
                 variant="outline" 
                 size="lg"
-                className="px-12 py-6 text-lg font-semibold rounded-2xl border-2 shadow-md hover:shadow-lg hover:translate-y-[-2px] transition-all duration-200"
+                className="px-12 py-6 text-lg font-semibold rounded-2xl border-2 hover:translate-y-[-4px] active:translate-y-[-1px] transition-all duration-150"
+                style={{ boxShadow: 'var(--shadow-3d-thick)' }}
               >
                 Download for {isElectron ? "Desktop" : "Windows"}
               </Button>

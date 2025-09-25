@@ -40,11 +40,13 @@
     --teal: 197 37% 24%;
     --teal-foreground: 220 23% 95%;
     
-    /* 3D Shadow system */
+    /* 3D Shadow system - Enhanced for thicker buttons */
     --shadow-sm: 0 2px 4px hsl(234 16% 35% / 0.1);
     --shadow-md: 0 4px 12px hsl(234 16% 35% / 0.15), 0 2px 4px hsl(234 16% 35% / 0.1);
     --shadow-lg: 0 8px 25px hsl(234 16% 35% / 0.2), 0 4px 10px hsl(234 16% 35% / 0.1);
-    --shadow-3d: 0 8px 0 hsl(234 16% 35% / 0.1), 0 12px 20px hsl(234 16% 35% / 0.15);
+    --shadow-3d: 0 6px 0 hsl(234 16% 35% / 0.2), 0 8px 15px hsl(234 16% 35% / 0.15);
+    --shadow-3d-thick: 0 8px 0 hsl(234 16% 35% / 0.3), 0 12px 20px hsl(234 16% 35% / 0.2);
+    --shadow-3d-chunky: 0 10px 0 hsl(234 16% 35% / 0.4), 0 15px 25px hsl(234 16% 35% / 0.25);
   }
 
   .dark {
@@ -83,11 +85,13 @@
     --teal: 189 43% 73%;
     --teal-foreground: 229 19% 23%;
     
-    /* Dark mode 3D shadows */
+    /* Dark mode 3D shadows - Enhanced for thicker buttons */
     --shadow-sm: 0 2px 4px hsl(229 19% 15% / 0.3);
     --shadow-md: 0 4px 12px hsl(229 19% 15% / 0.4), 0 2px 4px hsl(229 19% 15% / 0.2);
     --shadow-lg: 0 8px 25px hsl(229 19% 15% / 0.5), 0 4px 10px hsl(229 19% 15% / 0.3);
-    --shadow-3d: 0 8px 0 hsl(229 19% 15% / 0.3), 0 12px 20px hsl(229 19% 15% / 0.4);
+    --shadow-3d: 0 6px 0 hsl(229 19% 15% / 0.4), 0 10px 20px hsl(229 19% 15% / 0.5);
+    --shadow-3d-thick: 0 8px 0 hsl(229 19% 15% / 0.5), 0 12px 25px hsl(229 19% 15% / 0.6);
+    --shadow-3d-chunky: 0 10px 0 hsl(229 19% 15% / 0.6), 0 15px 30px hsl(229 19% 15% / 0.7);
   }
 }
 
