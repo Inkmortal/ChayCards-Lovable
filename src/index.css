@@ -4,10 +4,10 @@
 
 @layer base {
   :root {
-    /* Catppuccin Latte */
+    /* Catppuccin Latte - Enhanced with more vibrant colors */
     --background: 220 23% 95%;
     --foreground: 234 16% 35%;
-    --card: 220 23% 95%;
+    --card: 220 23% 98%;
     --card-foreground: 234 16% 35%;
     --popover: 220 23% 95%;
     --popover-foreground: 234 16% 35%;
@@ -24,22 +24,34 @@
     --border: 228 24% 88%;
     --input: 228 24% 88%;
     --ring: 266 85% 58%;
-    --radius: 0.5rem;
-    --sidebar-background: 220 23% 95%;
-    --sidebar-foreground: 234 16% 35%;
-    --sidebar-primary: 266 85% 58%;
-    --sidebar-primary-foreground: 220 23% 95%;
-    --sidebar-accent: 228 24% 88%;
-    --sidebar-accent-foreground: 234 16% 35%;
-    --sidebar-border: 228 24% 88%;
-    --sidebar-ring: 266 85% 58%;
+    --radius: 0.75rem;
+    
+    /* Additional vibrant colors for variety */
+    --blue: 220 91% 54%;
+    --blue-foreground: 220 23% 95%;
+    --green: 109 58% 40%;
+    --green-foreground: 220 23% 95%;
+    --orange: 35 77% 49%;
+    --orange-foreground: 220 23% 95%;
+    --purple: 266 85% 58%;
+    --purple-foreground: 220 23% 95%;
+    --pink: 316 73% 52%;
+    --pink-foreground: 220 23% 95%;
+    --teal: 197 37% 24%;
+    --teal-foreground: 220 23% 95%;
+    
+    /* 3D Shadow system */
+    --shadow-sm: 0 2px 4px hsl(234 16% 35% / 0.1);
+    --shadow-md: 0 4px 12px hsl(234 16% 35% / 0.15), 0 2px 4px hsl(234 16% 35% / 0.1);
+    --shadow-lg: 0 8px 25px hsl(234 16% 35% / 0.2), 0 4px 10px hsl(234 16% 35% / 0.1);
+    --shadow-3d: 0 8px 0 hsl(234 16% 35% / 0.1), 0 12px 20px hsl(234 16% 35% / 0.15);
   }
 
   .dark {
-    /* Catppuccin Frappé */
+    /* Catppuccin Frappé - Enhanced */
     --background: 229 19% 23%;
     --foreground: 227 68% 88%;
-    --card: 229 19% 23%;
+    --card: 230 19% 26%;
     --card-foreground: 227 68% 88%;
     --popover: 229 19% 23%;
     --popover-foreground: 227 68% 88%;
@@ -56,14 +68,26 @@
     --border: 230 19% 26%;
     --input: 230 19% 26%;
     --ring: 267 84% 81%;
-    --sidebar-background: 229 19% 23%;
-    --sidebar-foreground: 227 68% 88%;
-    --sidebar-primary: 267 84% 81%;
-    --sidebar-primary-foreground: 229 19% 23%;
-    --sidebar-accent: 230 19% 26%;
-    --sidebar-accent-foreground: 227 68% 88%;
-    --sidebar-border: 230 19% 26%;
-    --sidebar-ring: 267 84% 81%;
+    
+    /* Vibrant dark mode colors */
+    --blue: 217 92% 76%;
+    --blue-foreground: 229 19% 23%;
+    --green: 115 54% 76%;
+    --green-foreground: 229 19% 23%;
+    --orange: 35 88% 72%;
+    --orange-foreground: 229 19% 23%;
+    --purple: 267 84% 81%;
+    --purple-foreground: 229 19% 23%;
+    --pink: 316 73% 69%;
+    --pink-foreground: 229 19% 23%;
+    --teal: 189 43% 73%;
+    --teal-foreground: 229 19% 23%;
+    
+    /* Dark mode 3D shadows */
+    --shadow-sm: 0 2px 4px hsl(229 19% 15% / 0.3);
+    --shadow-md: 0 4px 12px hsl(229 19% 15% / 0.4), 0 2px 4px hsl(229 19% 15% / 0.2);
+    --shadow-lg: 0 8px 25px hsl(229 19% 15% / 0.5), 0 4px 10px hsl(229 19% 15% / 0.3);
+    --shadow-3d: 0 8px 0 hsl(229 19% 15% / 0.3), 0 12px 20px hsl(229 19% 15% / 0.4);
   }
 }
 
