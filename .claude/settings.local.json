@@ -26,13 +26,28 @@
       "mcp__puppeteer__puppeteer_screenshot",
       "mcp__puppeteer__puppeteer_evaluate",
       "Bash(curl:*)",
-      "Bash(jq:*)"
+      "Bash(jq:*)",
+      "mcp__zen__analyze",
+      "mcp__zen__secaudit",
+      "WebSearch",
+      "Read(//home/constibetta/.claude/**)",
+      "Read(//tmp/**)",
+      "WebFetch(domain:developers.notion.com)",
+      "mcp__notion__notion-create-pages",
+      "mcp__notion__notion-fetch",
+      "mcp__notion__notion-search",
+      "Bash(npx cap init:*)",
+      "Bash(npx cap add:*)",
+      "Bash(npm run build:mobile:*)",
+      "Bash(npm run build:electron:*)",
+      "mcp__notion__notion-update-page"
     ],
     "deny": []
   },
-  "enableAllProjectMcpServers": false,
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "puppeteer",
-    "notion"
+    "notion",
+    "zen"
   ]
 }

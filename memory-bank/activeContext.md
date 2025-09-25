@@ -4,20 +4,41 @@
 
 We are building the foundation architecture for ChayCards with a focus on:
 1. ~~Setting up dual-platform support (Electron + Web)~~ ✅ Complete
-2. Creating the plugin system infrastructure - **IN PROGRESS**
+2. ~~Multi-platform architecture analysis~~ ✅ Complete
+3. Creating the plugin system infrastructure - **IN PROGRESS**
    - AppShell implementation - **READY TO IMPLEMENT**
    - PluginManager (merged with PluginRegistry) - **READY TO IMPLEMENT**
    - EventBus for async communication - **READY TO IMPLEMENT**
    - Theme system as a plugin
-3. Building the frontend with plugin architecture
+4. Game plugin design and architecture - **HIGH PRIORITY**
+5. Mobile deployment with Capacitor - **NEW PRIORITY**
+6. Building the frontend with plugin architecture
 
-**Current Status**: Preparing for implementation phase
+**Current Status**: Multi-platform strategy finalized, ready for implementation
+- **Architecture Decision**: Stick with Electron + Capacitor (not Tauri)
+- **Game Plugin**: Dwarf Fortress-style gamified task/habit tracking
 - Comprehensive documentation completed
 - Architecture solidified with merged PluginManager approach
 - Plugin communication patterns established (EventBus for async, services for sync)
 - Component enhancement through region system documented
 
 ## Recent Changes
+
+### Multi-Platform Architecture Analysis (September 24, 2025)
+- Comprehensive research of cross-platform deployment options
+- **Key Decision**: Electron + Capacitor over Tauri based on:
+  - AI assistance effectiveness (Claude/ChatGPT better with JS than Rust)
+  - Community consensus: "stick with Electron for highest development speed"
+  - Proven track record: 60% of cross-platform apps use Electron (2024 data)
+  - Game plugin needs: Full Chromium for rich canvas/WebGL support
+- **Mobile Strategy**: Add Capacitor as "Electron for mobile"
+  - Same React codebase across web, desktop, mobile
+  - 95% code reuse across all platforms
+- **Game Server**: Godot headless server via HTTP/WebSocket
+  - Single project approach (shared client/server code)
+  - Headless mode: `--display-driver headless`
+  - Local or cloud deployment options
+- Created game plugin architecture foundation
 
 ### Live2D AI Assistant Plugin Analysis (January 7, 2025)
 - Analyzed Open-LLM-VTuber implementation in depth
@@ -70,36 +91,52 @@ We are building the foundation architecture for ChayCards with a focus on:
 ## Next Steps
 
 ### Immediate (High Priority)
-1. **AppShell Implementation** (NEXT TASK)
+1. **Game Plugin Architecture Design** - **CRITICAL NEXT TASK**
+   - Define Dwarf Fortress-style game mechanics
+   - Task/habit completion drives game time progression
+   - Design game UI that integrates with ChayCards interface
+   - Plan Godot server integration
+2. **Capacitor Mobile Integration**
+   - Add Capacitor to existing React setup
+   - Configure iOS/Android builds
+   - Test core functionality on mobile
+3. **AppShell Implementation**
    - Create minimal layout with regions
    - Add region component support
    - Test with existing PluginHost
-2. **PluginRegistry and PluginManager**
+4. **PluginRegistry and PluginManager**
    - Dependency resolution
    - Component/service storage
-3. **Theme System Plugin**
+
+### Short Term
+1. **Game Plugin Implementation**
+   - Build game client interface
+   - Implement task-to-game-time mechanics
+   - Create Godot server template
+2. **Theme System Plugin**
    - Base theme with CSS variables
    - Theme provider wrapper
    - Support for theme enhancement
-4. **Core UI Plugin**
+3. **Core UI Plugin**
    - Depends on theme system
    - Shared shadcn components
 
-### Short Term
-1. Build core.documents plugin
-2. Create core.tasks plugin
-3. Implement core.knowledge plugin
-4. Test plugin enhancement patterns
-
 ### Medium Term
-1. Backend API structure
-2. Storage adapters
-3. Plugin marketplace
-4. Testing infrastructure
+1. Build core.documents plugin
+2. Create core.tasks plugin (integrate with game)
+3. Implement core.knowledge plugin
+4. Backend API structure
+5. Storage adapters
+6. Plugin marketplace
+7. Testing infrastructure
 
 ## Active Decisions and Considerations
 
 ### Technical Choices
+- **Desktop**: Electron (proven, AI-friendly, rich UI support for game)
+- **Mobile**: Capacitor (same codebase as web/desktop)
+- **Web**: Direct React deployment (existing)
+- **Game Server**: Godot headless (single project, HTTP/WebSocket)
 - **Package Manager**: npm (not Bun) for consistency
 - **Module System**: ES modules for app code, CommonJS for Electron main
 - **State Management**: TBD - considering Zustand or Context API

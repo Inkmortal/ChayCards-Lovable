@@ -10,14 +10,20 @@
       "env": {}
     },
     "notion": {
+      "type": "sse",
+      "url": "https://mcp.notion.com/sse"
+    },
+    "zen": {
       "type": "stdio",
-      "command": "npx",
+      "command": "uvx",
       "args": [
-        "-y",
-        "@notionhq/notion-mcp-server"
+        "--from",
+        "git+https://github.com/BeehiveInnovations/zen-mcp-server.git",
+        "zen-mcp-server"
       ],
       "env": {
-        "OPENAPI_MCP_HEADERS": "{\"Authorization\": \"Bearer ${NOTION_API_KEY}\", \"Notion-Version\": \"2022-06-28\"}"
+        "GEMINI_API_KEY": "AIzaSyAqzE9HF9uRD06LReVB30WI6n910SO5moc",
+        "OPENAI_API_KEY": "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"
       }
     }
   }

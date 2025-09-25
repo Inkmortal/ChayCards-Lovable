@@ -3,37 +3,31 @@
 ## Critical Information
 - **Database Name**: ChayCards_Dev
 - **Database ID**: `1fcbbd9b-1a29-8037-93a7-f8088c952035`
+- **Data Source ID**: `1fcbbd9b-1a29-80d5-bc07-000be692a8ea`
 - **Purpose**: Track tasks persistently across sessions, communicate progress to human
 
 ## Creating Tasks
 
 When human asks to create a task, use:
 ```
-mcp__notion__API-post-page
-- parent: {"database_id": "1fcbbd9b-1a29-8037-93a7-f8088c952035"}
-- properties: {
-    "Project name": {"title": [{"text": {"content": "Task title here"}}]},
-    "Status": {"status": {"name": "Not started"}},
-    "Priority": {"select": {"name": "High"}},  // High, Medium, or Low
-    "Category": {"select": {"name": "Plugin System"}}  // Infrastructure, Plugin System, Core Plugins, Backend, Testing
-  }
+mcp__notion__notion-create-pages
+- parent: {"type": "data_source_id", "data_source_id": "1fcbbd9b-1a29-80d5-bc07-000be692a8ea"}
+- pages: [{"properties": {
+    "Project name": "Task title here",
+    "Status": "Not started",  // "Not started", "In progress", "Done"
+    "Priority": "High",       // "High", "Medium", "Low"
+    "Category": "Plugin System"  // "Infrastructure", "Planning", "Plugin System", "Core Plugins", "Backend", "Testing"
+  }, "content": "Notion-flavored Markdown content here"}]
 ```
 
-## Adding Task Content
+## Content Format
 
-After creating task, add content with proper Notion blocks:
+Tasks use **Notion-flavored Markdown** directly in the content field during creation:
+```
+- pages: [{"properties": {...}, "content": "# About Project\nDescription\n\n# Action items\n- First task\n- Second task"}]
+```
 
-```
-mcp__notion__API-patch-block-children
-- block_id: [page_id from creation]
-- children: [
-    {"type": "heading_3", "heading_3": {"rich_text": [{"type": "text", "text": {"content": "About project"}}]}},
-    {"type": "paragraph", "paragraph": {"rich_text": [{"type": "text", "text": {"content": "Description here"}}]}},
-    {"type": "heading_3", "heading_3": {"rich_text": [{"type": "text", "text": {"content": "Action items"}}]}},
-    {"type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "First task"}}], "checked": false}},
-    {"type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Second task"}}], "checked": false}}
-  ]
-```
+**No separate block creation needed** - content is rendered automatically.
 
 ## CRITICAL FORMATTING RULES
 
@@ -53,15 +47,13 @@ mcp__notion__API-patch-block-children
 
 To see all incomplete tasks (default):
 ```
-mcp__notion__API-post-database-query
-- database_id: "1fcbbd9b-1a29-8037-93a7-f8088c952035"
-- filter: {
-    "or": [
-      {"property": "Status", "status": {"equals": "Not started"}},
-      {"property": "Status", "status": {"equals": "In progress"}}
-    ]
+mcp__notion__notion-search
+- query: ""
+- data_source_url: "collection://1fcbbd9b-1a29-80d5-bc07-000be692a8ea"
+- filters: {
+    "created_by_user_ids": [],
+    "created_date_range": {"start_date": "2024-01-01"}
   }
-- sorts: [{"property": "Priority", "direction": "ascending"}]
 ```
 
 To filter by specific status:
@@ -80,23 +72,32 @@ mcp__notion__API-post-database-query
 
 ### Change Status:
 ```
-mcp__notion__API-patch-page
-- page_id: [task_id]
-- properties: {"Status": {"status": {"name": "In progress"}}}  // or "Done"
+mcp__notion__notion-update-page
+- data: {
+    "page_id": "[task_id]",
+    "command": "update_properties",
+    "properties": {"Status": "In progress"}  // or "Done"
+  }
 ```
 
-### Check Off Action Items:
+### Update Content:
 ```
-mcp__notion__API-update-a-block
-- block_id: [to_do_block_id]
-- type: {"to_do": {"rich_text": [existing_text], "checked": true}}
+mcp__notion__notion-update-page
+- data: {
+    "page_id": "[task_id]",
+    "command": "replace_content",
+    "new_str": "Updated Notion-flavored Markdown content"
+  }
 ```
 
 ### Add Dependencies:
 ```
-mcp__notion__API-patch-page
-- page_id: [task_id]
-- properties: {"Dependencies": {"relation": [{"id": "dependent_task_id"}]}}
+mcp__notion__notion-update-page
+- data: {
+    "page_id": "[task_id]",
+    "command": "update_properties",
+    "properties": {"Dependencies": ["dependent_task_url"]}
+  }
 ```
 
 ## Standard Task Structure

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ChayCards</string>
+    <string name="title_activity_main">ChayCards</string>
+    <string name="package_name">com.chaycards.app</string>
+    <string name="custom_url_scheme">com.chaycards.app</string>
+</resources>
