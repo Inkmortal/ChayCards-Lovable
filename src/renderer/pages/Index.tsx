@@ -179,15 +179,14 @@ const Index = () => {
                   }}
                 >
                   <div 
-                    className="w-16 h-16 rounded-3xl flex items-center justify-center mb-6 hover:translate-y-[-2px] transition-all duration-150"
+                    className="w-16 h-16 rounded-3xl flex items-center justify-center mb-6"
                     style={{ 
-                      background: `linear-gradient(145deg, ${color.bg}, ${color.bg}dd)`, 
-                      boxShadow: 'var(--shadow-3d-chunky), inset 0 2px 0 ' + color.bg + '40' 
+                      background: color.accent,
+                      border: `2px solid ${color.bg}40`
                     }}
                   >
                     <feature.icon className="w-8 h-8" style={{ 
-                      color: color.fg, 
-                      filter: 'drop-shadow(0 2px 4px hsl(var(--foreground) / 0.2))',
+                      color: color.bg,
                       strokeWidth: '2.5'
                     }} />
                   </div>
@@ -222,8 +221,12 @@ const Index = () => {
             ].map((item, index) => (
               <Card key={index} className="p-6 border-2 border-transparent hover:scale-105 transition-all duration-300 rounded-2xl shadow-lg">
                 <div 
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-white font-bold text-lg hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
-                  style={{ background: item.color, boxShadow: 'var(--shadow-3d-chunky)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-white font-bold text-lg"
+                  style={{ 
+                    background: item.color,
+                    border: `2px solid ${item.color}40`,
+                    textShadow: '0 1px 2px rgba(0,0,0,0.3)' 
+                  }}
                 >
                   {item.step}
                 </div>
@@ -242,10 +245,16 @@ const Index = () => {
         <div className="max-w-4xl mx-auto">
           <Card className="p-12 text-center border-2 shadow-xl rounded-3xl bg-gradient-to-br from-card to-background">
             <div 
-              className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150"
-              style={{ background: 'hsl(var(--primary))', boxShadow: 'var(--shadow-3d-chunky)' }}
+              className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8"
+              style={{ 
+                background: 'hsl(var(--primary) / 0.1)',
+                border: '3px solid hsl(var(--primary))'
+              }}
             >
-              <BookOpen className="w-10 h-10" style={{ color: 'hsl(var(--primary-foreground))', filter: 'drop-shadow(0 2px 4px hsl(var(--primary-foreground) / 0.2))' }} />
+              <BookOpen className="w-10 h-10" style={{ 
+                color: 'hsl(var(--primary))', 
+                strokeWidth: '2.5'
+              }} />
             </div>
             
             <h3 className="text-5xl font-bold text-foreground mb-6 leading-tight">
