@@ -4,41 +4,41 @@
 
 @layer base {
   :root {
-    /* Catppuccin Latte - Enhanced with more vibrant colors */
-    --background: 220 23% 95%;
-    --foreground: 234 16% 35%;
-    --card: 220 23% 98%;
-    --card-foreground: 234 16% 35%;
-    --popover: 220 23% 95%;
-    --popover-foreground: 234 16% 35%;
-    --primary: 266 85% 58%;
-    --primary-foreground: 220 23% 95%;
-    --secondary: 228 24% 88%;
-    --secondary-foreground: 234 16% 35%;
-    --muted: 228 24% 88%;
-    --muted-foreground: 233 13% 54%;
-    --accent: 35 77% 49%;
-    --accent-foreground: 220 23% 95%;
-    --destructive: 347 87% 44%;
-    --destructive-foreground: 220 23% 95%;
-    --border: 228 24% 88%;
-    --input: 228 24% 88%;
-    --ring: 266 85% 58%;
+    /* Wuxia/Cultivation Theme - Jade, Gold, Deep Forest */
+    --background: 120 15% 97%;
+    --foreground: 150 35% 20%;
+    --card: 120 20% 98%;
+    --card-foreground: 150 35% 20%;
+    --popover: 120 20% 98%;
+    --popover-foreground: 150 35% 20%;
+    --primary: 150 60% 35%;
+    --primary-foreground: 120 20% 98%;
+    --secondary: 45 85% 85%;
+    --secondary-foreground: 150 35% 20%;
+    --muted: 120 15% 92%;
+    --muted-foreground: 150 25% 45%;
+    --accent: 45 90% 70%;
+    --accent-foreground: 150 35% 20%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 120 20% 98%;
+    --border: 120 15% 88%;
+    --input: 120 15% 88%;
+    --ring: 150 60% 35%;
     --radius: 0.75rem;
     
-    /* Additional vibrant colors for variety */
-    --blue: 220 91% 54%;
-    --blue-foreground: 220 23% 95%;
-    --green: 109 58% 40%;
-    --green-foreground: 220 23% 95%;
-    --orange: 35 77% 49%;
-    --orange-foreground: 220 23% 95%;
-    --purple: 266 85% 58%;
-    --purple-foreground: 220 23% 95%;
-    --pink: 316 73% 52%;
-    --pink-foreground: 220 23% 95%;
-    --teal: 197 37% 24%;
-    --teal-foreground: 220 23% 95%;
+    /* Wuxia color palette - Jade greens, golds, deep purples */
+    --jade: 150 60% 35%;
+    --jade-foreground: 120 20% 98%;
+    --gold: 45 90% 50%;
+    --gold-foreground: 150 35% 20%;
+    --forest: 120 40% 25%;
+    --forest-foreground: 120 20% 98%;
+    --imperial: 280 70% 45%;
+    --imperial-foreground: 120 20% 98%;
+    --crimson: 0 75% 50%;
+    --crimson-foreground: 120 20% 98%;
+    --bronze: 30 75% 40%;
+    --bronze-foreground: 120 20% 98%;
     
     /* 3D Shadow system - Enhanced for thicker buttons */
     --shadow-sm: 0 2px 4px hsl(234 16% 35% / 0.1);
@@ -50,40 +50,40 @@
   }
 
   .dark {
-    /* Catppuccin Frappé - Enhanced */
-    --background: 229 19% 23%;
-    --foreground: 227 68% 88%;
-    --card: 230 19% 26%;
-    --card-foreground: 227 68% 88%;
-    --popover: 229 19% 23%;
-    --popover-foreground: 227 68% 88%;
-    --primary: 267 84% 81%;
-    --primary-foreground: 229 19% 23%;
-    --secondary: 230 19% 26%;
-    --secondary-foreground: 227 68% 88%;
-    --muted: 230 19% 26%;
-    --muted-foreground: 228 39% 80%;
-    --accent: 35 88% 72%;
-    --accent-foreground: 229 19% 23%;
-    --destructive: 347 87% 44%;
-    --destructive-foreground: 227 68% 88%;
-    --border: 230 19% 26%;
-    --input: 230 19% 26%;
-    --ring: 267 84% 81%;
+    /* Dark Wuxia Theme - Deep forest nights with jade accents */
+    --background: 150 35% 8%;
+    --foreground: 120 20% 92%;
+    --card: 150 30% 12%;
+    --card-foreground: 120 20% 92%;
+    --popover: 150 30% 12%;
+    --popover-foreground: 120 20% 92%;
+    --primary: 150 55% 65%;
+    --primary-foreground: 150 35% 8%;
+    --secondary: 45 60% 25%;
+    --secondary-foreground: 120 20% 92%;
+    --muted: 150 25% 18%;
+    --muted-foreground: 120 15% 65%;
+    --accent: 45 75% 45%;
+    --accent-foreground: 150 35% 8%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 120 20% 92%;
+    --border: 150 25% 18%;
+    --input: 150 25% 18%;
+    --ring: 150 55% 65%;
     
-    /* Vibrant dark mode colors */
-    --blue: 217 92% 76%;
-    --blue-foreground: 229 19% 23%;
-    --green: 115 54% 76%;
-    --green-foreground: 229 19% 23%;
-    --orange: 35 88% 72%;
-    --orange-foreground: 229 19% 23%;
-    --purple: 267 84% 81%;
-    --purple-foreground: 229 19% 23%;
-    --pink: 316 73% 69%;
-    --pink-foreground: 229 19% 23%;
-    --teal: 189 43% 73%;
-    --teal-foreground: 229 19% 23%;
+    /* Dark wuxia color palette */
+    --jade: 150 55% 65%;
+    --jade-foreground: 150 35% 8%;
+    --gold: 45 85% 65%;
+    --gold-foreground: 150 35% 8%;
+    --forest: 120 40% 45%;
+    --forest-foreground: 150 35% 8%;
+    --imperial: 280 60% 65%;
+    --imperial-foreground: 150 35% 8%;
+    --crimson: 0 65% 65%;
+    --crimson-foreground: 150 35% 8%;
+    --bronze: 30 65% 55%;
+    --bronze-foreground: 150 35% 8%;
     
     /* Dark mode 3D shadows - Enhanced for thicker buttons */
     --shadow-sm: 0 2px 4px hsl(229 19% 15% / 0.3);
