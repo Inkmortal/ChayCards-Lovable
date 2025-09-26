@@ -5,24 +5,34 @@
 We are building the foundation architecture for ChayCards with a focus on:
 1. ~~Setting up dual-platform support (Electron + Web)~~ ✅ Complete
 2. ~~Multi-platform architecture analysis~~ ✅ Complete
-3. Creating the plugin system infrastructure - **IN PROGRESS**
-   - AppShell implementation - **READY TO IMPLEMENT**
-   - PluginManager (merged with PluginRegistry) - **READY TO IMPLEMENT**
-   - EventBus for async communication - **READY TO IMPLEMENT**
-   - Theme system as a plugin
-4. Game plugin design and architecture - **HIGH PRIORITY**
-5. Mobile deployment with Capacitor - **NEW PRIORITY**
+3. ~~Capacitor mobile integration~~ ✅ Complete
+4. **Plugin system infrastructure + User Experience** - **CURRENT PRIORITY**
+   - Minimal PluginManager implementation - **IMMEDIATE NEXT**
+   - Theme system as first plugin - **IMMEDIATE NEXT**
+   - Smart platform-aware user flow - **IMMEDIATE NEXT**
+   - Enhanced component system with Duolingo aesthetic
+5. Game plugin design and architecture - **HIGH PRIORITY**
 6. Building the frontend with plugin architecture
 
-**Current Status**: Multi-platform strategy finalized, ready for implementation
-- **Architecture Decision**: Stick with Electron + Capacitor (not Tauri)
-- **Game Plugin**: Chinese cultivation + Dwarf Fortress + comprehensive life gamification
-- Comprehensive documentation completed
-- Architecture solidified with merged PluginManager approach
-- Plugin communication patterns established (EventBus for async, services for sync)
-- Component enhancement through region system documented
+**Current Status**: Moving from architecture documentation to implementation
+- **Implementation Strategy**: "Vertical Slice First" - build minimal working system end-to-end
+- **First Plugin**: Theme system (core.theme) to validate plugin architecture
+- **User Experience Focus**: Platform-aware onboarding flow before main app features
+- **Visual Design**: Duolingo-inspired aesthetic (rounded, chunky buttons, clean typography)
+- **Deployment Strategy**: Local-first for desktop, cloud-first for web, future mobile support
 
 ## Recent Changes
+
+### User Experience & Plugin System Strategy (September 26, 2025)
+- **Major Shift**: From pure architecture to user-experience focused implementation
+- **Platform-Aware User Flow**: Smart navigation based on deployment platform
+  - Web: Cloud-first flow with download option for desktop apps
+  - Desktop: Local-first flow with 3 options (Local/Sync/Cloud)
+  - Mobile: Future cloud-only approach
+- **Smart Routing**: Returning users skip setup, go directly to main app
+- **Duolingo-Inspired Design**: Clean aesthetic with rounded, chunky buttons (not color copying)
+- **Theme System as Plugin**: Validates plugin architecture while providing foundation
+- **Existing Code Reuse**: Transform current home page rather than rebuild from scratch
 
 ### Multi-Platform Architecture Analysis (September 24, 2025)
 - Comprehensive research of cross-platform deployment options
@@ -91,35 +101,35 @@ We are building the foundation architecture for ChayCards with a focus on:
 ## Next Steps
 
 ### Immediate (High Priority)
-1. **Game Plugin Architecture Design** - **CRITICAL NEXT TASK**
-   - Define Dwarf Fortress-style game mechanics
-   - Task/habit completion drives game time progression
-   - Design game UI that integrates with ChayCards interface
-   - Plan Godot server integration
-2. **Capacitor Mobile Integration**
-   - Add Capacitor to existing React setup
-   - Configure iOS/Android builds
-   - Test core functionality on mobile
-3. **AppShell Implementation**
-   - Create minimal layout with regions
-   - Add region component support
-   - Test with existing PluginHost
-4. **PluginRegistry and PluginManager**
-   - Dependency resolution
-   - Component/service storage
+1. **Plugin System Foundation** - **CURRENT TASK**
+   - Minimal PluginManager with Vite glob imports
+   - EventBus for plugin communication
+   - Theme system as first plugin (core.theme)
+   - Pre-React plugin loading and initialization
+2. **Platform-Aware User Experience**
+   - Smart routing based on platform detection
+   - Enhanced home page with deployment choice
+   - Desktop: Local/Sync/Cloud options
+   - Web: Cloud-first with download option
+3. **Duolingo-Inspired Component Enhancement**
+   - Enhance existing shadcn components with new aesthetic
+   - Chunky, rounded buttons with 3D shadows
+   - Clean typography and generous spacing
+   - Theme integration from day one
 
 ### Short Term
-1. **Game Plugin Implementation**
+1. **Core UI Plugin**
+   - Build upon theme system foundation
+   - Enhanced component library with theme integration
+   - Plugin-registered shadcn components
+2. **Main App Implementation**
+   - AppShell with plugin regions
+   - Plugin-driven navigation
+   - Settings system for theme/deployment switching
+3. **Game Plugin Implementation**
    - Build game client interface
    - Implement task-to-game-time mechanics
    - Create Godot server template
-2. **Theme System Plugin**
-   - Base theme with CSS variables
-   - Theme provider wrapper
-   - Support for theme enhancement
-3. **Core UI Plugin**
-   - Depends on theme system
-   - Shared shadcn components
 
 ### Medium Term
 1. Build core.documents plugin
@@ -149,6 +159,8 @@ We are building the foundation architecture for ChayCards with a focus on:
 - **Dynamic Resolution**: Components resolved at runtime from registry
 - **Platform Detection**: Runtime detection, not build-time
 - **Frontend-First**: Build UI with mocks, add backend later
+- **Smart User Flow**: Platform-aware routing (local-first desktop, cloud-first web)
+- **Theme-as-Plugin**: Theme system implemented as first plugin to validate architecture
 
 ## Important Patterns and Preferences
 

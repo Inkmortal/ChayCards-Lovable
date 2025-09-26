@@ -40,7 +40,8 @@
       "Bash(npx cap add:*)",
       "Bash(npm run build:mobile:*)",
       "Bash(npm run build:electron:*)",
-      "mcp__notion__notion-update-page"
+      "mcp__notion__notion-update-page",
+      "mcp__zen__chat"
     ],
     "deny": []
   },
