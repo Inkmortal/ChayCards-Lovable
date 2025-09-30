@@ -227,10 +227,10 @@ const Index = () => {
                 onClick={() => setShowDevPanel(!showDevPanel)}
                 className="border-2 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
                 style={{
-                  boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--background))',
+                  boxShadow: '0 10px 0 color-mix(in oklab, hsl(var(--accent)), black 25%), 0 15px 25px color-mix(in oklab, hsl(var(--accent)), black 50%), inset 0 1px 0 hsl(var(--background))',
                   background: 'hsl(var(--background))',
-                  borderColor: 'hsl(var(--orange))',
-                  color: 'hsl(var(--orange))'
+                  borderColor: 'hsl(var(--accent))',
+                  color: 'hsl(var(--accent))'
                 }}
               >
                 <Code className="w-4 h-4" />
@@ -273,10 +273,10 @@ const Index = () => {
               onClick={handleGetStarted}
               className="font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
               style={{
-                background: 'linear-gradient(145deg, hsl(var(--blue)), hsl(var(--blue) / 0.85))',
-                color: 'hsl(var(--blue-foreground))',
-                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--blue) / 0.3)',
-                textShadow: '0 1px 2px hsl(var(--blue-foreground) / 0.3)'
+                background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.85))',
+                color: 'hsl(var(--primary-foreground))',
+                boxShadow: '0 10px 0 color-mix(in oklab, hsl(var(--primary)), black 25%), 0 15px 25px color-mix(in oklab, hsl(var(--primary)), black 50%), inset 0 1px 0 hsl(var(--primary) / 0.3)',
+                textShadow: '0 1px 2px hsl(var(--primary-foreground) / 0.3)'
               }}
             >
               Get started
@@ -343,10 +343,10 @@ const Index = () => {
                 onClick={handleGetStarted}
                 className="px-12 py-6 text-lg font-semibold rounded-2xl hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150"
                 style={{
-                  background: 'linear-gradient(145deg, hsl(var(--green)), hsl(var(--green) / 0.85))',
-                  color: 'hsl(var(--green-foreground))',
-                  boxShadow: 'var(--shadow-3d-chunky), inset 0 2px 0 hsl(var(--green) / 0.3)',
-                  textShadow: '0 1px 2px hsl(var(--green-foreground) / 0.3)'
+                  background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.85))',
+                  color: 'hsl(var(--primary-foreground))',
+                  boxShadow: '0 10px 0 color-mix(in oklab, hsl(var(--primary)), black 25%), 0 15px 25px color-mix(in oklab, hsl(var(--primary)), black 50%), inset 0 2px 0 hsl(var(--primary) / 0.3)',
+                  textShadow: '0 1px 2px hsl(var(--primary-foreground) / 0.3)'
                 }}
               >
                 Start building
@@ -357,7 +357,7 @@ const Index = () => {
                 size="lg"
                 className="px-12 py-6 text-lg font-semibold rounded-2xl border-2 hover:translate-y-[-4px] active:translate-y-[-1px] transition-all duration-150"
                 style={{
-                  boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--background))',
+                  boxShadow: '0 10px 0 hsl(var(--foreground) / 0.15), 0 15px 25px hsl(var(--foreground) / 0.1), inset 0 1px 0 hsl(var(--background))',
                   background: 'hsl(var(--background))',
                   borderColor: 'hsl(var(--border))',
                   color: 'hsl(var(--foreground))',
@@ -372,16 +372,16 @@ const Index = () => {
 
           {/* Colorful Feature Pills */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-16">
-            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl shadow-lg border-2 border-transparent hover:scale-105 transition-transform duration-200" style={{ background: 'hsl(var(--green) / 0.1)', borderColor: 'hsl(var(--green) / 0.2)' }}>
-              <div className="w-4 h-4 rounded-full" style={{ background: 'hsl(var(--green))' }}></div>
+            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl shadow-lg border-2 border-transparent hover:scale-105 transition-transform duration-200" style={{ background: 'hsl(var(--success) / 0.1)', borderColor: 'hsl(var(--success) / 0.2)' }}>
+              <div className="w-4 h-4 rounded-full" style={{ background: 'hsl(var(--success))' }}></div>
               <span className="text-sm font-medium text-foreground">Free forever</span>
             </div>
-            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl shadow-lg border-2 border-transparent hover:scale-105 transition-transform duration-200" style={{ background: 'hsl(var(--blue) / 0.1)', borderColor: 'hsl(var(--blue) / 0.2)' }}>
-              <div className="w-4 h-4 rounded-full" style={{ background: 'hsl(var(--blue))' }}></div>
+            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl shadow-lg border-2 border-transparent hover:scale-105 transition-transform duration-200" style={{ background: 'hsl(var(--info) / 0.1)', borderColor: 'hsl(var(--info) / 0.2)' }}>
+              <div className="w-4 h-4 rounded-full" style={{ background: 'hsl(var(--info))' }}></div>
               <span className="text-sm font-medium text-foreground">Works offline</span>
             </div>
-            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl shadow-lg border-2 border-transparent hover:scale-105 transition-transform duration-200" style={{ background: 'hsl(var(--purple) / 0.1)', borderColor: 'hsl(var(--purple) / 0.2)' }}>
-              <div className="w-4 h-4 rounded-full" style={{ background: 'hsl(var(--purple))' }}></div>
+            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl shadow-lg border-2 border-transparent hover:scale-105 transition-transform duration-200" style={{ background: 'hsl(var(--tertiary) / 0.1)', borderColor: 'hsl(var(--tertiary) / 0.2)' }}>
+              <div className="w-4 h-4 rounded-full" style={{ background: 'hsl(var(--tertiary))' }}></div>
               <span className="text-sm font-medium text-foreground">Privacy first</span>
             </div>
           </div>
@@ -403,9 +403,9 @@ const Index = () => {
           <div className="grid md:grid-cols-3 gap-8">
             {features.map((feature, index) => {
               const colors = [
-                { bg: 'hsl(var(--orange))', fg: 'hsl(var(--orange-foreground))', accent: 'hsl(var(--orange) / 0.1)' },
-                { bg: 'hsl(var(--blue))', fg: 'hsl(var(--blue-foreground))', accent: 'hsl(var(--blue) / 0.1)' },
-                { bg: 'hsl(var(--purple))', fg: 'hsl(var(--purple-foreground))', accent: 'hsl(var(--purple) / 0.1)' }
+                { bg: 'hsl(var(--accent))', fg: 'hsl(var(--accent-foreground))', accent: 'hsl(var(--accent) / 0.1)' },
+                { bg: 'hsl(var(--info))', fg: 'hsl(var(--info-foreground))', accent: 'hsl(var(--info) / 0.1)' },
+                { bg: 'hsl(var(--tertiary))', fg: 'hsl(var(--tertiary-foreground))', accent: 'hsl(var(--tertiary) / 0.1)' }
               ];
               const color = colors[index];
               
@@ -455,9 +455,9 @@ const Index = () => {
           
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              { step: 1, title: "Write documents", desc: "Create notes, research, or any content using our markdown editor.", color: 'hsl(var(--teal))' },
-              { step: 2, title: "AI extracts knowledge", desc: "Key concepts become flashcards. Tasks are identified automatically.", color: 'hsl(var(--pink))' },
-              { step: 3, title: "Learn & stay organized", desc: "Review with spaced repetition. Track tasks. Search everything.", color: 'hsl(var(--green))' }
+              { step: 1, title: "Write documents", desc: "Create notes, research, or any content using our markdown editor.", color: 'hsl(var(--primary))' },
+              { step: 2, title: "AI extracts knowledge", desc: "Key concepts become flashcards. Tasks are identified automatically.", color: 'hsl(var(--secondary))' },
+              { step: 3, title: "Learn & stay organized", desc: "Review with spaced repetition. Track tasks. Search everything.", color: 'hsl(var(--success))' }
             ].map((item, index) => (
               <Card key={index} className="p-6 border-2 border-transparent hover:scale-105 transition-all duration-300 rounded-2xl shadow-lg">
                 <div 
@@ -510,17 +510,28 @@ const Index = () => {
                 size="lg"
                 onClick={handleGetStarted}
                 className="px-12 py-6 text-lg font-semibold rounded-2xl hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150"
-                style={{ background: 'hsl(var(--green))', color: 'hsl(var(--green-foreground))', boxShadow: 'var(--shadow-3d-chunky)' }}
+                style={{
+                  background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.85))',
+                  color: 'hsl(var(--primary-foreground))',
+                  boxShadow: '0 10px 0 color-mix(in oklab, hsl(var(--primary)), black 25%), 0 15px 30px color-mix(in oklab, hsl(var(--primary)), black 50%), inset 0 2px 0 hsl(var(--primary) / 0.3)',
+                  textShadow: '0 1px 2px hsl(var(--primary-foreground) / 0.3)'
+                }}
               >
                 Start for free
-                <ArrowRight className="w-6 h-6 ml-3" />
+                <ArrowRight className="w-6 h-6 ml-3" style={{ strokeWidth: '2.5' }} />
               </Button>
               <Button
                 variant="outline"
                 size="lg"
                 onClick={handleDownload}
                 className="px-12 py-6 text-lg font-semibold rounded-2xl border-2 hover:translate-y-[-4px] active:translate-y-[-1px] transition-all duration-150"
-                style={{ boxShadow: 'var(--shadow-3d-thick)' }}
+                style={{
+                  boxShadow: '0 8px 0 hsl(var(--foreground) / 0.15), 0 12px 20px hsl(var(--foreground) / 0.1), inset 0 1px 0 hsl(var(--background))',
+                  background: 'hsl(var(--background))',
+                  borderColor: 'hsl(var(--border))',
+                  color: 'hsl(var(--foreground))',
+                  textShadow: '0 1px 2px hsl(var(--foreground) / 0.2)'
+                }}
               >
                 Download for {isElectron ? "Desktop" : "Windows"}
               </Button>

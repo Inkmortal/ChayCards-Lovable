@@ -23,7 +23,7 @@ const Setup = () => {
           title: 'Sign in to ChayCards',
           description: 'Access your workspace from anywhere with cloud sync',
           icon: Cloud,
-          color: 'hsl(var(--blue))',
+          color: 'hsl(var(--info)),',
           disabled: true, // Disabled as requested
           disabledText: 'Coming soon'
         },
@@ -32,7 +32,7 @@ const Setup = () => {
           title: 'Create account',
           description: 'Start fresh with a new ChayCards workspace',
           icon: Cloud,
-          color: 'hsl(var(--green))',
+          color: 'hsl(var(--success)),',
           disabled: true, // Disabled as requested
           disabledText: 'Coming soon'
         },
@@ -41,7 +41,7 @@ const Setup = () => {
           title: 'Download desktop app',
           description: 'Get the full ChayCards experience with offline access',
           icon: Download,
-          color: 'hsl(var(--purple))'
+          color: 'hsl(var(--tertiary))'
         }
       ];
     }
@@ -53,21 +53,21 @@ const Setup = () => {
         title: 'Use locally',
         description: 'Keep everything on your device. Perfect for privacy.',
         icon: HardDrive,
-        color: 'hsl(var(--green))'
+        color: 'hsl(var(--success))'
       },
       {
         id: 'sync',
         title: 'Sync with cloud',
         description: 'Hybrid approach - local storage with cloud backup.',
         icon: RefreshCw,
-        color: 'hsl(var(--blue))'
+        color: 'hsl(var(--info))'
       },
       {
         id: 'cloud',
         title: 'Cloud only',
         description: 'Everything stored in the cloud. Requires internet.',
         icon: Cloud,
-        color: 'hsl(var(--purple))'
+        color: 'hsl(var(--tertiary))'
       }
     ];
   };

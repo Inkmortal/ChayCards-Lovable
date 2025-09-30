@@ -44,7 +44,14 @@
       "mcp__zen__chat",
       "mcp__puppeteer__puppeteer_click",
       "WebFetch(domain:docs.lovable.dev)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "WebFetch(domain:catppuccin.com)",
+      "WebFetch(domain:draculatheme.com)",
+      "WebFetch(domain:www.color-hex.com)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "WebFetch(domain:m3.material.io)",
+      "Bash(npm run dev:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   },

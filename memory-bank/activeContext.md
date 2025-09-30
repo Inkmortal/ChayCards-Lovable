@@ -37,6 +37,10 @@ We are building the foundation architecture for ChayCards with a focus on:
   - CSS custom properties system with localStorage persistence
   - Theme selector dropdown integrated into homepage header
   - Event-driven theme changes with real-time updates
+  - **Universal Semantic Variables**: Standardized theme variables across all themes
+    - 24 semantic variables (background, foreground, primary, secondary, tertiary, states, etc.)
+    - Authentic colors from official theme specifications (Catppuccin.com, Dracula, etc.)
+    - Plugin-extensible architecture for custom variables
 - **Smart Platform Routing**: Enhanced homepage with intelligent user flow
   - Platform detection (Electron vs Web) for deployment-specific routing
   - Desktop: Local/Sync/Cloud storage options in setup page
@@ -47,6 +51,19 @@ We are building the foundation architecture for ChayCards with a focus on:
   - Hover animations with translate-y effects for interactive feedback
   - Colorful feature highlights and gradient buttons
   - Clean typography with generous spacing and text shadows
+
+### Universal Semantic Theme Variables (September 29, 2025)
+- **Research & Standardization**: Analyzed universal design system patterns
+  - Verified authentic colors from official theme sources (Catppuccin.com, Dracula, etc.)
+  - Researched shadcn/ui, Material Design 3, and Tailwind CSS standards
+  - Reduced inconsistent palette colors to 24 universal semantic variables
+- **Implementation Complete**: All themes now use standardized semantic roles
+  - ThemeVariables interface: 24 semantic properties (vs 14+ inconsistent palette)
+  - All 4 themes (8 variants) converted with authentic official colors
+  - Updated all pages (Setup.tsx, Index.tsx) to use semantic variables
+  - Removed palette variables from index.css for cleaner foundation
+- **Plugin Extensibility**: Maintained ability for plugins to add custom variables
+- **Build Verification**: `npm run build` successful with new semantic system
 
 ### Lovable Development Access Issue (September 29, 2025)
 - **Problem Identified**: Smart routing blocks Lovable development access to individual pages
