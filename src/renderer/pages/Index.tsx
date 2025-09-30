@@ -239,7 +239,7 @@ const Index = () => {
 
             {/* Theme selector button */}
             <Button
-              variant="3d-accent"
+              variant="3d-muted"
               size="sm"
               onClick={() => setShowThemeSelector(!showThemeSelector)}
             >
@@ -248,10 +248,10 @@ const Index = () => {
 
             {/* Login button - disabled for now as requested */}
             <Button
-              variant="3d"
+              variant="3d-secondary"
               size="sm"
               disabled
-              className="opacity-60 cursor-not-allowed"
+              className="opacity-70 cursor-not-allowed"
             >
               Log in
             </Button>
