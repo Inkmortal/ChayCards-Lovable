@@ -131,7 +131,7 @@ const Index = () => {
   // Development panel with quick navigation
   const DevelopmentPanel = ({ onClose }: { onClose: () => void }) => {
     const routes = [
-      { path: '/setup', label: 'Setup Page (Desktop)', description: 'Local/Sync/Cloud options' },
+      { path: '/setup?platform=desktop', label: 'Setup Page (Desktop)', description: 'Local/Sync/Cloud options' },
       { path: '/setup?platform=web', label: 'Setup Page (Web)', description: 'Cloud-first with download option' },
       // Future routes for when they're implemented
       { path: '/app', label: 'Main App', description: 'Coming soon - main workspace' },
