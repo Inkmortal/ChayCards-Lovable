@@ -359,16 +359,16 @@ const Index = () => {
 
           {/* Colorful Feature Pills */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-16">
-            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl shadow-lg border-2 border-transparent hover:scale-105 transition-transform duration-200" style={{ background: 'hsl(var(--success) / 0.1)', borderColor: 'hsl(var(--success) / 0.2)' }}>
-              <div className="w-4 h-4 rounded-full" style={{ background: 'hsl(var(--success))' }}></div>
+            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl border-2 hover:scale-105 transition-transform duration-200 bg-success/10 border-success/20 shadow-lg">
+              <div className="w-4 h-4 rounded-full bg-success"></div>
               <span className="text-sm font-medium text-foreground">Free forever</span>
             </div>
-            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl shadow-lg border-2 border-transparent hover:scale-105 transition-transform duration-200" style={{ background: 'hsl(var(--info) / 0.1)', borderColor: 'hsl(var(--info) / 0.2)' }}>
-              <div className="w-4 h-4 rounded-full" style={{ background: 'hsl(var(--info))' }}></div>
+            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl border-2 hover:scale-105 transition-transform duration-200 bg-info/10 border-info/20 shadow-lg">
+              <div className="w-4 h-4 rounded-full bg-info"></div>
               <span className="text-sm font-medium text-foreground">Works offline</span>
             </div>
-            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl shadow-lg border-2 border-transparent hover:scale-105 transition-transform duration-200" style={{ background: 'hsl(var(--tertiary) / 0.1)', borderColor: 'hsl(var(--tertiary) / 0.2)' }}>
-              <div className="w-4 h-4 rounded-full" style={{ background: 'hsl(var(--tertiary))' }}></div>
+            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl border-2 hover:scale-105 transition-transform duration-200 bg-tertiary/10 border-tertiary/20 shadow-lg">
+              <div className="w-4 h-4 rounded-full bg-tertiary"></div>
               <span className="text-sm font-medium text-foreground">Privacy first</span>
             </div>
           </div>
@@ -389,38 +389,22 @@ const Index = () => {
 
           <div className="grid md:grid-cols-3 gap-8">
             {features.map((feature, index) => {
-              const colors = [
-                { bg: 'hsl(var(--accent))', fg: 'hsl(var(--accent-foreground))', accent: 'hsl(var(--accent) / 0.1)' },
-                { bg: 'hsl(var(--info))', fg: 'hsl(var(--info-foreground))', accent: 'hsl(var(--info) / 0.1)' },
-                { bg: 'hsl(var(--tertiary))', fg: 'hsl(var(--tertiary-foreground))', accent: 'hsl(var(--tertiary) / 0.1)' }
+              const colorClasses = [
+                { bg: 'bg-accent/10', border: 'border-accent/30', iconBg: 'bg-accent/10', icon: 'text-accent' },
+                { bg: 'bg-info/10', border: 'border-info/30', iconBg: 'bg-info/10', icon: 'text-info' },
+                { bg: 'bg-tertiary/10', border: 'border-tertiary/30', iconBg: 'bg-tertiary/10', icon: 'text-tertiary' }
               ];
-              const color = colors[index];
+              const colorClass = colorClasses[index];
               
               return (
                 <Card 
                   key={index} 
-                  className="p-8 border-2 border-transparent hover:border-opacity-50 transition-all hover:shadow-xl hover:translate-y-[-4px] duration-300 rounded-3xl"
-                  style={{ 
-                    background: color.accent,
-                    borderColor: color.bg + '40'
-                  }}
+                  className={`p-8 border-2 hover:shadow-xl hover:translate-y-[-4px] duration-300 rounded-3xl transition-all ${colorClass.bg} ${colorClass.border}`}
                 >
-                  <div 
-                    className="w-16 h-16 rounded-3xl flex items-center justify-center mb-6"
-                    style={{ 
-                      background: color.accent,
-                      border: `2px solid ${color.bg}40`
-                    }}
-                  >
-                    <feature.icon className="w-8 h-8" style={{ 
-                      color: color.bg,
-                      strokeWidth: '2.5'
-                    }} />
+                  <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mb-6 border-2 ${colorClass.iconBg} ${colorClass.border}`}>
+                    <feature.icon className={`w-8 h-8 ${colorClass.icon}`} strokeWidth={2.5} />
                   </div>
-                  <h4 className="text-2xl font-bold mb-4" style={{ 
-                    color: 'hsl(var(--foreground))', 
-                    textShadow: '0 1px 3px hsl(var(--foreground) / 0.15)' 
-                  }}>
+                  <h4 className="text-2xl font-bold mb-4 text-foreground">
                     {feature.title}
                   </h4>
                   <p className="text-muted-foreground text-lg leading-relaxed">
@@ -442,18 +426,12 @@ const Index = () => {
           
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              { step: 1, title: "Write documents", desc: "Create notes, research, or any content using our markdown editor.", color: 'hsl(var(--primary))' },
-              { step: 2, title: "AI extracts knowledge", desc: "Key concepts become flashcards. Tasks are identified automatically.", color: 'hsl(var(--secondary))' },
-              { step: 3, title: "Learn & stay organized", desc: "Review with spaced repetition. Track tasks. Search everything.", color: 'hsl(var(--success))' }
+              { step: 1, title: "Write documents", desc: "Create notes, research, or any content using our markdown editor.", colorClass: 'primary' },
+              { step: 2, title: "AI extracts knowledge", desc: "Key concepts become flashcards. Tasks are identified automatically.", colorClass: 'secondary' },
+              { step: 3, title: "Learn & stay organized", desc: "Review with spaced repetition. Track tasks. Search everything.", colorClass: 'success' }
             ].map((item, index) => (
               <Card key={index} className="p-6 border-2 border-transparent hover:scale-105 transition-all duration-300 rounded-2xl shadow-lg">
-                <div 
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-white font-bold text-lg"
-                  style={{ 
-                    background: item.color,
-                    border: `2px solid ${item.color}40`,
-                    textShadow: '0 1px 2px rgba(0,0,0,0.3)' 
-                  }}
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 font-bold text-lg bg-${item.colorClass} text-${item.colorClass}-foreground border-2 border-${item.colorClass}/40`}
                 >
                   {item.step}
                 </div>
@@ -471,17 +449,8 @@ const Index = () => {
       <section className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
           <Card className="p-12 text-center border-2 shadow-xl rounded-3xl bg-gradient-to-br from-card to-background">
-            <div 
-              className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8"
-              style={{ 
-                background: 'hsl(var(--primary) / 0.1)',
-                border: '3px solid hsl(var(--primary))'
-              }}
-            >
-              <BookOpen className="w-10 h-10" style={{ 
-                color: 'hsl(var(--primary))', 
-                strokeWidth: '2.5'
-              }} />
+            <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 bg-primary/10 border-3 border-primary">
+              <BookOpen className="w-10 h-10 text-primary" strokeWidth={2.5} />
             </div>
             
             <h3 className="text-5xl font-bold text-foreground mb-6 leading-tight">

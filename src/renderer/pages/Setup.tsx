@@ -23,7 +23,7 @@ const Setup = () => {
           title: 'Sign in to ChayCards',
           description: 'Access your workspace from anywhere with cloud sync',
           icon: Cloud,
-          color: 'hsl(var(--info)),',
+          colorClass: 'info',
           disabled: true, // Disabled as requested
           disabledText: 'Coming soon'
         },
@@ -32,7 +32,7 @@ const Setup = () => {
           title: 'Create account',
           description: 'Start fresh with a new ChayCards workspace',
           icon: Cloud,
-          color: 'hsl(var(--success)),',
+          colorClass: 'success',
           disabled: true, // Disabled as requested
           disabledText: 'Coming soon'
         },
@@ -41,7 +41,7 @@ const Setup = () => {
           title: 'Download desktop app',
           description: 'Get the full ChayCards experience with offline access',
           icon: Download,
-          color: 'hsl(var(--tertiary))'
+          colorClass: 'tertiary'
         }
       ];
     }
@@ -53,21 +53,21 @@ const Setup = () => {
         title: 'Use locally',
         description: 'Keep everything on your device. Perfect for privacy.',
         icon: HardDrive,
-        color: 'hsl(var(--success))'
+        colorClass: 'success'
       },
       {
         id: 'sync',
         title: 'Sync with cloud',
         description: 'Hybrid approach - local storage with cloud backup.',
         icon: RefreshCw,
-        color: 'hsl(var(--info))'
+        colorClass: 'info'
       },
       {
         id: 'cloud',
         title: 'Cloud only',
         description: 'Everything stored in the cloud. Requires internet.',
         icon: Cloud,
-        color: 'hsl(var(--tertiary))'
+        colorClass: 'tertiary'
       }
     ];
   };
@@ -166,27 +166,32 @@ const Setup = () => {
             {setupOptions.map((option) => {
               const isSelected = selectedOption === option.id;
               const isDisabled = option.disabled;
+              
+              const getColorClasses = (colorClass: string) => ({
+                bg: `bg-${colorClass}/10`,
+                border: `border-${colorClass}/30`,
+                selectedBorder: `border-${colorClass}`,
+                iconBg: `bg-${colorClass}/20`,
+                iconBorder: `border-${colorClass}/40`,
+                icon: `text-${colorClass}`,
+                indicatorBg: `bg-${colorClass}`
+              });
+              
+              const colors = getColorClasses(option.colorClass);
 
               return (
                 <Card
                   key={option.id}
                   className={`relative p-8 border-2 cursor-pointer transition-all duration-300 rounded-3xl ${
                     isSelected
-                      ? 'border-opacity-100 shadow-xl scale-105'
-                      : 'border-transparent hover:border-opacity-50 hover:shadow-lg hover:scale-102'
+                      ? `${colors.selectedBorder} shadow-xl scale-105 ${colors.bg}`
+                      : `border-transparent hover:${colors.border} hover:shadow-lg hover:scale-102`
                   } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  style={{
-                    background: isSelected ? `${option.color}15` : 'hsl(var(--card))',
-                    borderColor: isSelected ? option.color : `${option.color}40`
-                  }}
                   onClick={() => handleOptionSelect(option.id)}
                 >
                   {/* Selection indicator */}
                   {isSelected && (
-                    <div
-                      className="absolute top-4 right-4 w-6 h-6 rounded-full flex items-center justify-center"
-                      style={{ background: option.color }}
-                    >
+                    <div className={`absolute top-4 right-4 w-6 h-6 rounded-full flex items-center justify-center ${colors.indicatorBg}`}>
                       <Check className="w-4 h-4 text-white" strokeWidth={3} />
                     </div>
                   )}
@@ -201,21 +206,12 @@ const Setup = () => {
                   )}
 
                   {/* Icon */}
-                  <div
-                    className="w-16 h-16 rounded-3xl flex items-center justify-center mb-6"
-                    style={{
-                      background: `${option.color}20`,
-                      border: `2px solid ${option.color}40`
-                    }}
-                  >
-                    <option.icon
-                      className="w-8 h-8"
-                      style={{ color: option.color, strokeWidth: '2.5' }}
-                    />
+                  <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mb-6 border-2 ${colors.iconBg} ${colors.iconBorder}`}>
+                    <option.icon className={`w-8 h-8 ${colors.icon}`} strokeWidth={2.5} />
                   </div>
 
                   {/* Content */}
-                  <h3 className="text-2xl font-bold mb-4" style={{ color: 'hsl(var(--foreground))' }}>
+                  <h3 className="text-2xl font-bold mb-4 text-foreground">
                     {option.title}
                   </h3>
                   <p className="text-muted-foreground text-lg leading-relaxed">
