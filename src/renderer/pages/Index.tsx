@@ -239,32 +239,19 @@ const Index = () => {
 
             {/* Theme selector button */}
             <Button
-              variant="outline"
+              variant="3d"
               size="sm"
               onClick={() => setShowThemeSelector(!showThemeSelector)}
-              className="border-2 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
-              style={{
-                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--background))',
-                background: 'hsl(var(--background))',
-                borderColor: 'hsl(var(--border))',
-                color: 'hsl(var(--foreground))'
-              }}
             >
               <Palette className="w-4 h-4" />
             </Button>
 
             {/* Login button - disabled for now as requested */}
             <Button
-              variant="outline"
+              variant="3d"
               size="sm"
               disabled
-              className="border-2 font-semibold opacity-50 cursor-not-allowed transition-all duration-150"
-              style={{
-                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--background))',
-                background: 'hsl(var(--background))',
-                borderColor: 'hsl(var(--border))',
-                color: 'hsl(var(--foreground))'
-              }}
+              className="opacity-50 cursor-not-allowed"
             >
               Log in
             </Button>

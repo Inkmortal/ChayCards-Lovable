@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/shared/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -18,6 +18,8 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        "3d": "bg-background text-foreground border-2 border-border font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150 shadow-[0_8px_0_hsl(var(--border)),0_12px_20px_hsl(var(--border)/0.3),inset_0_1px_0_hsl(var(--background))]",
+        "3d-primary": "bg-primary text-primary-foreground font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150 shadow-[0_8px_0_color-mix(in_oklab,hsl(var(--primary)),black_25%),0_12px_20px_color-mix(in_oklab,hsl(var(--primary)),black_50%),inset_0_1px_0_hsl(var(--primary)/0.3)]",
       },
       size: {
         default: "h-10 px-4 py-2",
