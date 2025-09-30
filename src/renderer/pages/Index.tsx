@@ -248,10 +248,10 @@ const Index = () => {
 
             {/* Login button - disabled for now as requested */}
             <Button
-              variant="3d-secondary"
+              variant="3d-outline"
               size="sm"
               disabled
-              className="opacity-70 cursor-not-allowed"
+              className="opacity-80 cursor-not-allowed"
             >
               Log in
             </Button>

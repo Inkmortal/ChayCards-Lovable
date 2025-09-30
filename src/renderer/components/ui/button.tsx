@@ -22,6 +22,7 @@ const buttonVariants = cva(
         "3d-primary": "bg-primary text-primary-foreground font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150 shadow-[0_8px_0_color-mix(in_oklab,hsl(var(--primary)),black_25%),0_12px_20px_color-mix(in_oklab,hsl(var(--primary)),black_50%),inset_0_1px_0_hsl(var(--primary)/0.3)]",
         "3d-muted": "bg-muted text-muted-foreground border-2 border-muted-foreground/20 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150 shadow-[0_8px_0_hsl(var(--muted-foreground)/0.3),0_12px_20px_hsl(var(--muted-foreground)/0.2),inset_0_1px_0_hsl(var(--muted)/0.8)]",
         "3d-secondary": "bg-secondary text-secondary-foreground border-2 border-secondary/50 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150 shadow-[0_8px_0_hsl(var(--secondary)),0_12px_20px_hsl(var(--secondary)/0.4),inset_0_1px_0_hsl(var(--secondary)/0.2)]",
+        "3d-outline": "bg-background text-foreground border-2 border-foreground/30 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150 shadow-[0_8px_0_hsl(var(--foreground)/0.2),0_12px_20px_hsl(var(--foreground)/0.15),inset_0_1px_0_hsl(var(--background))]",
       },
       size: {
         default: "h-10 px-4 py-2",
