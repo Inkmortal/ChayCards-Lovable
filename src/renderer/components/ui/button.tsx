@@ -18,8 +18,9 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        "3d": "bg-background text-foreground border-2 border-border font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150 shadow-[0_8px_0_hsl(var(--border)),0_12px_20px_hsl(var(--border)/0.3),inset_0_1px_0_hsl(var(--background))]",
+        "3d": "bg-card text-card-foreground border-2 border-border font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150 shadow-[0_8px_0_hsl(var(--border)),0_12px_20px_hsl(var(--border)/0.3),inset_0_1px_0_hsl(var(--card))]",
         "3d-primary": "bg-primary text-primary-foreground font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150 shadow-[0_8px_0_color-mix(in_oklab,hsl(var(--primary)),black_25%),0_12px_20px_color-mix(in_oklab,hsl(var(--primary)),black_50%),inset_0_1px_0_hsl(var(--primary)/0.3)]",
+        "3d-accent": "bg-accent text-accent-foreground border-2 border-accent/30 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150 shadow-[0_8px_0_hsl(var(--accent)),0_12px_20px_hsl(var(--accent)/0.4),inset_0_1px_0_hsl(var(--accent)/0.2)]",
       },
       size: {
         default: "h-10 px-4 py-2",
