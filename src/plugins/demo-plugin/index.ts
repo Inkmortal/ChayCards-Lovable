@@ -1,24 +1,27 @@
 /**
  * Demo Plugin
  * Demonstrates plugin system capabilities including:
+ * - Data storage (own service)
+ * - Cross-plugin communication (accessing other plugin's services)
  * - Routes and navigation
  * - Region components (header, sidebar)
  * - Theme integration
- * - EventBus communication
+ * - EventBus messaging
  */
 
 import type { Plugin } from '../../shared/plugin-system/types';
 import { DemoPage } from './components/DemoPage';
 import { HeaderStatus } from './components/HeaderStatus';
 import { SidebarWidget } from './components/SidebarWidget';
+import { DemoDataService } from './services/DemoDataService';
 
 export const DemoPlugin: Plugin = {
   id: 'demo-plugin',
   name: 'Demo Plugin',
   version: '1.0.0',
-  description: 'Demonstrates plugin system capabilities and region integration',
+  description: 'Demonstrates plugin system capabilities including data storage and cross-plugin communication',
 
-  // Depends on theme system to show theme switching
+  // Depends on theme system to demonstrate cross-plugin data access
   requires: ['core-theme'],
 
   // Register components
@@ -26,6 +29,11 @@ export const DemoPlugin: Plugin = {
     'DemoPage': DemoPage,
     'HeaderStatus': HeaderStatus,
     'SidebarWidget': SidebarWidget
+  },
+
+  // Register own service for data management
+  services: {
+    'dataService': new DemoDataService()
   },
 
   // Register route with navigation
