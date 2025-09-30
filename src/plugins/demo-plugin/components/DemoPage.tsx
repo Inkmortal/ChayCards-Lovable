@@ -7,11 +7,24 @@ import { Card } from "@/renderer/components/ui/card";
 import { Button } from "@/renderer/components/ui/button";
 import { Palette, Zap, Box, Code } from "lucide-react";
 import { PluginManager } from "../../../shared/plugin-system";
+import { useState, useEffect } from "react";
 
 export const DemoPage = () => {
   const pluginManager = PluginManager.getInstance();
   const themeService = pluginManager.getService('core-theme/themeService');
   const loadedPlugins = pluginManager.getLoadedPlugins();
+  const [currentTheme, setCurrentTheme] = useState(themeService?.getCurrentTheme());
+
+  // Subscribe to theme changes
+  useEffect(() => {
+    if (!themeService) return;
+
+    const unsubscribe = themeService.onThemeChange((theme: any) => {
+      setCurrentTheme(theme);
+    });
+
+    return unsubscribe;
+  }, [themeService]);
 
   const handleThemeChange = () => {
     if (themeService) {
@@ -59,7 +72,7 @@ export const DemoPage = () => {
             <h2 className="text-2xl font-bold text-foreground">Theme System</h2>
           </div>
           <p className="text-muted-foreground mb-4">
-            Current theme: <span className="font-medium text-foreground">{themeService?.getCurrentTheme()?.name || 'Unknown'}</span>
+            Current theme: <span className="font-medium text-foreground">{currentTheme?.name || 'Unknown'}</span>
           </p>
           <Button
             onClick={handleThemeChange}

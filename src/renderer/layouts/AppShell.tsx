@@ -52,7 +52,7 @@ export const AppShell: React.FC = () => {
         {/* Header Plugin Components */}
         <div className="flex items-center gap-2">
           {headerComponents.map((comp) => (
-            <PluginHost key={comp.id} componentName={comp.component} />
+            <PluginHost key={comp.id} componentName={typeof comp.component === 'string' ? comp.component : comp.id} />
           ))}
         </div>
       </header>
@@ -105,7 +105,7 @@ export const AppShell: React.FC = () => {
               {sidebarComponents.length > 0 && (
                 <div className="border-t border-border p-4 space-y-2">
                   {sidebarComponents.map((comp) => (
-                    <PluginHost key={comp.id} componentName={comp.component} />
+                    <PluginHost key={comp.id} componentName={typeof comp.component === 'string' ? comp.component : comp.id} />
                   ))}
                 </div>
               )}
@@ -120,7 +120,7 @@ export const AppShell: React.FC = () => {
               <Route
                 key={route.path}
                 path={route.path.replace('/app', '')}
-                element={<PluginHost componentName={route.component} />}
+                element={<PluginHost componentName={typeof route.component === 'string' ? route.component : route.path} />}
               />
             ))}
 
@@ -168,7 +168,7 @@ export const AppShell: React.FC = () => {
       {footerComponents.length > 0 && (
         <footer className="app-footer h-10 border-t border-border bg-card/50 flex items-center px-4 gap-2">
           {footerComponents.map((comp) => (
-            <PluginHost key={comp.id} componentName={comp.component} />
+            <PluginHost key={comp.id} componentName={typeof comp.component === 'string' ? comp.component : comp.id} />
           ))}
         </footer>
       )}
