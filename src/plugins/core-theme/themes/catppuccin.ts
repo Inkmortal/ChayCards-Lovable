@@ -1,0 +1,158 @@
+/**
+ * Catppuccin Theme Variants
+ * Popular warm and cozy color scheme
+ */
+
+export interface ThemeVariables {
+  // Core colors (HSL values without hsl() wrapper)
+  '--background': string;
+  '--foreground': string;
+  '--card': string;
+  '--card-foreground': string;
+  '--popover': string;
+  '--popover-foreground': string;
+  '--primary': string;
+  '--primary-foreground': string;
+  '--secondary': string;
+  '--secondary-foreground': string;
+  '--muted': string;
+  '--muted-foreground': string;
+  '--accent': string;
+  '--accent-foreground': string;
+  '--destructive': string;
+  '--destructive-foreground': string;
+  '--border': string;
+  '--input': string;
+  '--ring': string;
+  '--radius': string;
+
+  // Additional vibrant colors
+  '--blue': string;
+  '--blue-foreground': string;
+  '--green': string;
+  '--green-foreground': string;
+  '--orange': string;
+  '--orange-foreground': string;
+  '--purple': string;
+  '--purple-foreground': string;
+  '--pink': string;
+  '--pink-foreground': string;
+  '--teal': string;
+  '--teal-foreground': string;
+
+  // 3D Shadow system
+  '--shadow-sm': string;
+  '--shadow-md': string;
+  '--shadow-lg': string;
+  '--shadow-3d': string;
+  '--shadow-3d-thick': string;
+  '--shadow-3d-chunky': string;
+}
+
+export interface Theme {
+  id: string;
+  name: string;
+  className?: string; // CSS class to apply to root
+  variables: ThemeVariables;
+}
+
+export const catppuccinLatte: Theme = {
+  id: 'catppuccin-latte',
+  name: 'Catppuccin Latte',
+  variables: {
+    // Core colors - Catppuccin Latte enhanced
+    '--background': '220 23% 95%',
+    '--foreground': '234 16% 35%',
+    '--card': '220 23% 98%',
+    '--card-foreground': '234 16% 35%',
+    '--popover': '220 23% 95%',
+    '--popover-foreground': '234 16% 35%',
+    '--primary': '266 85% 58%',
+    '--primary-foreground': '220 23% 95%',
+    '--secondary': '228 24% 88%',
+    '--secondary-foreground': '234 16% 35%',
+    '--muted': '228 24% 88%',
+    '--muted-foreground': '233 13% 54%',
+    '--accent': '35 77% 49%',
+    '--accent-foreground': '220 23% 95%',
+    '--destructive': '347 87% 44%',
+    '--destructive-foreground': '220 23% 95%',
+    '--border': '228 24% 88%',
+    '--input': '228 24% 88%',
+    '--ring': '266 85% 58%',
+    '--radius': '0.75rem',
+
+    // Additional vibrant colors
+    '--blue': '220 91% 54%',
+    '--blue-foreground': '220 23% 95%',
+    '--green': '109 58% 40%',
+    '--green-foreground': '220 23% 95%',
+    '--orange': '35 77% 49%',
+    '--orange-foreground': '220 23% 95%',
+    '--purple': '266 85% 58%',
+    '--purple-foreground': '220 23% 95%',
+    '--pink': '316 73% 52%',
+    '--pink-foreground': '220 23% 95%',
+    '--teal': '197 37% 24%',
+    '--teal-foreground': '220 23% 95%',
+
+    // 3D Shadow system
+    '--shadow-sm': '0 2px 4px hsl(234 16% 35% / 0.1)',
+    '--shadow-md': '0 4px 12px hsl(234 16% 35% / 0.15), 0 2px 4px hsl(234 16% 35% / 0.1)',
+    '--shadow-lg': '0 8px 25px hsl(234 16% 35% / 0.2), 0 4px 10px hsl(234 16% 35% / 0.1)',
+    '--shadow-3d': '0 6px 0 hsl(234 16% 35% / 0.2), 0 8px 15px hsl(234 16% 35% / 0.15)',
+    '--shadow-3d-thick': '0 8px 0 hsl(234 16% 35% / 0.3), 0 12px 20px hsl(234 16% 35% / 0.2)',
+    '--shadow-3d-chunky': '0 10px 0 hsl(234 16% 35% / 0.4), 0 15px 25px hsl(234 16% 35% / 0.25)'
+  }
+};
+
+export const catppuccinFrappe: Theme = {
+  id: 'catppuccin-frappe',
+  name: 'Catppuccin Frappé',
+  className: 'dark',
+  variables: {
+    // Core colors - Catppuccin Frappé enhanced
+    '--background': '229 19% 23%',
+    '--foreground': '227 68% 88%',
+    '--card': '230 19% 26%',
+    '--card-foreground': '227 68% 88%',
+    '--popover': '229 19% 23%',
+    '--popover-foreground': '227 68% 88%',
+    '--primary': '267 84% 81%',
+    '--primary-foreground': '229 19% 23%',
+    '--secondary': '230 19% 26%',
+    '--secondary-foreground': '227 68% 88%',
+    '--muted': '230 19% 26%',
+    '--muted-foreground': '228 39% 80%',
+    '--accent': '35 88% 72%',
+    '--accent-foreground': '229 19% 23%',
+    '--destructive': '347 87% 44%',
+    '--destructive-foreground': '227 68% 88%',
+    '--border': '230 19% 26%',
+    '--input': '230 19% 26%',
+    '--ring': '267 84% 81%',
+    '--radius': '0.75rem',
+
+    // Vibrant dark mode colors
+    '--blue': '217 92% 76%',
+    '--blue-foreground': '229 19% 23%',
+    '--green': '115 54% 76%',
+    '--green-foreground': '229 19% 23%',
+    '--orange': '35 88% 72%',
+    '--orange-foreground': '229 19% 23%',
+    '--purple': '267 84% 81%',
+    '--purple-foreground': '229 19% 23%',
+    '--pink': '316 73% 69%',
+    '--pink-foreground': '229 19% 23%',
+    '--teal': '189 43% 73%',
+    '--teal-foreground': '229 19% 23%',
+
+    // Dark mode 3D shadows
+    '--shadow-sm': '0 2px 4px hsl(229 19% 15% / 0.3)',
+    '--shadow-md': '0 4px 12px hsl(229 19% 15% / 0.4), 0 2px 4px hsl(229 19% 15% / 0.2)',
+    '--shadow-lg': '0 8px 25px hsl(229 19% 15% / 0.5), 0 4px 10px hsl(229 19% 15% / 0.3)',
+    '--shadow-3d': '0 6px 0 hsl(229 19% 15% / 0.4), 0 10px 20px hsl(229 19% 15% / 0.5)',
+    '--shadow-3d-thick': '0 8px 0 hsl(229 19% 15% / 0.5), 0 12px 25px hsl(229 19% 15% / 0.6)',
+    '--shadow-3d-chunky': '0 10px 0 hsl(229 19% 15% / 0.6), 0 15px 30px hsl(229 19% 15% / 0.7)'
+  }
+};

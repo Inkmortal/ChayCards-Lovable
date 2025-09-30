@@ -77,6 +77,12 @@ Theme is provided by a plugin, not AppShell
 - **Benefits**: Themes can be enhanced by other plugins, fully replaceable
 - **Pattern**: Base theme provides guaranteed variables, enhancement plugins add more
 
+### 6. Development Mode Compatibility
+- **Decision**: Dual experience based on environment detection
+- **Implementation**: `import.meta.env.DEV` detection for development-specific features
+- **Benefits**: Lovable prototyping access while preserving production UX
+- **Pattern**: Non-intrusive development panel visible only in Vite dev mode
+
 ## Design Patterns in Use
 
 ### Plugin Manager Pattern

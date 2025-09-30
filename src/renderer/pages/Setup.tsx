@@ -1,0 +1,253 @@
+import { Button } from "@/renderer/components/ui/button";
+import { Card } from "@/renderer/components/ui/card";
+import { BookOpen, Cloud, HardDrive, RefreshCw, Download, ArrowLeft, Check } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+
+const Setup = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+
+  // Platform detection
+  const isElectron = window.electronAPI !== undefined;
+  const isWeb = !isElectron;
+  const platform = searchParams.get('platform') || (isElectron ? 'desktop' : 'web');
+
+  // Setup options based on platform
+  const getSetupOptions = () => {
+    if (platform === 'web') {
+      return [
+        {
+          id: 'cloud-login',
+          title: 'Sign in to ChayCards',
+          description: 'Access your workspace from anywhere with cloud sync',
+          icon: Cloud,
+          color: 'hsl(var(--blue))',
+          disabled: true, // Disabled as requested
+          disabledText: 'Coming soon'
+        },
+        {
+          id: 'cloud-signup',
+          title: 'Create account',
+          description: 'Start fresh with a new ChayCards workspace',
+          icon: Cloud,
+          color: 'hsl(var(--green))',
+          disabled: true, // Disabled as requested
+          disabledText: 'Coming soon'
+        },
+        {
+          id: 'download',
+          title: 'Download desktop app',
+          description: 'Get the full ChayCards experience with offline access',
+          icon: Download,
+          color: 'hsl(var(--purple))'
+        }
+      ];
+    }
+
+    // Desktop options
+    return [
+      {
+        id: 'local',
+        title: 'Use locally',
+        description: 'Keep everything on your device. Perfect for privacy.',
+        icon: HardDrive,
+        color: 'hsl(var(--green))'
+      },
+      {
+        id: 'sync',
+        title: 'Sync with cloud',
+        description: 'Hybrid approach - local storage with cloud backup.',
+        icon: RefreshCw,
+        color: 'hsl(var(--blue))'
+      },
+      {
+        id: 'cloud',
+        title: 'Cloud only',
+        description: 'Everything stored in the cloud. Requires internet.',
+        icon: Cloud,
+        color: 'hsl(var(--purple))'
+      }
+    ];
+  };
+
+  const setupOptions = getSetupOptions();
+
+  const handleOptionSelect = (optionId: string) => {
+    const option = setupOptions.find(opt => opt.id === optionId);
+    if (option?.disabled) return;
+
+    setSelectedOption(optionId);
+  };
+
+  const handleContinue = () => {
+    if (!selectedOption) return;
+
+    try {
+      // Save user choice
+      localStorage.setItem('chaycards-user-choice', selectedOption);
+      localStorage.setItem('chaycards-setup-complete', 'true');
+
+      if (selectedOption === 'download') {
+        // TODO: Trigger download
+        console.log('Triggering download...');
+        return;
+      }
+
+      // TODO: Navigate to main app
+      console.log('Setup complete, navigating to app with choice:', selectedOption);
+      // navigate('/app');
+    } catch (error) {
+      console.error('Failed to save setup choice:', error);
+    }
+  };
+
+  const handleBack = () => {
+    navigate('/');
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border px-6 py-4 bg-card/50 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBack}
+              className="border-2 hover:translate-y-[-2px] transition-all duration-150"
+              style={{
+                boxShadow: 'var(--shadow-3d), inset 0 1px 0 hsl(var(--background))',
+                background: 'hsl(var(--background))',
+                borderColor: 'hsl(var(--border))'
+              }}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+          </div>
+          <div className="flex items-center space-x-3">
+            <div
+              className="w-10 h-10 rounded-2xl flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))',
+                boxShadow: 'var(--shadow-3d)'
+              }}
+            >
+              <BookOpen className="w-5 h-5" style={{ color: 'hsl(var(--primary-foreground))' }} />
+            </div>
+            <h1 className="text-2xl font-bold" style={{ color: 'hsl(var(--foreground))' }}>
+              ChayCards Setup
+            </h1>
+          </div>
+          <div className="w-16" /> {/* Spacer for center alignment */}
+        </div>
+      </header>
+
+      {/* Setup Content */}
+      <section className="py-12 px-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-5xl font-bold mb-6" style={{ color: 'hsl(var(--foreground))' }}>
+              {platform === 'web' ? 'Get started with ChayCards' : 'How would you like to use ChayCards?'}
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+              {platform === 'web'
+                ? 'Choose how you\'d like to access your digital workspace'
+                : 'Choose your storage preference. You can always change this later in settings.'
+              }
+            </p>
+          </div>
+
+          {/* Setup Options */}
+          <div className="grid md:grid-cols-3 gap-6 mb-12">
+            {setupOptions.map((option) => {
+              const isSelected = selectedOption === option.id;
+              const isDisabled = option.disabled;
+
+              return (
+                <Card
+                  key={option.id}
+                  className={`relative p-8 border-2 cursor-pointer transition-all duration-300 rounded-3xl ${
+                    isSelected
+                      ? 'border-opacity-100 shadow-xl scale-105'
+                      : 'border-transparent hover:border-opacity-50 hover:shadow-lg hover:scale-102'
+                  } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  style={{
+                    background: isSelected ? `${option.color}15` : 'hsl(var(--card))',
+                    borderColor: isSelected ? option.color : `${option.color}40`
+                  }}
+                  onClick={() => handleOptionSelect(option.id)}
+                >
+                  {/* Selection indicator */}
+                  {isSelected && (
+                    <div
+                      className="absolute top-4 right-4 w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{ background: option.color }}
+                    >
+                      <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                    </div>
+                  )}
+
+                  {/* Disabled indicator */}
+                  {isDisabled && (
+                    <div className="absolute top-4 right-4 px-2 py-1 bg-muted rounded-md">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {option.disabledText}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Icon */}
+                  <div
+                    className="w-16 h-16 rounded-3xl flex items-center justify-center mb-6"
+                    style={{
+                      background: `${option.color}20`,
+                      border: `2px solid ${option.color}40`
+                    }}
+                  >
+                    <option.icon
+                      className="w-8 h-8"
+                      style={{ color: option.color, strokeWidth: '2.5' }}
+                    />
+                  </div>
+
+                  {/* Content */}
+                  <h3 className="text-2xl font-bold mb-4" style={{ color: 'hsl(var(--foreground))' }}>
+                    {option.title}
+                  </h3>
+                  <p className="text-muted-foreground text-lg leading-relaxed">
+                    {option.description}
+                  </p>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Continue Button */}
+          <div className="text-center">
+            <Button
+              size="lg"
+              onClick={handleContinue}
+              disabled={!selectedOption}
+              className="px-12 py-6 text-lg font-semibold rounded-2xl hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              style={{
+                background: selectedOption
+                  ? 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.85))'
+                  : 'hsl(var(--muted))',
+                color: selectedOption ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
+                boxShadow: selectedOption ? 'var(--shadow-3d-chunky)' : 'var(--shadow-md)'
+              }}
+            >
+              {selectedOption === 'download' ? 'Download ChayCards' : 'Continue'}
+            </Button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+export default Setup;

@@ -1,14 +1,180 @@
 import { Button } from "@/renderer/components/ui/button";
 import { Card } from "@/renderer/components/ui/card";
-import { BookOpen, FileText, CheckSquare, Search, ArrowRight, Play } from "lucide-react";
+import { BookOpen, FileText, CheckSquare, Search, ArrowRight, Play, Palette, Code, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { PluginManager } from "../../shared/plugin-system";
 
 const Index = () => {
+  const navigate = useNavigate();
+  const [showThemeSelector, setShowThemeSelector] = useState(false);
+  const [showDevPanel, setShowDevPanel] = useState(false);
+
+  // Development mode detection
+  const isDevelopment = import.meta.env.DEV;
+
+  // Platform detection
   const isElectron = window.electronAPI !== undefined;
-  
-  // Set dark mode by default
-  if (typeof document !== 'undefined') {
-    document.documentElement.classList.add('dark');
-  }
+  const isWeb = !isElectron;
+  const isMobile = window.innerWidth <= 768; // Simple mobile detection
+
+  // Check if user has already made setup choices
+  useEffect(() => {
+    const checkUserSetup = () => {
+      try {
+        const hasCompletedSetup = localStorage.getItem('chaycards-setup-complete');
+        const userChoice = localStorage.getItem('chaycards-user-choice');
+
+        if (hasCompletedSetup && userChoice) {
+          // User has already setup, redirect to app
+          console.log('User already setup, redirecting to app');
+          // TODO: Navigate to main app once we create it
+          // navigate('/app');
+        }
+      } catch (error) {
+        console.warn('Could not check user setup:', error);
+      }
+    };
+
+    checkUserSetup();
+  }, [navigate]);
+
+  // Handle platform-specific routing
+  const handleGetStarted = () => {
+    if (isElectron) {
+      // Desktop: Show setup screen for local/sync/cloud choice
+      navigate('/setup');
+    } else if (isWeb) {
+      // Web: Cloud-first with download option
+      navigate('/setup?platform=web');
+    }
+  };
+
+  const handleDownload = () => {
+    // TODO: Implement download logic
+    console.log('Download requested for platform:', { isElectron, isWeb, isMobile });
+  };
+
+  // Simple theme dropdown component
+  const ThemeDropdown = ({ onClose }: { onClose: () => void }) => {
+    const [themes, setThemes] = useState<any[]>([]);
+    const [currentTheme, setCurrentTheme] = useState<any>(null);
+
+    useEffect(() => {
+      try {
+        const manager = PluginManager.getInstance();
+        const themeService = manager.getService('core-theme/themeService');
+
+        if (themeService) {
+          setThemes(themeService.getAvailableThemes());
+          setCurrentTheme(themeService.getCurrentTheme());
+
+          // Subscribe to theme changes
+          const unsubscribe = themeService.onThemeChange((theme: any) => {
+            setCurrentTheme(theme);
+          });
+
+          return unsubscribe;
+        }
+      } catch (error) {
+        console.warn('Theme service not available:', error);
+      }
+    }, []);
+
+    const handleThemeSelect = (themeId: string) => {
+      try {
+        const manager = PluginManager.getInstance();
+        const themeService = manager.getService('core-theme/themeService');
+
+        if (themeService) {
+          themeService.setTheme(themeId);
+        }
+      } catch (error) {
+        console.warn('Failed to set theme:', error);
+      }
+
+      onClose();
+    };
+
+    if (!themes.length) {
+      return (
+        <div className="p-3 text-sm text-muted-foreground">
+          Loading themes...
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-1">
+        {themes.map((theme) => (
+          <button
+            key={theme.id}
+            onClick={() => handleThemeSelect(theme.id)}
+            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+              theme.id === currentTheme?.id
+                ? 'bg-accent text-accent-foreground'
+                : 'hover:bg-accent hover:text-accent-foreground'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span>{theme.name}</span>
+              {theme.id === currentTheme?.id && (
+                <div className="w-2 h-2 rounded-full bg-primary" />
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  // Development panel with quick navigation
+  const DevelopmentPanel = ({ onClose }: { onClose: () => void }) => {
+    const routes = [
+      { path: '/setup', label: 'Setup Page (Desktop)', description: 'Local/Sync/Cloud options' },
+      { path: '/setup?platform=web', label: 'Setup Page (Web)', description: 'Cloud-first with download option' },
+      // Future routes for when they're implemented
+      { path: '/app', label: 'Main App', description: 'Coming soon - main workspace' },
+      { path: '/documents', label: 'Documents', description: 'Coming soon - document management' },
+      { path: '/tasks', label: 'Tasks', description: 'Coming soon - task tracking' },
+    ];
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-sm text-foreground">Development Routes</h3>
+          <span className="text-xs text-muted-foreground">Lovable Testing</span>
+        </div>
+        {routes.map((route) => (
+          <button
+            key={route.path}
+            onClick={() => {
+              navigate(route.path);
+              onClose();
+            }}
+            className="w-full text-left p-3 rounded-md hover:bg-accent transition-colors group"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium text-sm text-foreground group-hover:text-accent-foreground">
+                  {route.label}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {route.description}
+                </div>
+              </div>
+              <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-accent-foreground" />
+            </div>
+          </button>
+        ))}
+        <div className="border-t border-border pt-3 mt-3">
+          <div className="text-xs text-muted-foreground text-center">
+            Direct page access for prototyping
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const features = [
     {
@@ -17,7 +183,7 @@ const Index = () => {
       icon: FileText,
     },
     {
-      title: "Learn & remember", 
+      title: "Learn & remember",
       description: "AI-generated flashcards from your content",
       icon: BookOpen,
     },
@@ -53,11 +219,47 @@ const Index = () => {
             }}>ChayCards</h1>
           </div>
           <div className="flex items-center space-x-4">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            {/* Development panel button - only in development mode */}
+            {isDevelopment && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDevPanel(!showDevPanel)}
+                className="border-2 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
+                style={{
+                  boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--background))',
+                  background: 'hsl(var(--background))',
+                  borderColor: 'hsl(var(--orange))',
+                  color: 'hsl(var(--orange))'
+                }}
+              >
+                <Code className="w-4 h-4" />
+              </Button>
+            )}
+
+            {/* Theme selector button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowThemeSelector(!showThemeSelector)}
               className="border-2 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
-              style={{ 
+              style={{
+                boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--background))',
+                background: 'hsl(var(--background))',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))'
+              }}
+            >
+              <Palette className="w-4 h-4" />
+            </Button>
+
+            {/* Login button - disabled for now as requested */}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              className="border-2 font-semibold opacity-50 cursor-not-allowed transition-all duration-150"
+              style={{
                 boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--background))',
                 background: 'hsl(var(--background))',
                 borderColor: 'hsl(var(--border))',
@@ -66,12 +268,13 @@ const Index = () => {
             >
               Log in
             </Button>
-            <Button 
-              size="sm" 
-              className="font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150" 
-              style={{ 
-                background: 'linear-gradient(145deg, hsl(var(--blue)), hsl(var(--blue) / 0.85))', 
-                color: 'hsl(var(--blue-foreground))', 
+            <Button
+              size="sm"
+              onClick={handleGetStarted}
+              className="font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
+              style={{
+                background: 'linear-gradient(145deg, hsl(var(--blue)), hsl(var(--blue) / 0.85))',
+                color: 'hsl(var(--blue-foreground))',
                 boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--blue) / 0.3)',
                 textShadow: '0 1px 2px hsl(var(--blue-foreground) / 0.3)'
               }}
@@ -80,6 +283,42 @@ const Index = () => {
             </Button>
           </div>
         </div>
+
+        {/* Development Panel Dropdown */}
+        {showDevPanel && isDevelopment && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-40 bg-black/20"
+              onClick={() => setShowDevPanel(false)}
+            />
+
+            {/* Development dropdown */}
+            <div className="absolute top-16 right-20 z-50 min-w-[280px] rounded-lg border border-border bg-popover shadow-lg">
+              <div className="p-1">
+                <DevelopmentPanel onClose={() => setShowDevPanel(false)} />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Theme Selector Dropdown */}
+        {showThemeSelector && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-40 bg-black/20"
+              onClick={() => setShowThemeSelector(false)}
+            />
+
+            {/* Theme dropdown */}
+            <div className="absolute top-16 right-6 z-50 min-w-[200px] rounded-lg border border-border bg-popover shadow-lg">
+              <div className="p-1">
+                <ThemeDropdown onClose={() => setShowThemeSelector(false)} />
+              </div>
+            </div>
+          </>
+        )}
       </header>
 
       {/* Hero Section */}
@@ -99,12 +338,13 @@ const Index = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-6 justify-center">
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
+                onClick={handleGetStarted}
                 className="px-12 py-6 text-lg font-semibold rounded-2xl hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150"
-                style={{ 
-                  background: 'linear-gradient(145deg, hsl(var(--green)), hsl(var(--green) / 0.85))', 
-                  color: 'hsl(var(--green-foreground))', 
+                style={{
+                  background: 'linear-gradient(145deg, hsl(var(--green)), hsl(var(--green) / 0.85))',
+                  color: 'hsl(var(--green-foreground))',
                   boxShadow: 'var(--shadow-3d-chunky), inset 0 2px 0 hsl(var(--green) / 0.3)',
                   textShadow: '0 1px 2px hsl(var(--green-foreground) / 0.3)'
                 }}
@@ -112,11 +352,11 @@ const Index = () => {
                 Start building
                 <ArrowRight className="w-6 h-6 ml-3" style={{ strokeWidth: '2.5' }} />
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="lg"
                 className="px-12 py-6 text-lg font-semibold rounded-2xl border-2 hover:translate-y-[-4px] active:translate-y-[-1px] transition-all duration-150"
-                style={{ 
+                style={{
                   boxShadow: 'var(--shadow-3d-chunky), inset 0 1px 0 hsl(var(--background))',
                   background: 'hsl(var(--background))',
                   borderColor: 'hsl(var(--border))',
@@ -266,17 +506,19 @@ const Index = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-6 justify-center">
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
+                onClick={handleGetStarted}
                 className="px-12 py-6 text-lg font-semibold rounded-2xl hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150"
                 style={{ background: 'hsl(var(--green))', color: 'hsl(var(--green-foreground))', boxShadow: 'var(--shadow-3d-chunky)' }}
               >
                 Start for free
                 <ArrowRight className="w-6 h-6 ml-3" />
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="lg"
+                onClick={handleDownload}
                 className="px-12 py-6 text-lg font-semibold rounded-2xl border-2 hover:translate-y-[-4px] active:translate-y-[-1px] transition-all duration-150"
                 style={{ boxShadow: 'var(--shadow-3d-thick)' }}
               >
