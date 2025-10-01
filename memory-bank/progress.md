@@ -50,7 +50,10 @@
 - Platform detection for intelligent user flow
 - Duolingo-inspired design with 3D shadows and hover animations
 - Enhanced homepage with colorful feature highlights
-- LocalStorage setup state persistence for returning users
+- Setup persistence using StorageAdapter (SQLite/PostgreSQL)
+- Auto-redirects to first plugin route after login
+- Custom Electron title bar with window controls
+- Database admin tools with reset functionality
 
 ### ✅ Development Tools Integration
 - Notion MCP integrated for task tracking
@@ -59,12 +62,14 @@
 
 ## What's Left to Build
 
-### 🔲 Backend Infrastructure
+### 🟢 Backend Infrastructure (Partially Complete)
 - [ ] Express server setup
-- [ ] Storage interface definition
-- [ ] Local storage implementation (SQLite)
-- [ ] Cloud storage implementation (PostgreSQL)
+- [x] Storage interface definition (StorageAdapter pattern)
+- [x] Local storage implementation (SQLite via better-sqlite3)
+- [ ] Cloud storage implementation (PostgreSQL - interface ready)
 - [ ] API route structure
+- [x] IPC communication for Electron storage
+- [x] Storage lifecycle management (init after core-settings)
 
 ### ✅ Plugin System Implementation
 - [x] PluginManager singleton with automatic plugin discovery
@@ -73,13 +78,16 @@
 - [x] Pre-React plugin loading and initialization
 - [x] PluginHost component with dynamic resolution
 - [x] Component namespacing system working
-- [ ] AppShell with region support - **READY TO IMPLEMENT**
+- [x] AppShell with plugin routes (auto-redirect to first plugin)
+- [x] Plugin storage management (each plugin owns its namespace)
 - [ ] usePlugin React hook - **READY TO IMPLEMENT**
 
-### 🔲 Built-in Plugins
-- [x] core-theme plugin (7 theme variants implemented)
+### 🟢 Built-in Plugins (In Progress)
+- [x] core-settings plugin (manages storageMode, setupComplete, user profile)
+- [x] core-theme plugin (7 theme variants, storage persistence)
+- [x] demo-plugin (shows storage features, database admin tools)
 - [ ] core.ui plugin (depends on theme-system) - **READY TO IMPLEMENT**
-- [ ] core.documents plugin (with localStorage)
+- [ ] core.documents plugin
 - [ ] core.tasks plugin
 - [ ] core.knowledge plugin (flashcards)
 
@@ -133,13 +141,18 @@ We are in the **Core App Implementation** phase:
 
 ### Minor Issues
 1. Vite sometimes needs restart when changing shared code
-2. Electron DevTools open by default (intentional for now)
+2. CRLF line ending warnings in git (Windows/WSL difference - cosmetic only)
 
 ### Resolved Issues
 1. ✅ Fixed ES modules vs CommonJS conflict
 2. ✅ Fixed WSL vs Windows node_modules issue
 3. ✅ Removed Bun dependency confusion
 4. ✅ Cleaned up Lovable boilerplate
+5. ✅ Fixed setup persistence (now uses storage, not localStorage)
+6. ✅ Fixed theme not saving (theme has its own storage key now)
+7. ✅ Fixed double scrollbar issue (h-full overflow-y-auto)
+8. ✅ Fixed F12 DevTools toggle (proper keyboard event handling)
+9. ✅ Fixed blank page after login (auto-redirect to first plugin)
 
 ## Evolution of Project Decisions
 

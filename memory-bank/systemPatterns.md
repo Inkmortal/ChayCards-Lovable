@@ -15,7 +15,8 @@
 │              (Shared Backend Code)               │
 ├─────────────────────────────────────────────────┤
 │              Storage Abstraction                 │
-│        (LocalStorage / CloudStorage)             │
+│     SQLite (Electron) / PostgreSQL (Cloud)       │
+│          StorageAdapter Interface                │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -207,6 +208,51 @@ const adapter = isElectron
 - Basic permission declarations
 - User consent for sensitive operations
 - But start simple - no restrictions
+
+## Storage Architecture
+
+### StorageAdapter Pattern
+```typescript
+interface StorageAdapter {
+  get(key: string): Promise<any>;
+  set(key: string, value: any): Promise<void>;
+  delete(key: string): Promise<void>;
+  list(): Promise<string[]>;
+  has(key: string): Promise<boolean>;
+  clear(): Promise<void>;
+}
+```
+
+### Storage Implementations
+- **SQLiteAdapter**: Electron local storage via better-sqlite3
+  - Database location: `%APPDATA%\chaycards\storage.db`
+  - IPC communication for renderer process access
+  - Synchronous better-sqlite3 wrapped in async interface
+- **PostgreSQLAdapter**: Cloud storage (not yet implemented)
+  - Async by nature
+  - Same interface as SQLite
+  - API layer for web client access
+
+### Plugin Storage Pattern
+Each plugin owns its own storage namespace:
+- **Core Settings**: `core-settings:app-settings`
+- **Theme Preference**: `core-theme:preference`
+- **Demo Data**: `demo-plugin:notes`
+
+**Key Rules**:
+1. Always prefix keys with `plugin-id:`
+2. Never use localStorage directly (except pre-init fallback)
+3. Storage initialized AFTER core-settings, BEFORE other plugins
+4. Plugins receive storage via `manager.getStorage()`
+
+### Storage Lifecycle
+```
+1. PluginManager starts
+2. Load core-settings plugin (gets defaults)
+3. Initialize storage with storageMode from settings
+4. Call settingsService.setStorage(adapter)
+5. Load remaining plugins (all get initialized storage)
+```
 
 ## Plugin Communication Patterns
 

@@ -30,6 +30,30 @@ We are building the foundation architecture for ChayCards with a focus on:
 
 ## Recent Changes
 
+### Storage Architecture Refactor Complete (October 1, 2025)
+- **Separated Theme from Core Settings**: Each plugin now manages its own storage
+  - Core settings: `core-settings:app-settings` (storageMode, setupComplete, userId/email, updatedAt)
+  - Theme preference: `core-theme:preference` (theme ID string)
+  - No more localStorage coupling - everything uses StorageAdapter
+- **Database Admin Tools**: Added comprehensive management UI in demo plugin
+  - Database viewer showing all storage keys with type, JSON content, and byte size
+  - "Reset Database" button to clear all data and restart setup flow
+  - Real-time refresh to see storage changes
+- **Smart Setup Detection**: Index.tsx checks both SettingsService AND actual storage
+  - Handles case where localStorage cleared but SQLite still has data
+  - Prevents accidental duplicate users on local storage
+  - Auto-loads existing settings from storage on app start
+- **Electron UI Polish**: Enhanced desktop experience
+  - Custom frameless title bar with Discord/Slack-style window controls
+  - TitleBar component with draggable region and minimize/maximize/close buttons
+  - Fixed keyboard shortcuts (F12 for DevTools, Ctrl+/-/0 for zoom)
+  - Fixed double scrollbar issue (changed min-h-screen to h-full overflow-y-auto)
+  - Auto-redirects to first plugin route after login (no more blank page)
+- **Storage Initialization Flow**: Proper async loading
+  - SettingsService.setStorage() called after storage ready
+  - ThemeService.initialize() loads theme from storage
+  - Both services persist changes immediately to SQLite/PostgreSQL
+
 ### Electron SQLite Setup Complete (September 30, 2025)
 - **Windows Development Launcher**: Created one-click `start-electron-windows.bat`
   - Auto-detects if better-sqlite3 needs rebuilding for Electron's Node.js version
@@ -187,3 +211,9 @@ We are building the foundation architecture for ChayCards with a focus on:
 10. **Plugin Architecture**: Simple is better - like game mods, not enterprise
 11. **Theme System**: CSS variable-based theming works excellently with plugin architecture
 12. **Component Sharing**: Optional core.ui plugin provides consistency without forcing it
+13. **Storage Keys**: Each plugin should own its own storage namespace (e.g., `plugin-id:key-name`)
+14. **localStorage vs StorageAdapter**: Only use StorageAdapter - localStorage should be avoided except for pre-storage-init fallbacks
+15. **Setup Persistence**: Check actual storage data, not just in-memory flags, to handle localStorage clearing
+16. **Electron Title Bar**: Frameless windows (`frame: false`) require custom drag regions (`-webkit-app-region: drag`)
+17. **Scrollbar Hierarchy**: Use `h-full overflow-y-auto` on pages, not `min-h-screen`, to prevent double scrollbars
+18. **Theme Persistence**: Theme service should manage its own storage key, not rely on settings service
