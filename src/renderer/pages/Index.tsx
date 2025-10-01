@@ -18,26 +18,30 @@ const Index = () => {
   const isWeb = !isElectron;
   const isMobile = window.innerWidth <= 768; // Simple mobile detection
 
-  // Check if user has already made setup choices
+  // Check setup status and redirect accordingly
   useEffect(() => {
-    const checkUserSetup = () => {
+    const checkSetupStatus = () => {
       try {
         const hasCompletedSetup = localStorage.getItem('chaycards-setup-complete');
         const userChoice = localStorage.getItem('chaycards-user-choice');
 
         if (hasCompletedSetup && userChoice) {
-          // User has already setup, redirect to app
-          console.log('User already setup, redirecting to app');
-          // TODO: Navigate to main app once we create it
-          // navigate('/app');
+          // User has already completed setup, go to app
+          console.log('User setup complete, redirecting to app');
+          navigate('/app');
+        } else if (isElectron) {
+          // Electron first-time user: Show data model choice (local/sync/cloud)
+          console.log('Electron first-time user, showing setup');
+          navigate('/setup?platform=desktop');
         }
+        // Web first-time users stay on landing page to see features
       } catch (error) {
-        console.warn('Could not check user setup:', error);
+        console.warn('Could not check setup status:', error);
       }
     };
 
-    checkUserSetup();
-  }, [navigate]);
+    checkSetupStatus();
+  }, [navigate, isElectron]);
 
   // Handle platform-specific routing
   const handleGetStarted = () => {

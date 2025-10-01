@@ -12,6 +12,8 @@ import type {
   PluginManager as IPluginManager
 } from './types';
 import { EventBus } from './EventBus';
+import { getStorageManager } from '../storage/StorageManager';
+import type { StorageAdapter } from '../storage/StorageAdapter';
 
 export class PluginManager implements IPluginManager {
   private static instance: PluginManager;
@@ -28,6 +30,10 @@ export class PluginManager implements IPluginManager {
   // UI management
   private navigationItems: NavigationItem[] = [];
   private regions = new Map<string, RegionComponent[]>();
+
+  // Storage system
+  private storageManager = getStorageManager();
+  private storageInitialized = false;
 
   // Singleton access
   static getInstance(): PluginManager {
@@ -92,6 +98,34 @@ export class PluginManager implements IPluginManager {
   // Event bus access
   getEventBus(): EventBus {
     return this.eventBus;
+  }
+
+  // Storage access
+  getStorage(): StorageAdapter {
+    if (!this.storageInitialized) {
+      throw new Error('Storage not initialized. Ensure core-settings plugin loads first.');
+    }
+    return this.storageManager.getAdapter();
+  }
+
+  // Initialize storage (called after core-settings loads)
+  async initializeStorage(): Promise<void> {
+    const settingsService = this.getService('core-settings/settingsService');
+    if (!settingsService) {
+      throw new Error('SettingsService not found. core-settings plugin must load first.');
+    }
+
+    const storageMode = settingsService.getStorageMode();
+    await this.storageManager.initialize(storageMode);
+    this.storageInitialized = true;
+
+    console.log('[PluginManager] Storage initialized with mode:', storageMode);
+    this.eventBus.emit('storage:ready', { storageMode });
+  }
+
+  // Check if storage is ready
+  isStorageReady(): boolean {
+    return this.storageInitialized;
   }
 
   // Plugin loading with dependency resolution
@@ -165,7 +199,7 @@ export class PluginManager implements IPluginManager {
   async loadAllPlugins(): Promise<void> {
     try {
       // Use Vite's glob import to discover plugins
-      const pluginModules = import.meta.glob('/src/plugins/*/index.ts');
+      const pluginModules = import.meta.glob('../../plugins/*/index.ts');
 
       console.log('Discovered plugins:', Object.keys(pluginModules));
 
@@ -187,8 +221,21 @@ export class PluginManager implements IPluginManager {
       // Sort plugins by dependency order and load them
       const sortedPlugins = this.sortPluginsByDependencies(plugins);
 
+      // Load core-settings first
+      const coreSettings = sortedPlugins.find(p => p.id === 'core-settings');
+      if (coreSettings) {
+        await this.loadPlugin(coreSettings);
+
+        // Initialize storage after core-settings loads but before other plugins
+        await this.initializeStorage();
+        console.log('Storage initialized after core-settings');
+      }
+
+      // Load remaining plugins
       for (const plugin of sortedPlugins) {
-        await this.loadPlugin(plugin);
+        if (plugin.id !== 'core-settings') {
+          await this.loadPlugin(plugin);
+        }
       }
 
       console.log(`Loaded ${sortedPlugins.length} plugins successfully`);

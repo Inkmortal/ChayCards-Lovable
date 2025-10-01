@@ -9,11 +9,12 @@ async function startApp() {
     const pluginManager = PluginManager.getInstance();
 
     console.log('Loading ChayCards plugins...');
+    // Note: loadAllPlugins() now handles storage initialization internally
     await pluginManager.loadAllPlugins();
 
-    console.log('Plugins loaded successfully, starting React app...');
+    console.log('Plugins and storage initialized, starting React app...');
 
-    // Start React app after plugins are loaded
+    // Start React app after plugins and storage are ready
     createRoot(document.getElementById("root")!).render(<App />);
 
   } catch (error) {

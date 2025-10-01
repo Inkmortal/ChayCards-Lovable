@@ -51,7 +51,13 @@
       "WebFetch(domain:ui.shadcn.com)",
       "WebFetch(domain:m3.material.io)",
       "Bash(npm run dev:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "Bash(lsof:*)",
+      "Bash(netstat:*)",
+      "Bash(test:*)"
     ],
     "deny": []
   },

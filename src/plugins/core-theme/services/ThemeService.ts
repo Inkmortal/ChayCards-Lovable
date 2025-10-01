@@ -1,5 +1,6 @@
 /**
  * ThemeService - Manages theme switching and CSS variable application
+ * Persists theme choice via SettingsService (not direct storage)
  */
 
 import type { Theme } from '../themes';
@@ -8,13 +9,29 @@ import { ALL_THEMES, DEFAULT_THEME } from '../themes';
 export class ThemeService {
   private currentTheme: Theme = DEFAULT_THEME;
   private listeners: Set<(theme: Theme) => void> = new Set();
+  private settingsService: any = null;
 
   constructor() {
     // Apply default theme immediately
     this.applyTheme(DEFAULT_THEME);
+  }
 
-    // Load saved theme from localStorage if available
-    this.loadSavedTheme();
+  /**
+   * Initialize with SettingsService for persistence
+   * Should be called during plugin onLoad after core-settings is available
+   */
+  initialize(settingsService: any): void {
+    this.settingsService = settingsService;
+
+    // Load saved theme from settings
+    const savedThemeId = settingsService.getTheme();
+    if (savedThemeId) {
+      const theme = ALL_THEMES.find(t => t.id === savedThemeId);
+      if (theme) {
+        this.currentTheme = theme;
+        this.applyTheme(theme);
+      }
+    }
   }
 
   /**
@@ -43,7 +60,14 @@ export class ThemeService {
 
     this.currentTheme = theme;
     this.applyTheme(theme);
-    this.saveTheme(themeId);
+
+    // Persist via settings service
+    if (this.settingsService) {
+      this.settingsService.setTheme(themeId);
+    } else {
+      console.warn('SettingsService not initialized - theme preference not saved');
+    }
+
     this.notifyListeners(theme);
   }
 
@@ -78,35 +102,6 @@ export class ThemeService {
     }
 
     console.log(`Applied theme: ${theme.name}`);
-  }
-
-  /**
-   * Save theme preference to localStorage
-   */
-  private saveTheme(themeId: string): void {
-    try {
-      localStorage.setItem('chaycards-theme', themeId);
-    } catch (error) {
-      console.warn('Failed to save theme preference:', error);
-    }
-  }
-
-  /**
-   * Load saved theme from localStorage
-   */
-  private loadSavedTheme(): void {
-    try {
-      const savedThemeId = localStorage.getItem('chaycards-theme');
-      if (savedThemeId) {
-        const theme = ALL_THEMES.find(t => t.id === savedThemeId);
-        if (theme) {
-          this.currentTheme = theme;
-          this.applyTheme(theme);
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to load saved theme:', error);
-    }
   }
 
   /**

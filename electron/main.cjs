@@ -2,8 +2,11 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const fssync = require('fs');
+const Database = require('better-sqlite3');
 
 let mainWindow;
+let db;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -33,7 +36,10 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  initDatabase();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -45,6 +51,83 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
+});
+
+// Initialize SQLite database
+function initDatabase() {
+  try {
+    const userDataPath = app.getPath('userData');
+    const dbPath = path.join(userDataPath, 'storage.db');
+
+    // Ensure directory exists
+    if (!fssync.existsSync(userDataPath)) {
+      fssync.mkdirSync(userDataPath, { recursive: true });
+    }
+
+    db = new Database(dbPath);
+
+    // Initialize storage table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS storage (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+      )
+    `);
+
+    console.log('✓ SQLite database initialized at:', dbPath);
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    dialog.showErrorBox('Database Error', 'Failed to initialize SQLite database: ' + error.message);
+  }
+}
+
+// Graceful shutdown
+app.on('before-quit', () => {
+  if (db) {
+    db.close();
+    console.log('✓ Database closed');
+  }
+});
+
+// Storage IPC handlers
+ipcMain.handle('storage:get', (event, key) => {
+  const row = db.prepare('SELECT value FROM storage WHERE key = ?').get(key);
+  return row ? JSON.parse(row.value) : null;
+});
+
+ipcMain.handle('storage:set', (event, key, value) => {
+  const serialized = JSON.stringify(value);
+  db.prepare(`
+    INSERT INTO storage (key, value, updated_at)
+    VALUES (?, ?, strftime('%s', 'now'))
+    ON CONFLICT(key) DO UPDATE SET
+      value = excluded.value,
+      updated_at = strftime('%s', 'now')
+  `).run(key, serialized);
+  return true;
+});
+
+ipcMain.handle('storage:delete', (event, key) => {
+  db.prepare('DELETE FROM storage WHERE key = ?').run(key);
+  return true;
+});
+
+ipcMain.handle('storage:list', (event, prefix) => {
+  const rows = prefix
+    ? db.prepare('SELECT key FROM storage WHERE key LIKE ?').all(`${prefix}%`)
+    : db.prepare('SELECT key FROM storage').all();
+  return rows.map(row => row.key);
+});
+
+ipcMain.handle('storage:clear', () => {
+  const result = db.prepare('DELETE FROM storage').run();
+  return result.changes;
+});
+
+ipcMain.handle('storage:has', (event, key) => {
+  const row = db.prepare('SELECT 1 FROM storage WHERE key = ?').get(key);
+  return !!row;
 });
 
 // IPC handlers

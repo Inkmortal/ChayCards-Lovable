@@ -50,6 +50,14 @@ export const DemoPlugin: Plugin = {
   onLoad: async (manager) => {
     console.log('Demo Plugin loaded');
 
+    // Initialize data service with storage adapter
+    const dataService = manager.getService('demo-plugin/dataService');
+    const storage = manager.getStorage();
+    if (dataService && storage) {
+      await dataService.initialize(storage);
+      console.log('Demo data service initialized with storage adapter');
+    }
+
     // Add header component
     manager.addToRegion('header', {
       id: 'demo-header-status',

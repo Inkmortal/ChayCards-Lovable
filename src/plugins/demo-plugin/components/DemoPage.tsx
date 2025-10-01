@@ -59,25 +59,25 @@ export const DemoPage = () => {
     console.log('Event emitted: demo:test-event');
   };
 
-  const addNote = () => {
+  const addNote = async () => {
     if (demoDataService && noteTitle.trim()) {
-      demoDataService.addNote(noteTitle, noteContent);
+      await demoDataService.addNote(noteTitle, noteContent);
       setNotes(demoDataService.getNotes());
       setNoteTitle('');
       setNoteContent('');
     }
   };
 
-  const deleteNote = (id: string) => {
+  const deleteNote = async (id: string) => {
     if (demoDataService) {
-      demoDataService.deleteNote(id);
+      await demoDataService.deleteNote(id);
       setNotes(demoDataService.getNotes());
     }
   };
 
-  const clearAllNotes = () => {
+  const clearAllNotes = async () => {
     if (demoDataService) {
-      demoDataService.clearAll();
+      await demoDataService.clearAll();
       setNotes([]);
     }
   };
@@ -185,8 +185,15 @@ export const DemoPage = () => {
           )}
         </div>
 
+        <div className="mb-4 p-3 bg-success/10 border border-success/30 rounded-lg">
+          <p className="text-sm text-foreground font-medium mb-1">✓ Storage Architecture</p>
+          <p className="text-xs text-muted-foreground">
+            This demo uses the <span className="font-mono bg-muted px-1 rounded">storage adapter system</span> -
+            SQLite for desktop, PostgreSQL for cloud, respecting user's setup choice.
+          </p>
+        </div>
         <p className="text-muted-foreground mb-4 text-sm">
-          Plugins manage their own data via services. This uses localStorage (persists across refreshes).
+          Add notes below. Data persists across page refreshes using browser storage.
         </p>
 
         {/* Add Note Form */}
@@ -271,19 +278,60 @@ export const DemoPage = () => {
           <h2 className="text-2xl font-bold text-foreground">Loaded Plugins</h2>
         </div>
         <div className="grid md:grid-cols-2 gap-4">
-          {loadedPlugins.map((plugin) => (
-            <div
-              key={plugin.id}
-              className="p-4 rounded-xl border border-border bg-background/50"
-            >
-              <h3 className="font-bold text-foreground mb-1">{plugin.name}</h3>
-              <p className="text-sm text-muted-foreground mb-2">{plugin.description}</p>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-muted-foreground">{plugin.id}</span>
-                <span className="text-xs text-muted-foreground">v{plugin.version}</span>
+          {loadedPlugins.map((plugin) => {
+            const hasServices = pluginManager.getRegisteredServices().some(s => s.startsWith(`${plugin.id}/`));
+            const serviceCount = pluginManager.getRegisteredServices().filter(s => s.startsWith(`${plugin.id}/`)).length;
+            const componentCount = pluginManager.getRegisteredComponents().filter(c => c.startsWith(`${plugin.id}/`)).length;
+
+            return (
+              <div
+                key={plugin.id}
+                className="p-4 rounded-xl border-2 border-border bg-background/50 hover:border-primary/30 transition-all cursor-pointer group"
+                onClick={() => {
+                  const services = pluginManager.getRegisteredServices().filter(s => s.startsWith(`${plugin.id}/`));
+                  const components = pluginManager.getRegisteredComponents().filter(c => c.startsWith(`${plugin.id}/`));
+
+                  console.group(`🔌 Plugin: ${plugin.name}`);
+                  console.log('ID:', plugin.id);
+                  console.log('Version:', plugin.version);
+                  console.log('Description:', plugin.description);
+                  console.log('Dependencies:', plugin.requires || 'None');
+                  console.log('\n📦 Services:', services.length > 0 ? services : 'None');
+                  services.forEach(serviceName => {
+                    const service = pluginManager.getService(serviceName);
+                    console.log(`  - ${serviceName}:`, service);
+                  });
+                  console.log('\n🎨 Components:', components.length > 0 ? components : 'None');
+                  console.log('\n📍 Routes:', plugin.routes?.length || 0);
+                  if (plugin.routes) {
+                    plugin.routes.forEach(route => {
+                      console.log(`  - ${route.path} (${route.label})`);
+                    });
+                  }
+                  console.groupEnd();
+                }}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">{plugin.name}</h3>
+                  {hasServices && (
+                    <div className="flex items-center gap-1 text-xs bg-success/10 text-success px-2 py-1 rounded">
+                      <Database className="w-3 h-3" />
+                      <span>{serviceCount}</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">{plugin.description}</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded">{plugin.id}</span>
+                  <span className="text-xs text-muted-foreground">v{plugin.version}</span>
+                  <span className="text-xs text-muted-foreground">{componentCount} components</span>
+                </div>
+                <div className="mt-2 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                  Click to inspect in console →
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 

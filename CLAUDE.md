@@ -27,11 +27,10 @@ This project uses a special dual-environment setup:
 - This setup allows testing the web interface in WSL while running Electron natively on Windows
 
 **Quick Start:**
-1. From Windows (one-time): Run `npm run setup:win`
-2. From WSL: Run `npm run dev` 
-3. From Windows: Run `.\run-electron-windows.ps1` or `npm run electron:win`
-
-See `DUAL_ENV_SETUP.md` for complete details.
+1. From WSL: Run `npm run dev` (starts Vite on port 8080)
+2. From Windows: Double-click `start-electron-windows.bat`
+   - Auto-installs Windows dependencies on first run (~2 min)
+   - Alternative: `npm run electron:win`
 
 ### Project Structure
 - `/src` - React application source
@@ -41,6 +40,6 @@ See `DUAL_ENV_SETUP.md` for complete details.
 - `/node_modules_win` - Windows dependencies (git-ignored)
 
 ### Testing Approach
-- Test web functionality at http://localhost:5173 in WSL
+- Test web functionality at http://localhost:8080 in WSL
 - Test Electron functionality using Windows executable
 - Always verify changes work in both environments

@@ -8,6 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+node_modules_win
 dist
 dist-ssr
 *.local
@@ -27,14 +28,25 @@ dist-ssr
 .env
 .env.local
 .env.production
+server/.env
 
 # Build outputs
 /out
 /build
 *.tsbuildinfo
 
+# Database files
+*.db
+*.db-shm
+*.db-wal
+server/storage.db
+
 # Electron
 /release
+
+# Windows-specific files
+node_modules_win_temp_package.json
+node_modules_win_temp_package-lock.json
 
 # Test coverage
 /coverage
@@ -53,3 +65,4 @@ Thumbs.db
 /android/app/src/main/assets/capacitor.config.json
 /android/app/src/main/assets/capacitor.plugins.json
 /ios/App/App/capacitor.plugins.json
+.electron-rebuilt

@@ -3,6 +3,7 @@ import { Card } from "@/renderer/components/ui/card";
 import { BookOpen, Cloud, HardDrive, RefreshCw, Download, ArrowLeft, Check } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { PluginManager } from "@/shared/plugin-system";
 
 const Setup = () => {
   const navigate = useNavigate();
@@ -81,23 +82,35 @@ const Setup = () => {
     setSelectedOption(optionId);
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!selectedOption) return;
 
     try {
-      // Save user choice
-      localStorage.setItem('chaycards-user-choice', selectedOption);
-      localStorage.setItem('chaycards-setup-complete', 'true');
-
       if (selectedOption === 'download') {
         // TODO: Trigger download
         console.log('Triggering download...');
         return;
       }
 
-      // TODO: Navigate to main app
-      console.log('Setup complete, navigating to app with choice:', selectedOption);
-      // navigate('/app');
+      // Save user's storage choice via SettingsService
+      const pluginManager = PluginManager.getInstance();
+      const settingsService = pluginManager.getService('core-settings/settingsService');
+
+      if (settingsService) {
+        // Map option to storage mode
+        const storageMode = selectedOption as 'local' | 'sync' | 'cloud';
+        await settingsService.completeSetup(storageMode);
+
+        console.log('Setup complete with storage mode:', storageMode);
+
+        // Reinitialize storage with user's choice
+        await pluginManager.initializeStorage();
+
+        // Navigate to main app
+        navigate('/app/demo');
+      } else {
+        console.error('SettingsService not available');
+      }
     } catch (error) {
       console.error('Failed to save setup choice:', error);
     }
