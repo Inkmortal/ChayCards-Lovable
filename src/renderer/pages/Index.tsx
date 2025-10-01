@@ -20,23 +20,46 @@ const Index = () => {
 
   // Check setup status and redirect accordingly
   useEffect(() => {
-    const checkSetupStatus = () => {
+    const checkSetupStatus = async () => {
       try {
-        const hasCompletedSetup = localStorage.getItem('chaycards-setup-complete');
-        const userChoice = localStorage.getItem('chaycards-user-choice');
+        // Check BOTH settings AND actual storage data
+        const manager = PluginManager.getInstance();
+        const settingsService = manager.getService('core-settings/settingsService');
 
-        if (hasCompletedSetup && userChoice) {
-          // User has already completed setup, go to app
-          console.log('User setup complete, redirecting to app');
+        // First check: Do we have settings that say setup is complete?
+        if (settingsService?.isSetupComplete()) {
+          console.log('[Index] User setup complete (via settings), redirecting to app');
           navigate('/app');
-        } else if (isElectron) {
-          // Electron first-time user: Show data model choice (local/sync/cloud)
-          console.log('Electron first-time user, showing setup');
+          return;
+        }
+
+        // Second check: Even if settings say incomplete, check if we have ACTUAL data in storage
+        // This handles the case where localStorage was cleared but SQLite data still exists
+        if (isElectron && manager.isStorageReady()) {
+          try {
+            const storage = manager.getStorage();
+            const keys = await storage.list();
+
+            // If we have settings in storage, load them and go to app
+            const settingsKey = 'core-settings:app-settings';
+            if (keys.includes(settingsKey)) {
+              console.log('[Index] Found existing settings in storage, redirecting to app');
+              navigate('/app');
+              return;
+            }
+          } catch (error) {
+            console.warn('[Index] Could not check storage:', error);
+          }
+        }
+
+        // No setup found - show setup screen for Electron
+        if (isElectron) {
+          console.log('[Index] Electron first-time user, showing setup');
           navigate('/setup?platform=desktop');
         }
         // Web first-time users stay on landing page to see features
       } catch (error) {
-        console.warn('Could not check setup status:', error);
+        console.warn('[Index] Could not check setup status:', error);
       }
     };
 
@@ -199,7 +222,7 @@ const Index = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-full overflow-y-auto bg-background">
       {/* Header */}
       <header className="border-b border-border px-6 py-4 bg-card/50 backdrop-blur-sm">
         <div className="flex items-center justify-between">

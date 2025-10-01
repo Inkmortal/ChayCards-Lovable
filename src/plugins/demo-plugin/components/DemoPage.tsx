@@ -5,7 +5,8 @@
 
 import { Card } from "@/renderer/components/ui/card";
 import { Button } from "@/renderer/components/ui/button";
-import { Palette, Zap, Box, Code, Database, Trash2, Plus } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/renderer/components/ui/table";
+import { Palette, Zap, Box, Code, Database, Trash2, Plus, HardDrive, Cloud } from "lucide-react";
 import { PluginManager } from "../../../shared/plugin-system";
 import { useState, useEffect } from "react";
 
@@ -20,11 +21,55 @@ export const DemoPage = () => {
   // Accessing own service from demo-plugin
   const demoDataService = pluginManager.getService('demo-plugin/dataService');
 
+  // Get settings service to check storage mode
+  const settingsService = pluginManager.getService('core-settings/settingsService');
+  const storageMode = settingsService?.getStorageMode() || 'unknown';
+
   const loadedPlugins = pluginManager.getLoadedPlugins();
   const [currentTheme, setCurrentTheme] = useState(themeService?.getCurrentTheme());
   const [notes, setNotes] = useState<any[]>([]);
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');
+  const [showTableView, setShowTableView] = useState(false);
+  const [allStorageKeys, setAllStorageKeys] = useState<string[]>([]);
+  const [storageData, setStorageData] = useState<Record<string, any>>({});
+  const [loadingStorage, setLoadingStorage] = useState(false);
+
+  // Load ALL storage data from StorageAdapter (SQLite/PostgreSQL)
+  const loadAllStorageData = async () => {
+    setLoadingStorage(true);
+    try {
+      const data: Record<string, any> = {};
+      const keys: string[] = [];
+
+      // Load from StorageAdapter (all app data including settings)
+      const storage = pluginManager.getStorage();
+      if (storage) {
+        const storageKeys = await storage.list();
+        for (const key of storageKeys) {
+          keys.push(key);
+          const value = await storage.get(key);
+          data[key] = value;
+        }
+      }
+
+      setAllStorageKeys(keys);
+      setStorageData(data);
+      console.log('[Admin] Loaded storage:', {
+        totalKeys: keys.length,
+        data
+      });
+    } catch (error) {
+      console.error('[Admin] Failed to load storage data:', error);
+    } finally {
+      setLoadingStorage(false);
+    }
+  };
+
+  // Load all storage on mount
+  useEffect(() => {
+    loadAllStorageData();
+  }, []);
 
   // Subscribe to theme changes
   useEffect(() => {
@@ -79,6 +124,33 @@ export const DemoPage = () => {
     if (demoDataService) {
       await demoDataService.clearAll();
       setNotes([]);
+    }
+  };
+
+  const resetDatabase = async () => {
+    if (!confirm('⚠️ WARNING: This will delete ALL data including settings, notes, and preferences. You will need to complete setup again. Are you sure?')) {
+      return;
+    }
+
+    try {
+      const storage = pluginManager.getStorage();
+      if (storage) {
+        // Get all keys and delete them
+        const keys = await storage.list();
+        for (const key of keys) {
+          await storage.delete(key);
+        }
+        console.log('[Admin] Database reset complete');
+
+        // Reload data to show empty state
+        await loadAllStorageData();
+
+        // Show success message
+        alert('✅ Database reset complete! Please refresh the page to see setup screen.');
+      }
+    } catch (error) {
+      console.error('[Admin] Failed to reset database:', error);
+      alert('❌ Failed to reset database. Check console for details.');
     }
   };
 
@@ -185,13 +257,155 @@ export const DemoPage = () => {
           )}
         </div>
 
-        <div className="mb-4 p-3 bg-success/10 border border-success/30 rounded-lg">
-          <p className="text-sm text-foreground font-medium mb-1">✓ Storage Architecture</p>
-          <p className="text-xs text-muted-foreground">
-            This demo uses the <span className="font-mono bg-muted px-1 rounded">storage adapter system</span> -
-            SQLite for desktop, PostgreSQL for cloud, respecting user's setup choice.
-          </p>
+        {/* Storage Backend Indicator */}
+        <div className="mb-4 grid md:grid-cols-2 gap-3">
+          <div className={`p-3 border rounded-lg ${
+            storageMode === 'local' ? 'bg-success/10 border-success/30' : 'bg-muted/30 border-border'
+          }`}>
+            <div className="flex items-center gap-2 mb-1">
+              <HardDrive className={`w-4 h-4 ${storageMode === 'local' ? 'text-success' : 'text-muted-foreground'}`} />
+              <p className="text-sm font-medium text-foreground">SQLite (Local)</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {storageMode === 'local' ? '✓ Currently active' : 'Desktop-only storage'}
+            </p>
+          </div>
+          <div className={`p-3 border rounded-lg ${
+            storageMode === 'cloud' ? 'bg-info/10 border-info/30' : 'bg-muted/30 border-border'
+          }`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Cloud className={`w-4 h-4 ${storageMode === 'cloud' ? 'text-info' : 'text-muted-foreground'}`} />
+              <p className="text-sm font-medium text-foreground">PostgreSQL (Cloud)</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {storageMode === 'cloud' ? '✓ Currently active' : 'Web & cloud storage'}
+            </p>
+          </div>
         </div>
+
+        {/* Database Admin View - Always Visible */}
+        <div className="mb-6 p-4 bg-muted/20 border border-border rounded-xl">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-foreground">Database Admin View</h3>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={loadAllStorageData}
+                variant="outline"
+                size="sm"
+                disabled={loadingStorage}
+              >
+                {loadingStorage ? 'Refreshing...' : 'Refresh'}
+              </Button>
+              <Button
+                onClick={() => setShowTableView(!showTableView)}
+                variant="outline"
+                size="sm"
+              >
+                {showTableView ? 'Card View' : 'Table View'}
+              </Button>
+            </div>
+          </div>
+
+          {loadingStorage ? (
+            <div className="p-4 text-center text-muted-foreground">
+              <p className="text-sm">Loading storage data...</p>
+            </div>
+          ) : allStorageKeys.length === 0 ? (
+            <div className="p-4 border border-dashed border-border rounded-lg text-center">
+              <p className="text-sm text-muted-foreground mb-2">No data in storage</p>
+              <p className="text-xs text-muted-foreground">This is unusual - settings should be present</p>
+            </div>
+          ) : showTableView ? (
+            /* Table View - Admin Style - ALL Storage Data */
+            <div className="border border-border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="font-bold">Key</TableHead>
+                    <TableHead className="font-bold">Type</TableHead>
+                    <TableHead className="font-bold">Value (JSON)</TableHead>
+                    <TableHead className="font-bold text-right">Size</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allStorageKeys.map((key) => {
+                    const value = storageData[key];
+                    const valueStr = JSON.stringify(value, null, 2);
+                    const valueType = Array.isArray(value) ? 'Array' : typeof value === 'object' ? 'Object' : typeof value;
+                    const byteSize = new Blob([valueStr]).size;
+
+                    return (
+                      <TableRow key={key} className="hover:bg-muted/30">
+                        <TableCell className="font-mono text-xs font-medium max-w-xs">
+                          {key}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                            {valueType}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground max-w-md">
+                          <pre className="whitespace-pre-wrap break-all">{valueStr}</pre>
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">
+                          {byteSize} bytes
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            /* Card View - All Storage Keys */
+            <div className="space-y-2">
+              {allStorageKeys.map((key) => {
+                const value = storageData[key];
+                const valueStr = JSON.stringify(value, null, 2);
+                const valueType = Array.isArray(value) ? 'Array' : typeof value === 'object' ? 'Object' : typeof value;
+                const byteSize = new Blob([valueStr]).size;
+
+                return (
+                  <div
+                    key={key}
+                    className="p-3 rounded-lg border border-border bg-background/50 hover:border-primary/30 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-foreground text-sm mb-1 font-mono truncate">{key}</h3>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                            {valueType}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{byteSize} bytes</span>
+                        </div>
+                      </div>
+                    </div>
+                    <pre className="text-xs text-muted-foreground font-mono bg-muted/50 p-2 rounded overflow-x-auto">
+                      {valueStr}
+                    </pre>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Total: {allStorageKeys.length} key{allStorageKeys.length !== 1 ? 's' : ''} in <span className="font-mono">{storageMode === 'local' ? 'SQLite' : 'PostgreSQL'}</span> database
+            </p>
+            <Button
+              onClick={resetDatabase}
+              variant="outline"
+              size="sm"
+              className="border-destructive/50 text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              Reset Database
+            </Button>
+          </div>
+        </div>
+
         <p className="text-muted-foreground mb-4 text-sm">
           Add notes below. Data persists across page refreshes using browser storage.
         </p>
@@ -228,45 +442,6 @@ export const DemoPage = () => {
             Add Note
           </Button>
         </div>
-
-        {/* Notes List */}
-        {notes.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            No notes yet. Add one above to test data persistence!
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-foreground mb-3">
-              {notes.length} note{notes.length !== 1 ? 's' : ''} stored (persists across refreshes)
-            </p>
-            {notes.map((note) => (
-              <div
-                key={note.id}
-                className="p-4 rounded-xl border-2 border-border bg-background/50 hover:border-primary/30 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <h3 className="font-bold text-foreground mb-1">{note.title}</h3>
-                    {note.content && (
-                      <p className="text-sm text-muted-foreground mb-2">{note.content}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(note.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => deleteNote(note.id)}
-                    variant="outline"
-                    size="sm"
-                    className="border-destructive/50 text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </Card>
 
       {/* Plugin System Info */}

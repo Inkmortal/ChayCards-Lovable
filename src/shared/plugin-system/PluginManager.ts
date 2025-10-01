@@ -119,6 +119,10 @@ export class PluginManager implements IPluginManager {
     await this.storageManager.initialize(storageMode);
     this.storageInitialized = true;
 
+    // Pass storage adapter to SettingsService so it can load from proper storage
+    const storage = this.storageManager.getAdapter();
+    await settingsService.setStorage(storage);
+
     console.log('[PluginManager] Storage initialized with mode:', storageMode);
     this.eventBus.emit('storage:ready', { storageMode });
   }

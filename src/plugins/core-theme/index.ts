@@ -27,13 +27,13 @@ export const CoreThemePlugin: Plugin = {
   onLoad: async (manager) => {
     console.log('Core Theme Plugin loaded');
 
-    // Get theme service and settings service
+    // Get theme service and storage
     const themeService = manager.getService('core-theme/themeService');
-    const settingsService = manager.getService('core-settings/settingsService');
+    const storage = manager.getStorage();
 
-    // Initialize theme service with settings for persistence
-    if (themeService && settingsService) {
-      themeService.initialize(settingsService);
+    // Initialize theme service with storage for persistence
+    if (themeService && storage) {
+      await themeService.initialize(storage);
     }
 
     // Emit theme system ready event
@@ -43,9 +43,9 @@ export const CoreThemePlugin: Plugin = {
     });
 
     // Listen for theme change requests from other plugins
-    manager.getEventBus().on('theme:change-request', ({ themeId }) => {
+    manager.getEventBus().on('theme:change-request', async ({ themeId }) => {
       if (themeService) {
-        themeService.setTheme(themeId);
+        await themeService.setTheme(themeId);
       }
     });
   }

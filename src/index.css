@@ -107,4 +107,16 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Electron title bar drag region */
+  .app-drag-region {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  .app-drag-region button,
+  .app-drag-region a {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
 }

@@ -57,7 +57,12 @@
       "Bash(cat:*)",
       "Bash(lsof:*)",
       "Bash(netstat:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(pkill:*)",
+      "Bash(killall:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:www.superprompt.com)"
     ],
     "deny": []
   },

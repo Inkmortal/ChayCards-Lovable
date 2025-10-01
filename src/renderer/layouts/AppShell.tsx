@@ -3,14 +3,16 @@
  * Provides regions (header, sidebar, main, footer) where plugins can mount components
  */
 
-import React, { useState } from 'react';
-import { Routes, Route, NavLink } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, BookOpen } from 'lucide-react';
 import { PluginManager } from '../../shared/plugin-system';
 import { PluginHost } from '../plugin-host/PluginHost';
 
 export const AppShell: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
   const pluginManager = PluginManager.getInstance();
 
   // Get plugin-driven content
@@ -19,6 +21,17 @@ export const AppShell: React.FC = () => {
   const headerComponents = pluginManager.getRegionComponents('header');
   const sidebarComponents = pluginManager.getRegionComponents('sidebar');
   const footerComponents = pluginManager.getRegionComponents('footer');
+
+  // Redirect to first plugin route when landing on /app
+  useEffect(() => {
+    if (location.pathname === '/app' || location.pathname === '/app/') {
+      if (routes.length > 0) {
+        // Sort routes by order (if they have one) and navigate to first
+        const firstRoute = routes.sort((a, b) => (a.order || 999) - (b.order || 999))[0];
+        navigate(firstRoute.path, { replace: true });
+      }
+    }
+  }, [location.pathname, routes, navigate]);
 
     return (
     <div className="app-shell h-screen flex flex-col bg-background text-foreground">

@@ -1,15 +1,18 @@
 /**
  * ThemeService - Manages theme switching and CSS variable application
- * Persists theme choice via SettingsService (not direct storage)
+ * Stores theme preference in its own storage key: 'core-theme:preference'
  */
 
 import type { Theme } from '../themes';
 import { ALL_THEMES, DEFAULT_THEME } from '../themes';
+import type { StorageAdapter } from '@/shared/storage';
+
+const THEME_KEY = 'core-theme:preference';
 
 export class ThemeService {
   private currentTheme: Theme = DEFAULT_THEME;
   private listeners: Set<(theme: Theme) => void> = new Set();
-  private settingsService: any = null;
+  private storage: StorageAdapter | null = null;
 
   constructor() {
     // Apply default theme immediately
@@ -17,20 +20,25 @@ export class ThemeService {
   }
 
   /**
-   * Initialize with SettingsService for persistence
-   * Should be called during plugin onLoad after core-settings is available
+   * Initialize with StorageAdapter for persistence
+   * Should be called during plugin onLoad after storage is ready
    */
-  initialize(settingsService: any): void {
-    this.settingsService = settingsService;
+  async initialize(storage: StorageAdapter): Promise<void> {
+    this.storage = storage;
 
-    // Load saved theme from settings
-    const savedThemeId = settingsService.getTheme();
-    if (savedThemeId) {
-      const theme = ALL_THEMES.find(t => t.id === savedThemeId);
-      if (theme) {
-        this.currentTheme = theme;
-        this.applyTheme(theme);
+    // Load saved theme from storage
+    try {
+      const savedThemeId = await storage.get(THEME_KEY);
+      if (savedThemeId) {
+        const theme = ALL_THEMES.find(t => t.id === savedThemeId);
+        if (theme) {
+          this.currentTheme = theme;
+          this.applyTheme(theme);
+          console.log('[ThemeService] Loaded theme from storage:', savedThemeId);
+        }
       }
+    } catch (error) {
+      console.error('[ThemeService] Failed to load theme from storage:', error);
     }
   }
 
@@ -51,7 +59,7 @@ export class ThemeService {
   /**
    * Set new theme and apply it
    */
-  setTheme(themeId: string): void {
+  async setTheme(themeId: string): Promise<void> {
     const theme = ALL_THEMES.find(t => t.id === themeId);
     if (!theme) {
       console.warn(`Theme ${themeId} not found`);
@@ -61,11 +69,16 @@ export class ThemeService {
     this.currentTheme = theme;
     this.applyTheme(theme);
 
-    // Persist via settings service
-    if (this.settingsService) {
-      this.settingsService.setTheme(themeId);
+    // Persist to storage
+    if (this.storage) {
+      try {
+        await this.storage.set(THEME_KEY, themeId);
+        console.log('[ThemeService] Saved theme to storage:', themeId);
+      } catch (error) {
+        console.error('[ThemeService] Failed to save theme:', error);
+      }
     } else {
-      console.warn('SettingsService not initialized - theme preference not saved');
+      console.warn('[ThemeService] Storage not initialized - theme preference not saved');
     }
 
     this.notifyListeners(theme);

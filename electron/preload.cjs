@@ -8,6 +8,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveFile: (data, filename) => ipcRenderer.invoke('save-file', data, filename),
   readFile: () => ipcRenderer.invoke('read-file'),
 
+  // Window controls
+  window: {
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    maximize: () => ipcRenderer.invoke('window:maximize'),
+    close: () => ipcRenderer.invoke('window:close'),
+    isMaximized: () => ipcRenderer.invoke('window:isMaximized')
+  },
+
   // Storage API - SQLite via IPC
   storage: {
     get: (key) => ipcRenderer.invoke('storage:get', key),

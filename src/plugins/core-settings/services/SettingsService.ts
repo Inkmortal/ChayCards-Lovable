@@ -2,23 +2,36 @@
  * SettingsService - Manages application settings and user preferences
  *
  * Storage Strategy:
- * - Electron: JSON file in app data folder (~/.chaycards/settings.json)
- * - Web: localStorage (just for settings metadata, not user data)
- *
- * This is the ONLY place where localStorage is acceptable (settings only)
+ * - Uses StorageAdapter (SQLite for Electron, PostgreSQL for cloud)
+ * - Settings are stored under key: 'core-settings:app-settings'
+ * - Falls back to localStorage ONLY during initial setup (before storage is initialized)
  */
 
 import type { UserSettings, StorageMode } from '../types';
-import { DEFAULT_SETTINGS } from '../types';
+import { getDefaultSettings } from '../types';
+import type { StorageAdapter } from '@/shared/storage';
+
+const SETTINGS_KEY = 'core-settings:app-settings';
 
 export class SettingsService {
-  private settings: UserSettings = { ...DEFAULT_SETTINGS };
+  private settings: UserSettings = getDefaultSettings();
   private listeners: Set<(settings: UserSettings) => void> = new Set();
+  private storage: StorageAdapter | null = null;
   private isElectron: boolean;
 
-  constructor() {
+  constructor(storage?: StorageAdapter) {
     this.isElectron = window.electronAPI !== undefined;
+    this.storage = storage || null;
     this.loadSettings();
+  }
+
+  /**
+   * Initialize storage adapter (called after storage is set up)
+   */
+  async setStorage(storage: StorageAdapter): Promise<void> {
+    this.storage = storage;
+    // Reload settings from storage now that it's available
+    await this.loadSettings();
   }
 
   /**
@@ -33,13 +46,6 @@ export class SettingsService {
    */
   getStorageMode(): StorageMode {
     return this.settings.storageMode;
-  }
-
-  /**
-   * Get theme preference
-   */
-  getTheme(): string {
-    return this.settings.theme;
   }
 
   /**
@@ -74,13 +80,6 @@ export class SettingsService {
   }
 
   /**
-   * Set theme preference
-   */
-  setTheme(themeId: string): void {
-    this.updateSettings({ theme: themeId });
-  }
-
-  /**
    * Subscribe to settings changes
    */
   onSettingsChange(callback: (settings: UserSettings) => void): () => void {
@@ -95,42 +94,37 @@ export class SettingsService {
   /**
    * Load settings from storage
    */
-  private loadSettings(): void {
+  private async loadSettings(): Promise<void> {
     try {
-      if (this.isElectron) {
-        // TODO: Load from Electron app data folder via IPC
-        // For now, fallback to localStorage
-        const stored = localStorage.getItem('chaycards-settings');
+      if (this.storage) {
+        // Load from StorageAdapter (SQLite/PostgreSQL)
+        const stored = await this.storage.get(SETTINGS_KEY);
         if (stored) {
-          this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+          this.settings = { ...getDefaultSettings(), ...stored };
+          console.log('[SettingsService] Loaded settings from storage:', this.settings);
+        } else {
+          console.log('[SettingsService] No settings found, using defaults');
         }
       } else {
-        // Web: use localStorage for settings metadata
-        const stored = localStorage.getItem('chaycards-settings');
-        if (stored) {
-          this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
-        }
+        console.log('[SettingsService] Storage not initialized yet, using defaults');
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
-      this.settings = { ...DEFAULT_SETTINGS };
+      this.settings = getDefaultSettings();
     }
   }
 
   /**
    * Save settings to storage
    */
-  private saveSettings(): void {
+  private async saveSettings(): Promise<void> {
     try {
-      const data = JSON.stringify(this.settings);
-
-      if (this.isElectron) {
-        // TODO: Save to Electron app data folder via IPC
-        // For now, fallback to localStorage
-        localStorage.setItem('chaycards-settings', data);
+      if (this.storage) {
+        // Save to StorageAdapter (SQLite/PostgreSQL)
+        await this.storage.set(SETTINGS_KEY, this.settings);
+        console.log('[SettingsService] Saved settings to storage');
       } else {
-        // Web: use localStorage for settings metadata
-        localStorage.setItem('chaycards-settings', data);
+        console.warn('[SettingsService] Cannot save - storage not initialized yet');
       }
     } catch (error) {
       console.error('Failed to save settings:', error);
@@ -154,7 +148,7 @@ export class SettingsService {
    * Reset settings to defaults (for testing/debugging)
    */
   reset(): void {
-    this.settings = { ...DEFAULT_SETTINGS };
+    this.settings = getDefaultSettings();
     this.saveSettings();
     this.notifyListeners();
   }

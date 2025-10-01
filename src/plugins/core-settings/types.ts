@@ -10,10 +10,7 @@ export interface UserSettings {
   // Storage configuration from setup
   storageMode: StorageMode;
 
-  // Theme preference
-  theme: string;
-
-  // User profile
+  // User profile (optional, for cloud sync)
   userId?: string;
   email?: string;
 
@@ -26,7 +23,20 @@ export interface UserSettings {
 
 export const DEFAULT_SETTINGS: UserSettings = {
   storageMode: 'local',
-  theme: 'catppuccin-latte',
   setupComplete: false,
   updatedAt: Date.now()
 };
+
+/**
+ * Get platform-aware default settings
+ * Web → cloud storage (PostgreSQL via API)
+ * Electron → local storage (SQLite via IPC)
+ */
+export function getDefaultSettings(): UserSettings {
+  const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
+  return {
+    storageMode: isElectron ? 'local' : 'cloud',
+    setupComplete: false,
+    updatedAt: Date.now()
+  };
+}
