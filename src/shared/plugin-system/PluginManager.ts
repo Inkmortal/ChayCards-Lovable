@@ -100,11 +100,22 @@ export class PluginManager implements IPluginManager {
     return this.eventBus;
   }
 
-  // Storage access
-  getStorage(): StorageAdapter {
-    if (!this.storageInitialized) {
-      throw new Error('Storage not initialized. Ensure core-settings plugin loads first.');
+  // Storage access (returns null on public pages or if not initialized)
+  getStorage(): StorageAdapter | null {
+    // Check if we're on a public page - no storage needed
+    const isPublicPage = ['/', '/login', '/register', '/setup'].some(path =>
+      window.location.pathname === path || window.location.pathname.startsWith(path + '/')
+    );
+
+    if (isPublicPage) {
+      return null; // Public pages don't need storage
     }
+
+    if (!this.storageInitialized) {
+      console.warn('[PluginManager] Storage not initialized - returning null');
+      return null;
+    }
+
     return this.storageManager.getAdapter();
   }
 

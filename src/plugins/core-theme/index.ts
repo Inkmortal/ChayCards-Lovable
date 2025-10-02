@@ -31,7 +31,7 @@ export const CoreThemePlugin: Plugin = {
     const themeService = manager.getService('core-theme/themeService');
     const storage = manager.getStorage();
 
-    // Initialize theme service with storage for persistence
+    // Initialize theme service with storage for persistence (null on public pages)
     if (themeService && storage) {
       await themeService.initialize(storage);
     }

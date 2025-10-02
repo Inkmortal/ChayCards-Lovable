@@ -2,10 +2,25 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { PluginManager } from './shared/plugin-system'
+import { loadPublicTheme } from './utils/publicThemeLoader'
 
 async function startApp() {
   try {
-    // Initialize plugin system before React
+    // Check if we're on a public page (no plugins needed)
+    const isPublicPage = ['/', '/login', '/register', '/setup'].some(path =>
+      window.location.pathname === path || window.location.pathname.startsWith(path + '/')
+    );
+
+    if (isPublicPage) {
+      console.log('Public page detected - skipping plugin initialization');
+      // Load theme from localStorage for public pages
+      loadPublicTheme();
+      // Start React app directly without plugins
+      createRoot(document.getElementById("root")!).render(<App />);
+      return;
+    }
+
+    // Initialize plugin system before React (only for app pages)
     const pluginManager = PluginManager.getInstance();
 
     console.log('Loading ChayCards plugins...');

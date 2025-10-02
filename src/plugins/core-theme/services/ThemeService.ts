@@ -8,6 +8,7 @@ import { ALL_THEMES, DEFAULT_THEME } from '../themes';
 import type { StorageAdapter } from '@/shared/storage';
 
 const THEME_KEY = 'core-theme:preference';
+const THEME_LOCALSTORAGE_KEY = 'chaycards-theme'; // Fallback for public pages
 
 export class ThemeService {
   private currentTheme: Theme = DEFAULT_THEME;
@@ -15,18 +16,28 @@ export class ThemeService {
   private storage: StorageAdapter | null = null;
 
   constructor() {
-    // Apply default theme immediately
-    this.applyTheme(DEFAULT_THEME);
+    // Try to load theme from localStorage first (works on all pages)
+    const localThemeId = localStorage.getItem(THEME_LOCALSTORAGE_KEY);
+    if (localThemeId) {
+      const theme = ALL_THEMES.find(t => t.id === localThemeId);
+      if (theme) {
+        this.currentTheme = theme;
+      }
+    }
+
+    // Apply theme immediately
+    this.applyTheme(this.currentTheme);
   }
 
   /**
    * Initialize with StorageAdapter for persistence
    * Should be called during plugin onLoad after storage is ready
+   * Priority: User storage > localStorage > default
    */
   async initialize(storage: StorageAdapter): Promise<void> {
     this.storage = storage;
 
-    // Load saved theme from storage
+    // Try to load theme from user storage (cloud/local database)
     try {
       const savedThemeId = await storage.get(THEME_KEY);
       if (savedThemeId) {
@@ -34,12 +45,18 @@ export class ThemeService {
         if (theme) {
           this.currentTheme = theme;
           this.applyTheme(theme);
-          console.log('[ThemeService] Loaded theme from storage:', savedThemeId);
+          // Sync to localStorage as fallback
+          localStorage.setItem(THEME_LOCALSTORAGE_KEY, savedThemeId);
+          console.log('[ThemeService] Loaded theme from user storage:', savedThemeId);
+          return;
         }
       }
     } catch (error) {
       console.error('[ThemeService] Failed to load theme from storage:', error);
     }
+
+    // If no user storage theme, keep the localStorage theme (already loaded in constructor)
+    console.log('[ThemeService] Using theme from localStorage or default:', this.currentTheme.id);
   }
 
   /**
@@ -58,6 +75,7 @@ export class ThemeService {
 
   /**
    * Set new theme and apply it
+   * Saves to both user storage (if available) and localStorage (always)
    */
   async setTheme(themeId: string): Promise<void> {
     const theme = ALL_THEMES.find(t => t.id === themeId);
@@ -69,16 +87,17 @@ export class ThemeService {
     this.currentTheme = theme;
     this.applyTheme(theme);
 
-    // Persist to storage
+    // Always save to localStorage (works on all pages)
+    localStorage.setItem(THEME_LOCALSTORAGE_KEY, themeId);
+
+    // Also save to user storage if available (for syncing across devices)
     if (this.storage) {
       try {
         await this.storage.set(THEME_KEY, themeId);
-        console.log('[ThemeService] Saved theme to storage:', themeId);
+        console.log('[ThemeService] Saved theme to user storage:', themeId);
       } catch (error) {
-        console.error('[ThemeService] Failed to save theme:', error);
+        console.error('[ThemeService] Failed to save theme to user storage:', error);
       }
-    } else {
-      console.warn('[ThemeService] Storage not initialized - theme preference not saved');
     }
 
     this.notifyListeners(theme);
