@@ -26,7 +26,7 @@ function createWindow() {
   // Load the app
   const isDev = process.env.NODE_ENV !== 'production';
   if (isDev) {
-    const devUrl = process.env.ELECTRON_DEV_URL || 'http://localhost:8081';
+    const devUrl = process.env.ELECTRON_DEV_URL || 'http://localhost:8080';
     mainWindow.loadURL(devUrl);
     mainWindow.webContents.openDevTools();
   } else {

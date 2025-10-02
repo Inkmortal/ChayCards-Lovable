@@ -66,7 +66,13 @@
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nUpdate memory bank: Storage architecture refactor documentation\n\n**Updates to activeContext.md**:\n- Added October 1, 2025 storage architecture refactor section\n- Documented separated theme/settings storage\n- Added database admin tools features\n- Documented Electron UI polish (title bar, keyboard shortcuts, scrollbar fix)\n- Added 6 new learnings about storage keys, localStorage vs StorageAdapter, etc.\n\n**Updates to progress.md**:\n- Marked storage infrastructure as partially complete\n- Updated plugin system implementation status (AppShell routes complete)\n- Added core-settings, core-theme, demo-plugin to built-in plugins\n- Added 5 resolved issues (setup persistence, theme saving, scrollbar, F12, blank page)\n- Updated minor issues (removed DevTools, added CRLF warnings)\n\n**Updates to systemPatterns.md**:\n- Updated overall structure diagram to show SQLite/PostgreSQL\n- Added complete Storage Architecture section\n  - StorageAdapter interface\n  - Storage implementations (SQLite, PostgreSQL)\n  - Plugin storage pattern with namespace rules\n  - Storage lifecycle documentation\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(awk:*)",
-      "Bash(xargs -r kill -9)"
+      "Bash(xargs -r kill -9)",
+      "Bash(findstr:*)",
+      "Bash(tasklist)",
+      "Bash(taskkill:*)",
+      "Bash(wsl ps:*)",
+      "Bash(wsl bash:*)",
+      "Bash(cmd /c \"for /f \"\"tokens=5\"\" %a in (''netstat -ano ^| findstr :8081'') do taskkill /F /PID %a\")"
     ],
     "deny": []
   },

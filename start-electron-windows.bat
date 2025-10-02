@@ -8,7 +8,7 @@ echo.
 
 :: Check if Vite dev server is running
 echo Checking Vite dev server...
-curl -s http://localhost:8081 >nul 2>&1
+curl -s http://localhost:8080 >nul 2>&1
 if errorlevel 1 (
     echo ERROR: Vite dev server not running!
     echo Please run "npm run dev" in WSL first.
@@ -16,7 +16,7 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-echo Vite: RUNNING on port 8081
+echo Vite: RUNNING on port 8080
 echo.
 
 :: Check if better-sqlite3 needs rebuilding for Electron
@@ -71,7 +71,7 @@ if not exist ".electron-rebuilt" (
 )
 
 :: Set environment
-set ELECTRON_DEV_URL=http://localhost:8081
+set ELECTRON_DEV_URL=http://localhost:8080
 set NODE_ENV=development
 
 :: Launch Electron
