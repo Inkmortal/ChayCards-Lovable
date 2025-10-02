@@ -43,3 +43,44 @@ This project uses a special dual-environment setup:
 - Test web functionality at http://localhost:8080 in WSL
 - Test Electron functionality using Windows executable
 - Always verify changes work in both environments
+
+### Available Agents
+
+Claude has access to specialized agents through the Task tool for different workflows:
+
+#### Development & Code Quality
+- `general-purpose` - Multi-step research, code search, and complex tasks
+- `context-researcher` - Gather codebase context before implementing features
+- `code-reviewer` - Review code after implementation with quality checks
+- `code-cleanup-refactor` - Clean up unused code and artifacts after refactoring
+- `unit-test-generator` - Generate comprehensive test coverage
+- `test-runner-validator` - Execute and validate unit tests
+
+#### Project Management
+- `git-workflow-manager` - Manage git operations, commits, and branches
+- `backlog-manager` - Track and manage project tasks and backlog
+- `memory-bank-keeper` - Update Memory Bank documentation after changes
+
+#### Security & Testing
+- `security-reviewer` - Review security vulnerabilities and authentication
+- `frontend-qa-tester` - Verify frontend implementations and user interactions
+
+#### Zen MCP Advanced Tools
+- `chat` - Collaborative thinking and brainstorming partner
+- `thinkdeep` - Multi-stage investigation for complex problems
+- `planner` - Interactive sequential planning with branching
+- `consensus` - Multi-model debate for architectural decisions
+- `codereview` - Systematic code review with expert validation
+- `precommit` - Validate git changes before committing
+- `debug` - Root cause analysis and systematic debugging
+- `secaudit` - Comprehensive security auditing (OWASP, compliance)
+- `docgen` - Generate code documentation with complexity analysis
+- `analyze` - Comprehensive code analysis (architecture, performance)
+- `refactor` - Analyze refactoring opportunities and code smells
+- `tracer` - Trace code execution flow or dependencies
+- `testgen` - Generate comprehensive test suites
+- `challenge` - Force critical thinking to prevent reflexive agreement
+
+#### Integration Tools
+- **Notion MCP** - Track tasks in ChayCards_Dev database across sessions
+- **Puppeteer MCP** - Automated browser testing and UI verification

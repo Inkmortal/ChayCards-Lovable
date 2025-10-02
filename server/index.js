@@ -19,8 +19,10 @@ const pool = new Pool({
 
 // Middleware
 const corsOrigins = process.env.CORS_ORIGIN?.split(',') || [
-  'http://localhost:8080',
-  'http://localhost:5173'
+  'http://localhost:8080',    // Vite dev server
+  'http://localhost:5173',    // Alternative dev port
+  'https://chaycards.com',    // Production frontend
+  'https://app.chaycards.com' // Production frontend (subdomain)
 ];
 
 app.use(cors({
@@ -173,7 +175,7 @@ app.use((error, req, res, next) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3101;
+const PORT = process.env.PORT || 7243;
 app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════╗

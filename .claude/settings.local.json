@@ -72,7 +72,14 @@
       "Bash(taskkill:*)",
       "Bash(wsl ps:*)",
       "Bash(wsl bash:*)",
-      "Bash(cmd /c \"for /f \"\"tokens=5\"\" %a in (''netstat -ano ^| findstr :8081'') do taskkill /F /PID %a\")"
+      "Bash(cmd /c \"for /f \"\"tokens=5\"\" %a in (''netstat -ano ^| findstr :8081'') do taskkill /F /PID %a\")",
+      "Bash(cloudflared tunnel:*)",
+      "Read(//home/constibetta/**)",
+      "Bash(cmd.exe /c \"where cloudflared\")",
+      "Bash(cmd.exe /c \"cloudflared tunnel list\")",
+      "Bash(cmd.exe /c \"cloudflared tunnel create chaycards-api\")",
+      "Bash(cmd.exe /c \"cloudflared tunnel route dns chaycards-api api.chaycards.com\")",
+      "Bash(cmd.exe:*)"
     ],
     "deny": []
   },

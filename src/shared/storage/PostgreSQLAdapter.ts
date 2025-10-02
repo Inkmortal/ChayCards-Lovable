@@ -10,9 +10,15 @@ import type { StorageAdapter } from './StorageAdapter';
 export class PostgreSQLAdapter implements StorageAdapter {
   private apiUrl: string;
 
-  constructor(apiUrl: string = '/api/storage') {
-    this.apiUrl = apiUrl;
-    console.log('[PostgreSQLAdapter] Initialized with API URL:', apiUrl);
+  constructor(apiUrl?: string) {
+    // Priority:
+    // 1. Explicit apiUrl parameter
+    // 2. Environment variable (for Lovable builds)
+    // 3. Relative URL (uses Vite proxy in dev)
+    this.apiUrl = apiUrl ||
+                  import.meta.env.VITE_STORAGE_API_URL ||
+                  '/api/storage';
+    console.log('[PostgreSQLAdapter] Initialized with API URL:', this.apiUrl);
   }
 
   async get<T = any>(key: string): Promise<T | null> {
