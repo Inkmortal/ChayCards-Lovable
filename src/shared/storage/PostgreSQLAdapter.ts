@@ -13,28 +13,19 @@ export class PostgreSQLAdapter implements StorageAdapter {
   constructor(apiUrl?: string) {
     // Priority:
     // 1. Explicit apiUrl parameter
-    // 2. Environment variable
-    // 3. Auto-detect based on hostname:
-    //    - localhost/127.0.0.1 → Use Vite proxy
-    //    - Any other domain (Lovable, production) → Use Cloudflare Tunnel
+    // 2. Environment variable (set via .env or build config)
+    // 3. Default: Cloudflare Tunnel (works everywhere)
+    //
+    // Why Cloudflare Tunnel as default?
+    // - Local dev can override with .env: VITE_STORAGE_API_URL=/api/storage
+    // - Lovable preview needs absolute URL (no backend/proxy available)
+    // - Production needs absolute URL
     const envUrl = import.meta.env.VITE_STORAGE_API_URL;
-    const isLocalhost = typeof window !== 'undefined' &&
-                       (window.location.hostname === 'localhost' ||
-                        window.location.hostname === '127.0.0.1');
-
-    const defaultUrl = isLocalhost
-      ? '/api/storage'  // Local dev uses Vite proxy
-      : 'https://api.chaycards.com/api/storage';  // Lovable/production uses Cloudflare Tunnel
+    const defaultUrl = 'https://api.chaycards.com/api/storage';
 
     this.apiUrl = apiUrl || envUrl || defaultUrl;
 
-    console.log('[PostgreSQLAdapter] Environment:', {
-      hostname: typeof window !== 'undefined' ? window.location.hostname : 'SSR',
-      isLocalhost,
-      envUrl,
-      defaultUrl,
-      finalUrl: this.apiUrl
-    });
+    console.log('[PostgreSQLAdapter] API URL:', this.apiUrl);
   }
 
   async get<T = any>(key: string): Promise<T | null> {
