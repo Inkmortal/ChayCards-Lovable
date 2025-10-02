@@ -271,14 +271,17 @@ app.put('/api/storage/:key', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Missing value in request body' });
     }
 
-    // pg library automatically converts JavaScript object to JSONB
+    // Convert value to JSONB format - pg library needs pre-stringified JSON for JSONB columns
+    // Objects/arrays work automatically, but primitives (strings, numbers, booleans) need JSON.stringify
+    const jsonbValue = JSON.stringify(value);
+
     await pool.query(
       `INSERT INTO storage (key, value, user_id, updated_at)
-       VALUES ($1, $2, $3, NOW())
+       VALUES ($1, $2::jsonb, $3, NOW())
        ON CONFLICT (key, user_id) DO UPDATE SET
-         value = $2,
+         value = $2::jsonb,
          updated_at = NOW()`,
-      [key, value, userId]
+      [key, jsonbValue, userId]
     );
 
     res.json({ success: true });

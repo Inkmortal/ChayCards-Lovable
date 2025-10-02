@@ -85,7 +85,8 @@
       "Bash(pg_isready:*)",
       "Bash(ln:*)",
       "Bash(readlink:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(docker exec:*)"
     ],
     "deny": []
   },
