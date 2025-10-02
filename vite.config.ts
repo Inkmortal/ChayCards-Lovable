@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8081,
+    strictPort: true, // Exit if port is already in use instead of trying another
     proxy: {
       '/api': {
         target: 'http://localhost:3101',

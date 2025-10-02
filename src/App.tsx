@@ -9,7 +9,7 @@ const App = () => {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <TitleBar />
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-hidden">
         <BrowserRouter>
           <Routes>
             {/* Public routes - outside AppShell */}

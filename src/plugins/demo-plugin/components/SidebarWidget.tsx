@@ -13,23 +13,23 @@ export const SidebarWidget = () => {
 
   return (
     <div
-      className="p-4 rounded-xl border-2 border-border"
+      className="p-3 rounded-lg border border-border w-full min-w-0 overflow-hidden"
       style={{
         background: 'hsl(var(--card))',
       }}
     >
-      <div className="flex items-center gap-2 mb-3">
-        <Activity className="w-4 h-4 text-primary" />
-        <h3 className="font-bold text-sm text-foreground">System Stats</h3>
+      <div className="flex items-center gap-2 mb-2">
+        <Activity className="w-4 h-4 text-primary flex-shrink-0" />
+        <h3 className="font-bold text-xs text-foreground break-words">System Stats</h3>
       </div>
-      <div className="space-y-2 text-xs">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Components:</span>
-          <span className="font-mono font-medium text-foreground">{componentCount}</span>
+      <div className="space-y-1 text-xs">
+        <div className="flex justify-between items-center gap-2 min-w-0">
+          <span className="text-muted-foreground flex-shrink-0">Components:</span>
+          <span className="font-mono font-medium text-foreground flex-shrink-0">{componentCount}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Services:</span>
-          <span className="font-mono font-medium text-foreground">{serviceCount}</span>
+        <div className="flex justify-between items-center gap-2 min-w-0">
+          <span className="text-muted-foreground flex-shrink-0">Services:</span>
+          <span className="font-mono font-medium text-foreground flex-shrink-0">{serviceCount}</span>
         </div>
       </div>
     </div>

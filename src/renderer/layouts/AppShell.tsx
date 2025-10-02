@@ -34,7 +34,7 @@ export const AppShell: React.FC = () => {
   }, [location.pathname, routes, navigate]);
 
     return (
-    <div className="app-shell h-screen flex flex-col bg-background text-foreground">
+    <div className="app-shell h-full flex flex-col bg-background text-foreground">
       {/* Header Region */}
       <header className="app-header h-14 border-b border-border bg-card/50 backdrop-blur-sm flex items-center px-4 gap-4">
         {/* Logo and App Name */}
@@ -81,7 +81,7 @@ export const AppShell: React.FC = () => {
           {sidebarOpen && (
             <>
               {/* Navigation */}
-              <nav className="flex-1 p-4 space-y-2">
+              <nav className="flex-1 p-4 space-y-2 overflow-y-auto" style={{ minHeight: 0 }}>
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
                   Navigation
                 </div>
@@ -116,7 +116,7 @@ export const AppShell: React.FC = () => {
 
               {/* Sidebar Plugin Components */}
               {sidebarComponents.length > 0 && (
-                <div className="border-t border-border p-4 space-y-2">
+                <div className="border-t border-border p-3 space-y-2 flex-shrink-0 w-full min-w-0">
                   {sidebarComponents.map((comp) => (
                     <PluginHost key={comp.id} componentName={typeof comp.component === 'string' ? comp.component : comp.id} />
                   ))}
