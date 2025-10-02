@@ -14,6 +14,7 @@ function createWindow() {
     height: 800,
     frame: false,
     backgroundColor: '#1e1e2e',
+    show: false, // Don't show until ready-to-show
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -21,6 +22,11 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs')
     },
     icon: path.join(__dirname, '../public/favicon.ico')
+  });
+
+  // Show window when ready to prevent flashing
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
   });
 
   // Load the app

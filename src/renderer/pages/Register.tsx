@@ -36,8 +36,7 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      // TODO: Implement actual registration logic
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch('https://api.chaycards.com/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })

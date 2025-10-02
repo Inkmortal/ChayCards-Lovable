@@ -169,6 +169,9 @@ We are in the **Core App Implementation** phase:
 8. ✅ Fixed F12 DevTools toggle (proper keyboard event handling)
 9. ✅ Fixed blank page after login (auto-redirect to first plugin)
 10. ✅ PostgreSQL cloud storage working via Cloudflare Tunnel (October 1, 2025)
+11. ✅ Fixed plugins loading on public pages causing 401 errors (October 2, 2025)
+12. ✅ Fixed double redirect when accessing /app without auth (October 2, 2025)
+13. ✅ Fixed theme not working on public pages (dual storage strategy, October 2, 2025)
 
 ## Evolution of Project Decisions
 

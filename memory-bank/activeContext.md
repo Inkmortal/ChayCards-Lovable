@@ -30,6 +30,35 @@ We are building the foundation architecture for ChayCards with a focus on:
 
 ## Recent Changes
 
+### Authentication Flow and Public Page Optimization (October 2, 2025)
+- **Fixed Public Page Plugin Loading**: Plugins no longer load on public pages
+  - Public pages (/, /login, /register, /setup) skip plugin initialization entirely
+  - main.tsx checks page type and only loads theme from localStorage on public pages
+  - Eliminates unnecessary 401 errors from plugins trying to access storage without auth
+  - AppShell handles plugin loading AFTER auth check passes
+- **Centralized Auth Guard**: Single redirect point in AppShell
+  - AppShell checks for auth_token before loading plugins
+  - No token → redirect to /login (single, clean redirect)
+  - Has token → load plugins and initialize storage
+  - Eliminates double-redirect issue (plugins + AppShell both redirecting)
+- **Theme System Improvements**: Dual storage strategy for universal theme support
+  - Public pages: Theme loads from localStorage via publicThemeLoader.ts
+  - App pages: Theme loads from user storage with localStorage sync
+  - Priority: User storage > localStorage > default theme
+  - Theme works on ALL pages without requiring authentication
+- **Simplified Plugin Loading Flow**:
+  1. Public pages → Load theme from localStorage, render app (no plugins)
+  2. App pages → Load theme, render app, AppShell checks auth
+  3. Auth pass → AppShell loads plugins and initializes storage
+  4. Auth fail → AppShell redirects to /login
+- **Files Modified**:
+  - `src/main.tsx` - Added public page check, removed premature plugin loading for /app routes
+  - `src/renderer/layouts/AppShell.tsx` - Added auth guard before plugin loading
+  - `src/utils/publicThemeLoader.ts` - Created standalone theme loader for public pages
+  - `src/plugins/core-theme/services/ThemeService.ts` - Implemented dual storage (localStorage + user storage)
+  - `src/shared/plugin-system/PluginManager.ts` - Added public page checks (defense-in-depth, not actively used)
+  - `src/shared/storage/PostgreSQLAdapter.ts` - Removed auth redirect logic (now in AppShell)
+
 ### Cloud Storage Infrastructure Setup Complete (October 1, 2025)
 - **Cloudflare Tunnel for API Access**: Production-ready secure tunnel to local database
   - Tunnel name: `chaycards-api` (ID: `6c780a88-8816-46f3-8e89-fd866d5006fd`)
@@ -284,3 +313,7 @@ We are building the foundation architecture for ChayCards with a focus on:
 24. **npm Install Location Matters**: ALWAYS run `npm install` from Windows (not WSL) to ensure Electron gets Windows-compiled native modules
 25. **Electron ABI Versioning**: electron-rebuild MUST be passed explicit `--version` flag in dual environments to avoid auto-detection failures
 26. **Database Manual Management**: For schema changes, manually recreate databases via bash/sqlite3 commands instead of hardcoding migrations
+27. **Public Page Plugin Isolation**: Plugins should NOT load on public pages (/, /login, /register, /setup) to prevent auth errors
+28. **Auth Guard Placement**: Check authentication in AppShell BEFORE loading plugins, not after - prevents double redirects
+29. **Theme Universal Access**: Theme must work on ALL pages, so use localStorage for public pages and dual storage for app pages
+30. **Plugin Loading Timing**: Never load plugins in main.tsx for /app routes - let AppShell handle auth check first, then load plugins
