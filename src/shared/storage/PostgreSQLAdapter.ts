@@ -66,11 +66,19 @@ export class PostgreSQLAdapter implements StorageAdapter {
           return null;
         }
 
-        // Handle auth errors
+        // Handle auth errors - only redirect if not already on public pages
         if (response.status === 401 || response.status === 403) {
-          console.error(`[PostgreSQLAdapter] Auth error - redirecting to login`);
-          localStorage.removeItem('auth_token');
-          window.location.href = '/login';
+          const isPublicPage = ['/', '/login', '/register', '/setup'].some(path =>
+            window.location.pathname === path || window.location.pathname.startsWith(path + '/')
+          );
+
+          if (!isPublicPage) {
+            console.error(`[PostgreSQLAdapter] Auth error - redirecting to login`);
+            localStorage.removeItem('auth_token');
+            window.location.href = '/login';
+          } else {
+            console.warn(`[PostgreSQLAdapter] Auth error on public page - ignoring`);
+          }
           return null;
         }
 
@@ -108,11 +116,19 @@ export class PostgreSQLAdapter implements StorageAdapter {
       });
 
       if (!response.ok) {
-        // Handle auth errors
+        // Handle auth errors - only redirect if not already on public pages
         if (response.status === 401 || response.status === 403) {
-          console.error(`[PostgreSQLAdapter] Auth error - redirecting to login`);
-          localStorage.removeItem('auth_token');
-          window.location.href = '/login';
+          const isPublicPage = ['/', '/login', '/register', '/setup'].some(path =>
+            window.location.pathname === path || window.location.pathname.startsWith(path + '/')
+          );
+
+          if (!isPublicPage) {
+            console.error(`[PostgreSQLAdapter] Auth error - redirecting to login`);
+            localStorage.removeItem('auth_token');
+            window.location.href = '/login';
+          } else {
+            console.warn(`[PostgreSQLAdapter] Auth error on public page - ignoring`);
+          }
           return;
         }
 

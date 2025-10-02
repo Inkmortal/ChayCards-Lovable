@@ -116,6 +116,18 @@ export class PluginManager implements IPluginManager {
     }
 
     const storageMode = settingsService.getStorageMode();
+
+    // Check if we're on a public page - if so, skip storage initialization entirely
+    // Public pages don't need user data (local or cloud)
+    const isPublicPage = ['/', '/login', '/register', '/setup'].some(path =>
+      window.location.pathname === path || window.location.pathname.startsWith(path + '/')
+    );
+
+    if (isPublicPage) {
+      console.log('[PluginManager] On public page - skipping storage initialization (no user data needed)');
+      return;
+    }
+
     await this.storageManager.initialize(storageMode);
     this.storageInitialized = true;
 
