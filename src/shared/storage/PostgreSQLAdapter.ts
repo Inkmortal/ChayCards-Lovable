@@ -29,28 +29,46 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async get<T = any>(key: string): Promise<T | null> {
+    const url = `${this.apiUrl}/${encodeURIComponent(key)}`;
+
     try {
-      const url = `${this.apiUrl}/${encodeURIComponent(key)}`;
+      console.log(`[PostgreSQLAdapter] GET ${url}`);
       const response = await fetch(url);
+
+      console.log(`[PostgreSQLAdapter] Response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
 
       if (!response.ok) {
         if (response.status === 404) {
+          console.log(`[PostgreSQLAdapter] Key not found: ${key}`);
           return null;
         }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+        // Get error details from response body
+        const errorText = await response.text();
+        console.error(`[PostgreSQLAdapter] HTTP ${response.status} error for key "${key}":`, errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log(`[PostgreSQLAdapter] Successfully got key "${key}":`, data);
       return data.value as T;
     } catch (error) {
       console.error(`[PostgreSQLAdapter] Failed to get key "${key}":`, error);
+      console.error(`[PostgreSQLAdapter] Request URL was: ${url}`);
       return null;
     }
   }
 
   async set<T = any>(key: string, value: T): Promise<void> {
+    const url = `${this.apiUrl}/${encodeURIComponent(key)}`;
+
     try {
-      const url = `${this.apiUrl}/${encodeURIComponent(key)}`;
+      console.log(`[PostgreSQLAdapter] PUT ${url}`, { value });
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -59,14 +77,25 @@ export class PostgreSQLAdapter implements StorageAdapter {
         body: JSON.stringify({ value })
       });
 
+      console.log(`[PostgreSQLAdapter] PUT Response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(`[PostgreSQLAdapter] PUT failed for key "${key}":`, errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
       if (!data.success) {
+        console.error(`[PostgreSQLAdapter] Server returned success: false for key "${key}"`);
         throw new Error('Server returned success: false');
       }
+
+      console.log(`[PostgreSQLAdapter] Successfully set key "${key}"`);
     } catch (error) {
       console.error(`[PostgreSQLAdapter] Failed to set key "${key}":`, error);
       throw error;

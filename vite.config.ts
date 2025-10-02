@@ -9,18 +9,6 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     strictPort: true, // Exit if port is already in use instead of trying another
-    proxy: {
-      '/api': {
-        target: 'http://localhost:7243',
-        changeOrigin: true
-      }
-    }
-  },
-  define: {
-    // Make environment variables available at build time
-    'import.meta.env.VITE_STORAGE_API_URL': JSON.stringify(
-      process.env.VITE_STORAGE_API_URL || '/api/storage'
-    )
   },
   plugins: [
     react(),
