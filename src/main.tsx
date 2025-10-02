@@ -20,16 +20,10 @@ async function startApp() {
       return;
     }
 
-    // Initialize plugin system before React (only for app pages)
-    const pluginManager = PluginManager.getInstance();
-
-    console.log('Loading ChayCards plugins...');
-    // Note: loadAllPlugins() now handles storage initialization internally
-    await pluginManager.loadAllPlugins();
-
-    console.log('Plugins and storage initialized, starting React app...');
-
-    // Start React app after plugins and storage are ready
+    // For app pages: check auth first, let AppShell handle redirect if needed
+    // Don't load plugins yet - AppShell will load them after auth check
+    console.log('App page detected - starting React, AppShell will handle auth and plugins');
+    loadPublicTheme(); // Load theme first
     createRoot(document.getElementById("root")!).render(<App />);
 
   } catch (error) {
