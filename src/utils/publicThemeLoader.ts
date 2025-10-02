@@ -24,7 +24,7 @@ export function loadPublicTheme(): void {
 
   // Apply CSS variables to document root
   const root = document.documentElement;
-  Object.entries(theme.colors).forEach(([key, value]) => {
+  Object.entries(theme.variables).forEach(([key, value]) => {
     root.style.setProperty(key, value);
   });
 
