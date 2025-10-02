@@ -25,8 +25,21 @@ const corsOrigins = process.env.CORS_ORIGIN?.split(',') || [
   'https://app.chaycards.com' // Production frontend (subdomain)
 ];
 
+// Allow Lovable preview domains dynamically
 app.use(cors({
-  origin: corsOrigins,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    // Allow Lovable preview domains (*.lovable.app)
+    if (origin.endsWith('.lovable.app')) return callback(null, true);
+
+    // Allow configured origins
+    if (corsOrigins.includes(origin)) return callback(null, true);
+
+    // Reject other origins
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 app.use(express.json());

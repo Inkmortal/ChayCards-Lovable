@@ -79,7 +79,8 @@
       "Bash(cmd.exe /c \"cloudflared tunnel list\")",
       "Bash(cmd.exe /c \"cloudflared tunnel create chaycards-api\")",
       "Bash(cmd.exe /c \"cloudflared tunnel route dns chaycards-api api.chaycards.com\")",
-      "Bash(cmd.exe:*)"
+      "Bash(cmd.exe:*)",
+      "Bash(xargs:*)"
     ],
     "deny": []
   },
