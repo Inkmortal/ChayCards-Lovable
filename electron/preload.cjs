@@ -16,6 +16,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isMaximized: () => ipcRenderer.invoke('window:isMaximized')
   },
 
+  // User API - Local user management
+  user: {
+    create: (userData) => ipcRenderer.invoke('user:create', userData),
+    get: (userId) => ipcRenderer.invoke('user:get', userId),
+    getCurrent: () => ipcRenderer.invoke('user:getCurrent')
+  },
+
   // Storage API - SQLite via IPC
   storage: {
     get: (key) => ipcRenderer.invoke('storage:get', key),

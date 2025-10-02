@@ -80,7 +80,12 @@
       "Bash(cmd.exe /c \"cloudflared tunnel create chaycards-api\")",
       "Bash(cmd.exe /c \"cloudflared tunnel route dns chaycards-api api.chaycards.com\")",
       "Bash(cmd.exe:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Read(//mnt/c/Users/danhc/AppData/**)",
+      "Bash(pg_isready:*)",
+      "Bash(ln:*)",
+      "Bash(readlink:*)",
+      "Bash(git log:*)"
     ],
     "deny": []
   },
@@ -89,5 +94,6 @@
     "puppeteer",
     "notion",
     "zen"
-  ]
+  ],
+  "outputStyle": "Explanatory"
 }

@@ -60,16 +60,28 @@
 - Puppeteer MCP integrated for frontend testing
 - Documentation created for MCP usage
 
+### ✅ Cloud Storage Infrastructure (October 1, 2025)
+- Cloudflare Tunnel setup complete (`chaycards-api` → `localhost:7243`)
+- Express API server running on port 7243 with REST endpoints
+- PostgreSQL database via Docker Compose (port 5433)
+- PostgreSQLAdapter working with hardcoded production URL
+- CORS configured for all frontend environments (Lovable, localhost, production)
+- Production-ready HTTPS without certificate management
+- Same URL works everywhere: `https://api.chaycards.com/api/storage`
+- Comprehensive logging for debugging network issues
+
 ## What's Left to Build
 
-### 🟢 Backend Infrastructure (Partially Complete)
-- [ ] Express server setup
+### ✅ Backend Infrastructure (COMPLETE - October 1, 2025)
+- [x] Express server setup (port 7243)
 - [x] Storage interface definition (StorageAdapter pattern)
 - [x] Local storage implementation (SQLite via better-sqlite3)
-- [ ] Cloud storage implementation (PostgreSQL - interface ready)
-- [ ] API route structure
+- [x] Cloud storage implementation (PostgreSQL via Cloudflare Tunnel)
+- [x] API route structure (REST endpoints for storage CRUD)
 - [x] IPC communication for Electron storage
 - [x] Storage lifecycle management (init after core-settings)
+- [x] CORS configuration for all environments
+- [x] Production-ready infrastructure (Cloudflare Tunnel)
 
 ### ✅ Plugin System Implementation
 - [x] PluginManager singleton with automatic plugin discovery
@@ -103,11 +115,14 @@
 - [ ] Theme system
 - [ ] Keyboard shortcuts
 
-### 🔲 Cloud Infrastructure
-- [ ] Deployment configuration
+### 🟢 Cloud Infrastructure (Partially Complete)
+- [x] Cloudflare Tunnel setup (api.chaycards.com)
+- [x] PostgreSQL database setup (Docker Compose, port 5433)
+- [x] Express API server running (port 7243)
+- [x] CORS configuration for all frontend environments
+- [x] Production-ready HTTPS without certificates
+- [ ] VPS/Railway deployment (when needed)
 - [ ] CI/CD pipeline
-- [ ] Database setup
-- [ ] API hosting
 - [ ] CDN for plugins
 
 ## Current Status
@@ -153,6 +168,7 @@ We are in the **Core App Implementation** phase:
 7. ✅ Fixed double scrollbar issue (h-full overflow-y-auto)
 8. ✅ Fixed F12 DevTools toggle (proper keyboard event handling)
 9. ✅ Fixed blank page after login (auto-redirect to first plugin)
+10. ✅ PostgreSQL cloud storage working via Cloudflare Tunnel (October 1, 2025)
 
 ## Evolution of Project Decisions
 
@@ -178,6 +194,9 @@ We are in the **Core App Implementation** phase:
 8. **AppShell stays minimal** - Just layout, no features or business logic
 9. **Python backends are just services** - Plugins can spawn child processes without core changes
 10. **Runtime > build-time** - Platform detection at runtime is cleaner than separate builds
+11. **Cloudflare Tunnel for development** - Production URL works locally via tunnel, eliminates environment config
+12. **Hardcoded production URLs simplify deployment** - Same code works everywhere (dev/preview/production)
+13. **CORS callback patterns matter** - Use `callback(null, false)` to reject origins, not error throwing
 
 ## Next Milestones
 

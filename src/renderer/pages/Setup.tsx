@@ -92,21 +92,41 @@ const Setup = () => {
         return;
       }
 
-      // Save user's storage choice via SettingsService
+      // Handle web cloud login/signup
+      if (selectedOption === 'cloud-login') {
+        navigate('/login');
+        return;
+      }
+
+      if (selectedOption === 'cloud-signup') {
+        navigate('/register');
+        return;
+      }
+
+      // Handle desktop storage modes
+      if (selectedOption === 'local') {
+        // Local mode: Create local profile
+        navigate('/profile');
+        return;
+      }
+
+      if (selectedOption === 'sync' || selectedOption === 'cloud') {
+        // Sync/Cloud mode: Require cloud authentication
+        // TODO: Add logic to differentiate between new users (register) and existing users (login)
+        // For now, redirect to login
+        navigate('/login');
+        return;
+      }
+
+      // Fallback: Save settings and continue (shouldn't reach here with current options)
       const pluginManager = PluginManager.getInstance();
       const settingsService = pluginManager.getService('core-settings/settingsService');
 
       if (settingsService) {
-        // Map option to storage mode
         const storageMode = selectedOption as 'local' | 'sync' | 'cloud';
         await settingsService.completeSetup(storageMode);
-
         console.log('Setup complete with storage mode:', storageMode);
-
-        // Reinitialize storage with user's choice
         await pluginManager.initializeStorage();
-
-        // Navigate to main app
         navigate('/app/demo');
       } else {
         console.error('SettingsService not available');

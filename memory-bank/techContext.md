@@ -8,7 +8,16 @@
 - **TypeScript** (v5.7.3) - Type safety
 - **Vite** (v5.4.10) - Build tool and dev server
 - **TailwindCSS** (v3.4.17) - Utility-first CSS
-- **Express.js** - Backend API server
+- **Express.js** - Backend API server (port 7243)
+
+### Infrastructure
+- **Cloudflare Tunnel** - Zero-config HTTPS for local development and production
+  - Tunnel: `chaycards-api` (ID: `6c780a88-8816-46f3-8e89-fd866d5006fd`)
+  - DNS: `api.chaycards.com` → `localhost:7243`
+  - Enables Lovable preview to access local PostgreSQL
+  - Production-ready security without certificates
+- **PostgreSQL** (v17.2) - Cloud database via Docker Compose (port 5433)
+- **SQLite** (better-sqlite3) - Local database for Electron
 
 ### UI Libraries
 - **shadcn/ui** - Component library
@@ -24,11 +33,10 @@
 - **concurrently** - Run multiple processes
 
 ### Future Additions (Planned)
-- **SQLite** - Local database
-- **PostgreSQL** - Cloud database
 - **esbuild** - Plugin compilation
 - **JWT** - Authentication
 - **Redis** - Caching (cloud)
+- **Railway/VPS** - Production Express deployment
 
 ## Development Setup
 
@@ -144,22 +152,27 @@ npm run preview      # Preview production build
 - React DevTools extension
 - VS Code debugger for backend
 
-## Environment Variables
+## Environment Configuration
 
-### Development
-```env
-VITE_API_URL=http://localhost:3001
-NODE_ENV=development
-```
+### No Environment Variables Needed ✅
+The application uses hardcoded production URLs that work in all environments:
+- PostgreSQLAdapter: `https://api.chaycards.com/api/storage`
+- Works identically in local dev, Lovable preview, and production
+- Cloudflare Tunnel routes production URL to local machine during development
 
-### Production
-```env
-VITE_API_URL=https://api.chaycards.com
-NODE_ENV=production
-```
+### Legacy .env Removed (October 1, 2025)
+- Previously used VITE_API_URL for environment-specific URLs
+- Removed in favor of single production URL
+- Simplifies deployment and eliminates environment-specific bugs
 
 ### Platform Detection
 ```typescript
 // Runtime detection, not env-based
 const isElectron = window.electronAPI !== undefined
 ```
+
+### Storage Mode Selection
+Users choose storage mode during setup:
+- **Local**: SQLite in Electron (offline-first)
+- **Sync**: SQLite + cloud sync (planned)
+- **Cloud**: PostgreSQL via `https://api.chaycards.com`

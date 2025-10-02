@@ -8,8 +8,13 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
+
+// JWT secret (use environment variable in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
 // Database connection pool
 const pool = new Pool({
@@ -49,33 +54,72 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Initialize database table
+// Initialize database tables
 (async () => {
   try {
+    // Users table
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS storage (
-        key TEXT PRIMARY KEY,
-        value JSONB NOT NULL,
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        username VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
-    console.log('✓ Database table initialized');
+
+    // Storage table (now with user_id foreign key)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS storage (
+        key TEXT NOT NULL,
+        value JSONB NOT NULL,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (key, user_id)
+      )
+    `);
+
+    // Create index for faster user_id lookups
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_storage_user_id ON storage(user_id)
+    `);
+
+    console.log('✓ Database tables initialized (users, storage)');
   } catch (error) {
     console.error('✗ Database initialization failed:', error.message);
     process.exit(1);
   }
 })();
 
+// Middleware to verify JWT token
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid token' });
+    }
+    req.user = user; // { id, username }
+    next();
+  });
+};
+
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
-    const result = await pool.query('SELECT COUNT(*) as count FROM storage');
-    const count = parseInt(result.rows[0].count);
+    const userResult = await pool.query('SELECT COUNT(*) as count FROM users');
+    const storageResult = await pool.query('SELECT COUNT(*) as count FROM storage');
 
     res.json({
       status: 'ok',
       database: 'PostgreSQL',
-      keys: count,
+      users: parseInt(userResult.rows[0].count),
+      keys: parseInt(storageResult.rows[0].count),
       timestamp: Date.now()
     });
   } catch (error) {
@@ -86,13 +130,125 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Get value by key
-app.get('/api/storage/:key', async (req, res) => {
+// Auth: Register
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // Validation
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password required' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    // Check if username exists
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE username = $1',
+      [username]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create user
+    const result = await pool.query(
+      `INSERT INTO users (username, password_hash)
+       VALUES ($1, $2)
+       RETURNING id, username, created_at`,
+      [username, passwordHash]
+    );
+
+    const user = result.rows[0];
+
+    // Generate JWT
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        createdAt: user.created_at
+      }
+    });
+  } catch (error) {
+    console.error('Register error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Auth: Login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // Validation
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password required' });
+    }
+
+    // Find user
+    const result = await pool.query(
+      'SELECT id, username, password_hash, created_at FROM users WHERE username = $1',
+      [username]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    const user = result.rows[0];
+
+    // Verify password
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        createdAt: user.created_at
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get value by key (user-scoped)
+app.get('/api/storage/:key', authenticateToken, async (req, res) => {
   try {
     const key = decodeURIComponent(req.params.key);
+    const userId = req.user.id;
+
     const result = await pool.query(
-      'SELECT value FROM storage WHERE key = $1',
-      [key]
+      'SELECT value FROM storage WHERE key = $1 AND user_id = $2',
+      [key, userId]
     );
 
     // pg library automatically converts JSONB to JavaScript object
@@ -104,11 +260,12 @@ app.get('/api/storage/:key', async (req, res) => {
   }
 });
 
-// Set value for key
-app.put('/api/storage/:key', async (req, res) => {
+// Set value for key (user-scoped)
+app.put('/api/storage/:key', authenticateToken, async (req, res) => {
   try {
     const key = decodeURIComponent(req.params.key);
     const { value } = req.body;
+    const userId = req.user.id;
 
     if (value === undefined) {
       return res.status(400).json({ error: 'Missing value in request body' });
@@ -116,12 +273,12 @@ app.put('/api/storage/:key', async (req, res) => {
 
     // pg library automatically converts JavaScript object to JSONB
     await pool.query(
-      `INSERT INTO storage (key, value, updated_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (key) DO UPDATE SET
+      `INSERT INTO storage (key, value, user_id, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (key, user_id) DO UPDATE SET
          value = $2,
          updated_at = NOW()`,
-      [key, value]
+      [key, value, userId]
     );
 
     res.json({ success: true });
@@ -131,13 +288,15 @@ app.put('/api/storage/:key', async (req, res) => {
   }
 });
 
-// Delete value by key
-app.delete('/api/storage/:key', async (req, res) => {
+// Delete value by key (user-scoped)
+app.delete('/api/storage/:key', authenticateToken, async (req, res) => {
   try {
     const key = decodeURIComponent(req.params.key);
+    const userId = req.user.id;
+
     const result = await pool.query(
-      'DELETE FROM storage WHERE key = $1',
-      [key]
+      'DELETE FROM storage WHERE key = $1 AND user_id = $2',
+      [key, userId]
     );
 
     res.json({
@@ -150,15 +309,16 @@ app.delete('/api/storage/:key', async (req, res) => {
   }
 });
 
-// List keys (with optional prefix filter)
-app.get('/api/storage', async (req, res) => {
+// List keys (with optional prefix filter) (user-scoped)
+app.get('/api/storage', authenticateToken, async (req, res) => {
   try {
     const prefix = req.query.prefix || '';
     const pattern = prefix ? `${prefix}%` : '%';
+    const userId = req.user.id;
 
     const result = await pool.query(
-      'SELECT key FROM storage WHERE key LIKE $1 ORDER BY key',
-      [pattern]
+      'SELECT key FROM storage WHERE key LIKE $1 AND user_id = $2 ORDER BY key',
+      [pattern, userId]
     );
 
     res.json({
@@ -171,10 +331,12 @@ app.get('/api/storage', async (req, res) => {
   }
 });
 
-// Clear all storage
-app.delete('/api/storage', async (req, res) => {
+// Clear all storage for user (user-scoped)
+app.delete('/api/storage', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query('DELETE FROM storage');
+    const userId = req.user.id;
+
+    const result = await pool.query('DELETE FROM storage WHERE user_id = $1', [userId]);
 
     res.json({
       success: true,

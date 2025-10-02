@@ -30,6 +30,38 @@ We are building the foundation architecture for ChayCards with a focus on:
 
 ## Recent Changes
 
+### Cloud Storage Infrastructure Setup Complete (October 1, 2025)
+- **Cloudflare Tunnel for API Access**: Production-ready secure tunnel to local database
+  - Tunnel name: `chaycards-api` (ID: `6c780a88-8816-46f3-8e89-fd866d5006fd`)
+  - DNS: `api.chaycards.com` routes through Cloudflare to local machine
+  - Config: Routes to `localhost:7243` (Express server)
+  - Enables Lovable preview to access local PostgreSQL database
+  - Future-proof: Same setup works for dev → staging → production deployment
+- **Express API Server Running**: REST API on port 7243 (uncommon port for security)
+  - PostgreSQL REST API with JSONB support
+  - Comprehensive CORS configuration for all environments:
+    - Lovable domains: `*.lovable.app`, `*.lovable.dev`, `*.lovableproject.com`
+    - Production domains: `chaycards.com`, `app.chaycards.com`
+    - Localhost: `http://localhost:8080` (dev server)
+  - Fixed CORS callback bug: Changed from `callback(new Error(...))` (crashed requests) to `callback(null, false)` (proper rejection)
+  - Comprehensive request/response logging for debugging
+- **Storage Architecture Simplified**: One URL works everywhere
+  - PostgreSQLAdapter hardcoded to `https://api.chaycards.com/api/storage`
+  - No more .env file complexity or environment-specific URLs
+  - Works identically in local dev, Lovable preview, and future production
+  - Removed Vite proxy (no longer needed with Cloudflare Tunnel)
+- **Architecture Flow**: `[Any Frontend] → https://api.chaycards.com/api/storage → [Cloudflare Tunnel] → [Local PC: Express:7243] → [PostgreSQL:5433]`
+- **Key Learnings**:
+  - CORS error handling: Must use `callback(null, false)` to reject, NOT throw errors or use `callback(new Error(...))`
+  - Cloudflare Tunnel provides zero-config HTTPS and bypasses firewall issues
+  - Hardcoding production URL in adapter enables same code everywhere (dev/preview/production)
+  - Detailed logging in PostgreSQLAdapter crucial for debugging network issues
+- **Files Modified**:
+  - `server/index.js` - Port 7243, fixed CORS handling with proper callback
+  - `src/shared/storage/PostgreSQLAdapter.ts` - Hardcoded `https://api.chaycards.com`, added comprehensive logging
+  - `vite.config.ts` - Removed proxy configuration (no longer needed)
+  - `.env` - Removed (no longer needed)
+
 ### Storage Architecture Refactor Complete (October 1, 2025)
 - **Separated Theme from Core Settings**: Each plugin now manages its own storage
   - Core settings: `core-settings:app-settings` (storageMode, setupComplete, userId/email, updatedAt)
@@ -74,6 +106,33 @@ We are building the foundation architecture for ChayCards with a focus on:
   - Electron uses embedded Node.js (v139)
   - electron-rebuild recompiles native modules for Electron's version
   - Automated in batch script with conda Python activation
+
+### Electron + WSL Development Setup Fixed (October 2, 2025)
+- **CRITICAL FIX: Single node_modules Strategy**: Resolved dual node_modules confusion
+  - **Old broken approach**: Maintained separate `node_modules` (WSL/Linux) and `node_modules_win` (Windows) directories
+  - **Problem**: Electron version mismatch between directories caused ABI incompatibility (v36.9.3 vs v38.2.0)
+  - **Solution**: Use SINGLE `node_modules` with Windows-compiled packages
+  - **How it works**:
+    - Run `npm install` from **Windows Command Prompt** (NOT WSL)
+    - Windows npm installs Windows-compiled native binaries (.node files) to `node_modules`
+    - WSL Vite reads JavaScript/TypeScript source files (platform-agnostic)
+    - Windows Electron uses Windows-compiled native modules
+    - **NO CONFLICT**: They access different parts of node_modules (source vs binaries)
+- **Batch Script Updates**: `start-electron-windows.bat` now properly configured
+  - Shows Electron version on launch (debugging aid)
+  - Deletes old build folder before rebuild (ensures clean compilation)
+  - Explicitly passes `--version` flag to electron-rebuild (fixes ABI version detection)
+  - Uses `node_modules\.bin\electron.cmd` (removed all node_modules_win references)
+- **Database Schema Migration**: Auto-migration from old storage schema
+  - Old schema: `storage (key, value)` without user scoping
+  - New schema: `storage (key, value, user_id)` with foreign key to users table
+  - Migration handled manually via bash commands to recreate database
+  - Location: `%APPDATA%\chaycards\storage.db`
+- **Key Breakthrough**: Understanding Electron ABI version requirements
+  - Electron embeds specific Node.js version with specific ABI (Application Binary Interface)
+  - Native modules MUST match this exact ABI version
+  - electron-rebuild compiles modules for correct ABI, but must detect correct Electron version
+  - Version mismatch (e.g., ABI 135 vs 139) causes "NODE_MODULE_VERSION" errors at runtime
 
 ### User Flow Routing Fixed (September 30, 2025)
 - **Platform-Specific First Launch**:
@@ -217,3 +276,11 @@ We are building the foundation architecture for ChayCards with a focus on:
 16. **Electron Title Bar**: Frameless windows (`frame: false`) require custom drag regions (`-webkit-app-region: drag`)
 17. **Scrollbar Hierarchy**: Use `h-full overflow-y-auto` on pages, not `min-h-screen`, to prevent double scrollbars
 18. **Theme Persistence**: Theme service should manage its own storage key, not rely on settings service
+19. **Cloudflare Tunnel**: Provides production-ready HTTPS without certificates, bypasses firewalls, enables local-to-cloud flow
+20. **CORS Callbacks**: In Express CORS configuration, use `callback(null, false)` to reject origins, NOT `callback(new Error(...))`
+21. **Hardcoded Production URLs**: Simplifies deployment - same code works in dev/preview/production when using production infrastructure
+22. **Uncommon Ports**: Using port 7243 instead of common ports (3000, 8000) adds basic security through obscurity
+23. **WSL + Windows Shared node_modules**: Single node_modules works for both environments - WSL reads source files, Windows uses native binaries
+24. **npm Install Location Matters**: ALWAYS run `npm install` from Windows (not WSL) to ensure Electron gets Windows-compiled native modules
+25. **Electron ABI Versioning**: electron-rebuild MUST be passed explicit `--version` flag in dual environments to avoid auto-detection failures
+26. **Database Manual Management**: For schema changes, manually recreate databases via bash/sqlite3 commands instead of hardcoding migrations

@@ -72,8 +72,8 @@ const Index = () => {
       // Desktop: Show setup screen for local/sync/cloud choice
       navigate('/setup');
     } else if (isWeb) {
-      // Web: Cloud-first with download option
-      navigate('/setup?platform=web');
+      // Web: Direct to registration for cloud-first experience
+      navigate('/register');
     }
   };
 
@@ -273,12 +273,11 @@ const Index = () => {
               <Palette className="w-4 h-4" />
             </Button>
 
-            {/* Login button - disabled for now as requested */}
+            {/* Login button */}
             <Button
               variant="3d-outline"
               size="sm"
-              disabled
-              className="opacity-80 cursor-not-allowed"
+              onClick={() => navigate('/login')}
             >
               Log in
             </Button>

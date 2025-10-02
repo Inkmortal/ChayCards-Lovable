@@ -211,6 +211,49 @@ const adapter = isElectron
 
 ## Storage Architecture
 
+### Cloud Storage Flow (Production-Ready)
+```
+┌─────────────────────────────────────────────────┐
+│         Any Frontend Environment                 │
+│  (Local Dev / Lovable Preview / Production)     │
+└────────────────┬────────────────────────────────┘
+                 │
+                 │ HTTPS Request
+                 │ https://api.chaycards.com/api/storage
+                 ▼
+┌─────────────────────────────────────────────────┐
+│           Cloudflare Tunnel                      │
+│  - Zero-config HTTPS                             │
+│  - Bypasses firewall/NAT                         │
+│  - Production-ready security                     │
+└────────────────┬────────────────────────────────┘
+                 │
+                 │ Tunneled to localhost:7243
+                 ▼
+┌─────────────────────────────────────────────────┐
+│         Express API Server (Port 7243)           │
+│  - REST API with JSONB support                   │
+│  - CORS configured for all environments          │
+│  - Comprehensive logging                         │
+└────────────────┬────────────────────────────────┘
+                 │
+                 │ Storage Operations
+                 ▼
+┌─────────────────────────────────────────────────┐
+│      PostgreSQL Database (Port 5433)             │
+│  - JSONB storage with key-value interface        │
+│  - Created by Docker Compose                     │
+└─────────────────────────────────────────────────┘
+```
+
+**Key Benefits**:
+- Same URL works everywhere: `https://api.chaycards.com/api/storage`
+- No environment-specific configuration needed
+- Lovable preview can access local database
+- Ready for production deployment (just deploy Express to VPS/Railway)
+- HTTPS without certificate management
+- Firewall bypass without port forwarding
+
 ### StorageAdapter Pattern
 ```typescript
 interface StorageAdapter {
@@ -228,10 +271,13 @@ interface StorageAdapter {
   - Database location: `%APPDATA%\chaycards\storage.db`
   - IPC communication for renderer process access
   - Synchronous better-sqlite3 wrapped in async interface
-- **PostgreSQLAdapter**: Cloud storage (not yet implemented)
-  - Async by nature
+- **PostgreSQLAdapter**: Cloud storage via Cloudflare Tunnel ✅ **COMPLETE**
+  - Hardcoded URL: `https://api.chaycards.com/api/storage`
+  - Async by nature (fetch API)
   - Same interface as SQLite
-  - API layer for web client access
+  - Works in local dev, Lovable preview, and production
+  - Comprehensive error logging for debugging
+  - CORS configured for all frontend environments
 
 ### Plugin Storage Pattern
 Each plugin owns its own storage namespace:

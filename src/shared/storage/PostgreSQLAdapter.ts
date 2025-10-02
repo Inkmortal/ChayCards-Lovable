@@ -28,12 +28,30 @@ export class PostgreSQLAdapter implements StorageAdapter {
     console.log('[PostgreSQLAdapter] API URL:', this.apiUrl);
   }
 
+  /**
+   * Get Authorization headers with JWT token
+   */
+  private getAuthHeaders(): HeadersInit {
+    const token = localStorage.getItem('auth_token');
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
+  }
+
   async get<T = any>(key: string): Promise<T | null> {
     const url = `${this.apiUrl}/${encodeURIComponent(key)}`;
 
     try {
       console.log(`[PostgreSQLAdapter] GET ${url}`);
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: this.getAuthHeaders()
+      });
 
       console.log(`[PostgreSQLAdapter] Response:`, {
         status: response.status,
@@ -45,6 +63,14 @@ export class PostgreSQLAdapter implements StorageAdapter {
       if (!response.ok) {
         if (response.status === 404) {
           console.log(`[PostgreSQLAdapter] Key not found: ${key}`);
+          return null;
+        }
+
+        // Handle auth errors
+        if (response.status === 401 || response.status === 403) {
+          console.error(`[PostgreSQLAdapter] Auth error - redirecting to login`);
+          localStorage.removeItem('auth_token');
+          window.location.href = '/login';
           return null;
         }
 
@@ -71,9 +97,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
       console.log(`[PostgreSQLAdapter] PUT ${url}`, { value });
       const response = await fetch(url, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({ value })
       });
 
@@ -84,6 +108,14 @@ export class PostgreSQLAdapter implements StorageAdapter {
       });
 
       if (!response.ok) {
+        // Handle auth errors
+        if (response.status === 401 || response.status === 403) {
+          console.error(`[PostgreSQLAdapter] Auth error - redirecting to login`);
+          localStorage.removeItem('auth_token');
+          window.location.href = '/login';
+          return;
+        }
+
         const errorText = await response.text();
         console.error(`[PostgreSQLAdapter] PUT failed for key "${key}":`, errorText);
         throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
@@ -106,7 +138,8 @@ export class PostgreSQLAdapter implements StorageAdapter {
     try {
       const url = `${this.apiUrl}/${encodeURIComponent(key)}`;
       const response = await fetch(url, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: this.getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -127,7 +160,9 @@ export class PostgreSQLAdapter implements StorageAdapter {
     try {
       const params = prefix ? `?prefix=${encodeURIComponent(prefix)}` : '';
       const url = `${this.apiUrl}${params}`;
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: this.getAuthHeaders()
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -149,7 +184,8 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async clear(): Promise<void> {
     try {
       const response = await fetch(this.apiUrl, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: this.getAuthHeaders()
       });
 
       if (!response.ok) {

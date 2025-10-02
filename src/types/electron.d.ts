@@ -34,6 +34,41 @@ export interface ElectronAPI {
   readFile: () => Promise<string | null>;
 
   /**
+   * User API - Local user management
+   */
+  user: {
+    /**
+     * Create a new local user
+     */
+    create: (userData: {
+      id: string;
+      profileName: string;
+      hasPassword: boolean;
+      passwordHash: string | null;
+    }) => Promise<boolean>;
+
+    /**
+     * Get user by ID
+     */
+    get: (userId: string) => Promise<{
+      id: string;
+      profileName: string;
+      hasPassword: boolean;
+      createdAt: number;
+    } | null>;
+
+    /**
+     * Get current local user (first user in database)
+     */
+    getCurrent: () => Promise<{
+      id: string;
+      profileName: string;
+      hasPassword: boolean;
+      createdAt: number;
+    } | null>;
+  };
+
+  /**
    * Storage API - SQLite database access via IPC
    */
   storage: {

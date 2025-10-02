@@ -109,13 +109,32 @@ function initDatabase() {
 
     db = new Database(dbPath);
 
-    // Initialize storage table
+    // Initialize users table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        profile_name TEXT NOT NULL,
+        has_password INTEGER DEFAULT 0,
+        password_hash TEXT,
+        created_at INTEGER DEFAULT (strftime('%s', 'now'))
+      )
+    `);
+
+    // Initialize storage table (with user_id for local user scoping)
     db.exec(`
       CREATE TABLE IF NOT EXISTS storage (
-        key TEXT PRIMARY KEY,
+        key TEXT NOT NULL,
         value TEXT NOT NULL,
-        updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+        user_id TEXT NOT NULL,
+        updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+        PRIMARY KEY (key, user_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
+    `);
+
+    // Create index for faster user_id lookups
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_storage_user_id ON storage(user_id)
     `);
 
     console.log('✓ SQLite database initialized at:', dbPath);
@@ -133,43 +152,117 @@ app.on('before-quit', () => {
   }
 });
 
-// Storage IPC handlers
+// User management IPC handlers
+ipcMain.handle('user:create', (event, userData) => {
+  const { id, profileName, hasPassword, passwordHash } = userData;
+  db.prepare(`
+    INSERT INTO users (id, profile_name, has_password, password_hash, created_at)
+    VALUES (?, ?, ?, ?, strftime('%s', 'now'))
+  `).run(id, profileName, hasPassword ? 1 : 0, passwordHash);
+  return true;
+});
+
+ipcMain.handle('user:get', (event, userId) => {
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  return row ? {
+    id: row.id,
+    profileName: row.profile_name,
+    hasPassword: row.has_password === 1,
+    createdAt: row.created_at
+  } : null;
+});
+
+ipcMain.handle('user:getCurrent', () => {
+  // Get the first (and only) local user
+  const row = db.prepare('SELECT * FROM users LIMIT 1').get();
+  return row ? {
+    id: row.id,
+    profileName: row.profile_name,
+    hasPassword: row.has_password === 1,
+    createdAt: row.created_at
+  } : null;
+});
+
+// Storage IPC handlers (user-scoped)
+// Note: For local profiles, we get the current user from the users table
 ipcMain.handle('storage:get', (event, key) => {
-  const row = db.prepare('SELECT value FROM storage WHERE key = ?').get(key);
+  // Get current user ID
+  const currentUser = db.prepare('SELECT id FROM users LIMIT 1').get();
+  if (!currentUser) {
+    console.error('No local user found for storage operation');
+    return null;
+  }
+
+  const row = db.prepare('SELECT value FROM storage WHERE key = ? AND user_id = ?').get(key, currentUser.id);
   return row ? JSON.parse(row.value) : null;
 });
 
 ipcMain.handle('storage:set', (event, key, value) => {
+  // Get current user ID
+  const currentUser = db.prepare('SELECT id FROM users LIMIT 1').get();
+  if (!currentUser) {
+    console.error('No local user found for storage operation');
+    throw new Error('No local user found');
+  }
+
   const serialized = JSON.stringify(value);
   db.prepare(`
-    INSERT INTO storage (key, value, updated_at)
-    VALUES (?, ?, strftime('%s', 'now'))
-    ON CONFLICT(key) DO UPDATE SET
+    INSERT INTO storage (key, value, user_id, updated_at)
+    VALUES (?, ?, ?, strftime('%s', 'now'))
+    ON CONFLICT(key, user_id) DO UPDATE SET
       value = excluded.value,
       updated_at = strftime('%s', 'now')
-  `).run(key, serialized);
+  `).run(key, serialized, currentUser.id);
   return true;
 });
 
 ipcMain.handle('storage:delete', (event, key) => {
-  db.prepare('DELETE FROM storage WHERE key = ?').run(key);
+  // Get current user ID
+  const currentUser = db.prepare('SELECT id FROM users LIMIT 1').get();
+  if (!currentUser) {
+    console.error('No local user found for storage operation');
+    return false;
+  }
+
+  db.prepare('DELETE FROM storage WHERE key = ? AND user_id = ?').run(key, currentUser.id);
   return true;
 });
 
 ipcMain.handle('storage:list', (event, prefix) => {
+  // Get current user ID
+  const currentUser = db.prepare('SELECT id FROM users LIMIT 1').get();
+  if (!currentUser) {
+    console.error('No local user found for storage operation');
+    return [];
+  }
+
   const rows = prefix
-    ? db.prepare('SELECT key FROM storage WHERE key LIKE ?').all(`${prefix}%`)
-    : db.prepare('SELECT key FROM storage').all();
+    ? db.prepare('SELECT key FROM storage WHERE key LIKE ? AND user_id = ?').all(`${prefix}%`, currentUser.id)
+    : db.prepare('SELECT key FROM storage WHERE user_id = ?').all(currentUser.id);
   return rows.map(row => row.key);
 });
 
 ipcMain.handle('storage:clear', () => {
-  const result = db.prepare('DELETE FROM storage').run();
+  // Get current user ID
+  const currentUser = db.prepare('SELECT id FROM users LIMIT 1').get();
+  if (!currentUser) {
+    console.error('No local user found for storage operation');
+    return 0;
+  }
+
+  const result = db.prepare('DELETE FROM storage WHERE user_id = ?').run(currentUser.id);
   return result.changes;
 });
 
 ipcMain.handle('storage:has', (event, key) => {
-  const row = db.prepare('SELECT 1 FROM storage WHERE key = ?').get(key);
+  // Get current user ID
+  const currentUser = db.prepare('SELECT id FROM users LIMIT 1').get();
+  if (!currentUser) {
+    console.error('No local user found for storage operation');
+    return false;
+  }
+
+  const row = db.prepare('SELECT 1 FROM storage WHERE key = ? AND user_id = ?').get(key, currentUser.id);
   return !!row;
 });
 
