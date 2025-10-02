@@ -11,9 +11,34 @@ import { PluginHost } from '../plugin-host/PluginHost';
 
 export const AppShell: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [pluginsLoaded, setPluginsLoaded] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const pluginManager = PluginManager.getInstance();
+
+  // Auth guard - redirect to login if not authenticated
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      console.log('[AppShell] No auth token found, redirecting to login');
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    // If authenticated, initialize plugins
+    const initPlugins = async () => {
+      const routes = pluginManager.getAllRoutes();
+      if (routes.length === 0) {
+        console.log('[AppShell] Loading plugins...');
+        await pluginManager.loadAllPlugins();
+        setPluginsLoaded(true);
+      } else {
+        setPluginsLoaded(true);
+      }
+    };
+
+    initPlugins();
+  }, [navigate]);
 
   // Get plugin-driven content
   const navigation = pluginManager.getNavigationItems();
@@ -24,6 +49,8 @@ export const AppShell: React.FC = () => {
 
   // Redirect to first plugin route when landing on /app
   useEffect(() => {
+    if (!pluginsLoaded) return; // Wait for plugins to load first
+
     if (location.pathname === '/app' || location.pathname === '/app/') {
       if (routes.length > 0) {
         // Sort routes by order (if they have one) and navigate to first
@@ -31,7 +58,7 @@ export const AppShell: React.FC = () => {
         navigate(firstRoute.path, { replace: true });
       }
     }
-  }, [location.pathname, routes, navigate]);
+  }, [location.pathname, routes, navigate, pluginsLoaded]);
 
     return (
     <div className="app-shell h-full flex flex-col bg-background text-foreground">
