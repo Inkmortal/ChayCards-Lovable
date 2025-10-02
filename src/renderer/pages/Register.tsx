@@ -5,6 +5,7 @@ import { Label } from "@/renderer/components/ui/label";
 import { BookOpen, ArrowLeft, UserPlus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { STORAGE_KEYS } from "@/shared/constants";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -50,7 +51,7 @@ const Register = () => {
       const data = await response.json();
 
       // Store JWT token (auto-login after registration)
-      localStorage.setItem('auth_token', data.token);
+      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
 
       // Navigate to app
       navigate('/app');

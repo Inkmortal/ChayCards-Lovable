@@ -5,6 +5,8 @@
 
 import { Card } from "@/renderer/components/ui/card";
 import { Button } from "@/renderer/components/ui/button";
+import { Input } from "@/renderer/components/ui/input";
+import { Label } from "@/renderer/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/renderer/components/ui/table";
 import { Palette, Zap, Box, Code, Database, Trash2, Plus, HardDrive, Cloud } from "lucide-react";
 import { PluginManager } from "../../../shared/plugin-system";
@@ -34,6 +36,45 @@ export const DemoPage = () => {
   const [allStorageKeys, setAllStorageKeys] = useState<string[]>([]);
   const [storageData, setStorageData] = useState<Record<string, any>>({});
   const [loadingStorage, setLoadingStorage] = useState(false);
+  const [pluginFilter, setPluginFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Extract unique plugin namespaces from storage keys
+  const getPluginNamespaces = () => {
+    const namespaces = new Set<string>();
+    allStorageKeys.forEach(key => {
+      const colonIndex = key.indexOf(':');
+      if (colonIndex !== -1) {
+        namespaces.add(key.substring(0, colonIndex));
+      }
+    });
+    return Array.from(namespaces).sort();
+  };
+
+  // Filter storage keys based on plugin and search query
+  const getFilteredKeys = () => {
+    let filtered = allStorageKeys;
+
+    // Apply plugin filter
+    if (pluginFilter !== 'all') {
+      filtered = filtered.filter(key => key.startsWith(pluginFilter + ':'));
+    }
+
+    // Apply search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(key => {
+        const keyMatch = key.toLowerCase().includes(query);
+        const valueMatch = JSON.stringify(storageData[key] || '').toLowerCase().includes(query);
+        return keyMatch || valueMatch;
+      });
+    }
+
+    return filtered;
+  };
+
+  const filteredKeys = getFilteredKeys();
+  const pluginNamespaces = getPluginNamespaces();
 
   // Load ALL storage data from StorageAdapter (SQLite/PostgreSQL)
   const loadAllStorageData = async () => {
@@ -306,6 +347,69 @@ export const DemoPage = () => {
             </div>
           </div>
 
+          {/* Filters */}
+          <div className="flex items-center gap-3 mb-3">
+            {/* Plugin Filter */}
+            <div className="flex-1">
+              <Label htmlFor="plugin-filter" className="text-xs text-muted-foreground mb-1 block">
+                Filter by plugin
+              </Label>
+              <select
+                id="plugin-filter"
+                value={pluginFilter}
+                onChange={(e) => setPluginFilter(e.target.value)}
+                className="w-full h-9 px-3 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="all">All plugins ({allStorageKeys.length} keys)</option>
+                {pluginNamespaces.map(namespace => {
+                  const count = allStorageKeys.filter(k => k.startsWith(namespace + ':')).length;
+                  return (
+                    <option key={namespace} value={namespace}>
+                      {namespace} ({count} keys)
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Search */}
+            <div className="flex-1">
+              <Label htmlFor="search-query" className="text-xs text-muted-foreground mb-1 block">
+                Search keys/values
+              </Label>
+              <Input
+                id="search-query"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search..."
+                className="h-9 text-sm"
+              />
+            </div>
+
+            {/* Clear Filters */}
+            {(pluginFilter !== 'all' || searchQuery) && (
+              <Button
+                onClick={() => {
+                  setPluginFilter('all');
+                  setSearchQuery('');
+                }}
+                variant="ghost"
+                size="sm"
+                className="mt-5"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {/* Results Count */}
+          {(pluginFilter !== 'all' || searchQuery) && (
+            <p className="text-xs text-muted-foreground mb-3">
+              Showing {filteredKeys.length} of {allStorageKeys.length} keys
+            </p>
+          )}
+
           {loadingStorage ? (
             <div className="p-4 text-center text-muted-foreground">
               <p className="text-sm">Loading storage data...</p>
@@ -315,8 +419,13 @@ export const DemoPage = () => {
               <p className="text-sm text-muted-foreground mb-2">No data in storage</p>
               <p className="text-xs text-muted-foreground">This is unusual - settings should be present</p>
             </div>
+          ) : filteredKeys.length === 0 ? (
+            <div className="p-4 border border-dashed border-border rounded-lg text-center">
+              <p className="text-sm text-muted-foreground mb-2">No matching keys found</p>
+              <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
+            </div>
           ) : showTableView ? (
-            /* Table View - Admin Style - ALL Storage Data */
+            /* Table View - Admin Style - Filtered Storage Data */
             <div className="border border-border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
@@ -328,7 +437,7 @@ export const DemoPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allStorageKeys.map((key) => {
+                  {filteredKeys.map((key) => {
                     const value = storageData[key];
                     const valueStr = JSON.stringify(value, null, 2);
                     const valueType = Array.isArray(value) ? 'Array' : typeof value === 'object' ? 'Object' : typeof value;
@@ -357,9 +466,9 @@ export const DemoPage = () => {
               </Table>
             </div>
           ) : (
-            /* Card View - All Storage Keys */
+            /* Card View - Filtered Storage Keys */
             <div className="space-y-2">
-              {allStorageKeys.map((key) => {
+              {filteredKeys.map((key) => {
                 const value = storageData[key];
                 const valueStr = JSON.stringify(value, null, 2);
                 const valueType = Array.isArray(value) ? 'Array' : typeof value === 'object' ? 'Object' : typeof value;

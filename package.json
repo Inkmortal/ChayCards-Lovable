@@ -17,7 +17,9 @@
     "setup:win": "cmd /c setup-windows.bat",
     "cap:ios": "npx cap run ios",
     "cap:android": "npx cap run android",
-    "cap:sync": "npx cap sync"
+    "cap:sync": "npx cap sync",
+    "notion-pm:sync": "tsx scripts/notion-pm-sync-cli.ts",
+    "notion-pm:server": "tsx scripts/notion-pm-server.ts"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
@@ -25,6 +27,7 @@
     "@capacitor/core": "^7.4.3",
     "@capacitor/ios": "^7.4.3",
     "@hookform/resolvers": "^3.9.0",
+    "@notionhq/client": "^5.1.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-aspect-ratio": "^1.1.0",
@@ -60,6 +63,7 @@
     "date-fns": "^3.6.0",
     "electron": "^38.2.0",
     "embla-carousel-react": "^8.3.0",
+    "express": "^5.1.0",
     "input-otp": "^1.2.4",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
@@ -81,6 +85,7 @@
     "@electron/rebuild": "^3.7.2",
     "@eslint/js": "^9.9.0",
     "@tailwindcss/typography": "^0.5.15",
+    "@types/express": "^5.0.3",
     "@types/node": "^22.5.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -93,6 +98,7 @@
     "lovable-tagger": "^1.1.7",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.11",
+    "tsx": "^4.20.6",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
     "vite": "^5.4.1"

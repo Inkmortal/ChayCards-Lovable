@@ -5,6 +5,7 @@ import { Label } from "@/renderer/components/ui/label";
 import { BookOpen, ArrowLeft, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { STORAGE_KEYS } from "@/shared/constants";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ const Login = () => {
       const data = await response.json();
 
       // Store JWT token
-      localStorage.setItem('auth_token', data.token);
+      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
 
       // Navigate to app
       navigate('/app');

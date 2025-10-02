@@ -13,6 +13,7 @@ import type {
 } from './types';
 import { EventBus } from './EventBus';
 import { getStorageManager } from '../storage/StorageManager';
+import { isPublicPage } from '@/utils/routeUtils';
 import type { StorageAdapter } from '../storage/StorageAdapter';
 
 export class PluginManager implements IPluginManager {
@@ -103,11 +104,7 @@ export class PluginManager implements IPluginManager {
   // Storage access (returns null on public pages or if not initialized)
   getStorage(): StorageAdapter | null {
     // Check if we're on a public page - no storage needed
-    const isPublicPage = ['/', '/login', '/register', '/setup'].some(path =>
-      window.location.pathname === path || window.location.pathname.startsWith(path + '/')
-    );
-
-    if (isPublicPage) {
+    if (isPublicPage()) {
       return null; // Public pages don't need storage
     }
 
@@ -130,11 +127,7 @@ export class PluginManager implements IPluginManager {
 
     // Check if we're on a public page - if so, skip storage initialization entirely
     // Public pages don't need user data (local or cloud)
-    const isPublicPage = ['/', '/login', '/register', '/setup'].some(path =>
-      window.location.pathname === path || window.location.pathname.startsWith(path + '/')
-    );
-
-    if (isPublicPage) {
+    if (isPublicPage()) {
       console.log('[PluginManager] On public page - skipping storage initialization (no user data needed)');
       return;
     }

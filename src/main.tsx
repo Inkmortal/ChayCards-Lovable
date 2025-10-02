@@ -3,15 +3,12 @@ import App from './App.tsx'
 import './index.css'
 import { PluginManager } from './shared/plugin-system'
 import { loadPublicTheme } from './utils/publicThemeLoader'
+import { isPublicPage } from './utils/routeUtils'
 
 async function startApp() {
   try {
     // Check if we're on a public page (no plugins needed)
-    const isPublicPage = ['/', '/login', '/register', '/setup'].some(path =>
-      window.location.pathname === path || window.location.pathname.startsWith(path + '/')
-    );
-
-    if (isPublicPage) {
+    if (isPublicPage()) {
       console.log('Public page detected - skipping plugin initialization');
       // Load theme from localStorage for public pages
       loadPublicTheme();

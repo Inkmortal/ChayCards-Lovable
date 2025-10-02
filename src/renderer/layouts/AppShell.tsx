@@ -8,6 +8,7 @@ import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-d
 import { Menu, X, BookOpen } from 'lucide-react';
 import { PluginManager } from '../../shared/plugin-system';
 import { PluginHost } from '../plugin-host/PluginHost';
+import { STORAGE_KEYS } from '@/shared/constants';
 
 export const AppShell: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -18,7 +19,7 @@ export const AppShell: React.FC = () => {
 
   // Auth guard - redirect to login if not authenticated
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     if (!token) {
       console.log('[AppShell] No auth token found, redirecting to login');
       navigate('/login', { replace: true });

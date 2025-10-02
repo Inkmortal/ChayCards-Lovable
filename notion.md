@@ -70,13 +70,21 @@ mcp__notion__API-post-database-query
 
 ## Updating Tasks
 
-### Change Status:
+### CRITICAL RULE: Status Changes
+**Claude MUST NOT change task Status property** - Only the human can move tasks between "Not started", "In progress", and "Done".
+
+Claude IS ALLOWED to:
+- Update checkboxes in task content for progress tracking
+- Add notes and implementation details
+- Update acceptance criteria checkboxes
+
+### Update Checkboxes (ALLOWED):
 ```
 mcp__notion__notion-update-page
 - data: {
     "page_id": "[task_id]",
-    "command": "update_properties",
-    "properties": {"Status": "In progress"}  // or "Done"
+    "command": "replace_content",
+    "new_str": "Updated content with checked boxes: [x]"
   }
 ```
 
@@ -102,11 +110,32 @@ mcp__notion__notion-update-page
 
 ## Standard Task Structure
 
-Every task should have:
-1. **About project** (heading_3) - What this accomplishes
-2. **Technical Details** (heading_3) - Implementation notes
-3. **Action items** (heading_3) - Checklist of steps (to_do blocks)
-4. **Acceptance Criteria** (heading_3) - Definition of done (to_do blocks)
+Every task MUST have at minimum 3 checkboxes for progress tracking.
+
+Required sections:
+1. **Problem** - What's wrong and why it needs fixing
+2. **Affected Files** (optional) - File paths and line numbers
+3. **Solution** - How to fix it with code examples
+4. **Acceptance Criteria** - Definition of done with checkboxes (MINIMUM 3)
+5. **Impact** - Why this matters and estimated scope
+
+Example structure:
+```
+### Problem
+Description of the issue
+
+### Solution
+Step-by-step fix
+
+### Acceptance Criteria
+- [ ] Checkbox 1
+- [ ] Checkbox 2
+- [ ] Checkbox 3
+- [ ] Checkbox 4 (if needed)
+
+### Impact
+Why this matters
+```
 
 ## Common Patterns
 
@@ -121,9 +150,9 @@ Every task should have:
 3. Highlight any blockers or dependencies
 
 ### When completing work:
-1. Check off completed action items
-2. Update task status
-3. Add notes about what was implemented
+1. Check off completed acceptance criteria checkboxes
+2. **DO NOT change task Status** - only human changes status
+3. Add implementation notes to task content
 
 ## Error Prevention
 

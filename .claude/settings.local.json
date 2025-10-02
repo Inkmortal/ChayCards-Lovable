@@ -86,7 +86,10 @@
       "Bash(ln:*)",
       "Bash(readlink:*)",
       "Bash(git log:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Read(//mnt/c/Users/danhc/.cloudflared/**)",
+      "mcp__notion__notion-update-database",
+      "Bash(npm run notion-pm:server:*)"
     ],
     "deny": []
   },

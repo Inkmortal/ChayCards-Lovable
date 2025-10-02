@@ -9,10 +9,14 @@ export const API_TIMEOUT = 30000; // 30 seconds
 
 // Storage keys
 export const STORAGE_KEYS = {
+  AUTH_TOKEN: 'auth_token',
   USER_PREFERENCES: 'user_preferences',
   THEME: 'theme',
   LAST_SYNC: 'last_sync',
 } as const;
+
+// Public routes that don't require authentication
+export const PUBLIC_ROUTES = ['/', '/login', '/register', '/setup'] as const;
 
 // Plugin system
 export const PLUGIN_API_VERSION = '1.0.0';

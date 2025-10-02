@@ -6,6 +6,8 @@
  */
 
 import type { StorageAdapter } from './StorageAdapter';
+import { isPublicPage } from '@/utils/routeUtils';
+import { STORAGE_KEYS } from '@/shared/constants';
 
 export class PostgreSQLAdapter implements StorageAdapter {
   private apiUrl: string;
@@ -32,7 +34,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
    * Get Authorization headers with JWT token
    */
   private getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     const headers: HeadersInit = {
       'Content-Type': 'application/json'
     };
@@ -68,13 +70,9 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
         // Handle auth errors - only redirect if not already on public pages
         if (response.status === 401 || response.status === 403) {
-          const isPublicPage = ['/', '/login', '/register', '/setup'].some(path =>
-            window.location.pathname === path || window.location.pathname.startsWith(path + '/')
-          );
-
-          if (!isPublicPage) {
+          if (!isPublicPage()) {
             console.error(`[PostgreSQLAdapter] Auth error - redirecting to login`);
-            localStorage.removeItem('auth_token');
+            localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
             window.location.href = '/login';
           } else {
             console.warn(`[PostgreSQLAdapter] Auth error on public page - ignoring`);
@@ -118,13 +116,9 @@ export class PostgreSQLAdapter implements StorageAdapter {
       if (!response.ok) {
         // Handle auth errors - only redirect if not already on public pages
         if (response.status === 401 || response.status === 403) {
-          const isPublicPage = ['/', '/login', '/register', '/setup'].some(path =>
-            window.location.pathname === path || window.location.pathname.startsWith(path + '/')
-          );
-
-          if (!isPublicPage) {
+          if (!isPublicPage()) {
             console.error(`[PostgreSQLAdapter] Auth error - redirecting to login`);
-            localStorage.removeItem('auth_token');
+            localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
             window.location.href = '/login';
           } else {
             console.warn(`[PostgreSQLAdapter] Auth error on public page - ignoring`);
