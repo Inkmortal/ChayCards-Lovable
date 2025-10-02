@@ -22,6 +22,24 @@ export const AppShell: React.FC = () => {
   const sidebarComponents = pluginManager.getRegionComponents('sidebar');
   const footerComponents = pluginManager.getRegionComponents('footer');
 
+  // Auth guard: Check for token on mount (only in cloud mode)
+  useEffect(() => {
+    const settingsService = pluginManager.getService('core-settings/settingsService');
+    if (settingsService) {
+      const storageMode = settingsService.getStorageMode();
+
+      // Only require auth for cloud mode
+      if (storageMode === 'cloud') {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          console.warn('[AppShell] No auth token in cloud mode - redirecting to login');
+          navigate('/login', { replace: true });
+          return;
+        }
+      }
+    }
+  }, []); // Run once on mount
+
   // Redirect to first plugin route when landing on /app
   useEffect(() => {
     if (location.pathname === '/app' || location.pathname === '/app/') {
