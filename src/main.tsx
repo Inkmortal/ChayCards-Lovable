@@ -2,17 +2,55 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { PluginManager } from './shared/plugin-system'
-import { loadPublicTheme } from './utils/publicThemeLoader'
 import { isPublicPage } from './utils/routeUtils'
+import { STORAGE_KEYS } from './shared/constants'
+
+// Import public-safe plugins (no user-specific data)
+import CoreUIPlugin from './plugins/core-ui'
+import CoreThemePlugin from './plugins/core-theme'
 
 async function startApp() {
   try {
-    // Check if we're on a public page (no plugins needed)
+    // Check if we're on a public page
     if (isPublicPage()) {
-      console.log('Public page detected - skipping plugin initialization');
-      // Load theme from localStorage for public pages
-      loadPublicTheme();
-      // Start React app directly without plugins
+      // Check authentication status (works for both Electron and web)
+      const isElectron = !!(window.electronAPI || navigator.userAgent.includes('Electron'));
+      const hasAuth = isElectron
+        ? !!localStorage.getItem(STORAGE_KEYS.LAST_PROFILE_ID)
+        : !!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+      if (hasAuth) {
+        // Authenticated user on public page (e.g., logged in but viewing landing page)
+        // Let React render and AppShell will handle full plugin loading with user storage
+        console.log('[main.tsx] Authenticated user on public page - AppShell will load full plugins');
+        createRoot(document.getElementById("root")!).render(<App />);
+        return;
+      }
+
+      // Anonymous user on public page - load minimal plugins with localStorage only
+      console.log('[main.tsx] Anonymous user on public page - loading public-safe plugins only');
+
+      // Get plugin manager (no initialization needed - plugins handle storage gracefully)
+      const pluginManager = PluginManager.getInstance();
+
+      // Load only UI and theme plugins (no user-specific settings for anonymous users)
+      console.log('[main.tsx] Loading CoreUIPlugin...');
+      await pluginManager.loadPlugin(CoreUIPlugin);
+
+      console.log('[main.tsx] Loading CoreThemePlugin...');
+      await pluginManager.loadPlugin(CoreThemePlugin);
+
+      console.log('[main.tsx] Public-safe plugins loaded successfully:', ['core-ui', 'core-theme']);
+
+      // Verify theme service is available
+      const themeService = pluginManager.getService('core-theme/themeService');
+      console.log('[main.tsx] ThemeService available:', !!themeService);
+      if (themeService) {
+        console.log('[main.tsx] Available themes:', themeService.getAvailableThemes());
+        console.log('[main.tsx] Current theme:', themeService.getCurrentTheme());
+      }
+
+      // Start React app with plugins available
       createRoot(document.getElementById("root")!).render(<App />);
       return;
     }
@@ -20,7 +58,6 @@ async function startApp() {
     // For app pages: check auth first, let AppShell handle redirect if needed
     // Don't load plugins yet - AppShell will load them after auth check
     console.log('App page detected - starting React, AppShell will handle auth and plugins');
-    loadPublicTheme(); // Load theme first
     createRoot(document.getElementById("root")!).render(<App />);
 
   } catch (error) {
