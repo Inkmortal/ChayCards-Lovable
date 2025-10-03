@@ -10,6 +10,10 @@ const Setup = () => {
   const [searchParams] = useSearchParams();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
+  // Get ThemeSelector from plugin
+  const manager = PluginManager.getInstance();
+  const ThemeSelector = manager.getComponent('core-theme/ThemeSelector');
+
   // Platform detection
   const isElectron = window.electronAPI !== undefined;
   const isWeb = !isElectron;
@@ -180,7 +184,11 @@ const Setup = () => {
               ChayCards Setup
             </h1>
           </div>
-          <div className="w-16" /> {/* Spacer for center alignment */}
+          <div className="flex items-center space-x-4">
+            {/* Theme selector from plugin */}
+            {ThemeSelector && <ThemeSelector />}
+            <div className="w-10" /> {/* Spacer for alignment */}
+          </div>
         </div>
       </header>
 

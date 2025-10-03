@@ -18,6 +18,9 @@ export const AppShell: React.FC = () => {
   const location = useLocation();
   const pluginManager = PluginManager.getInstance();
 
+  // Get ThemeSelector from plugin
+  const ThemeSelector = pluginManager.getComponent('core-theme/ThemeSelector');
+
   // Auth guard - check for local profile (Electron) OR cloud auth token (Web)
   useEffect(() => {
     const checkAuthAndLoadPlugins = async () => {
@@ -164,6 +167,8 @@ export const AppShell: React.FC = () => {
           {headerComponents.map((comp) => (
             <PluginHost key={comp.id} componentName={typeof comp.component === 'string' ? comp.component : comp.id} />
           ))}
+          {/* Theme selector */}
+          {ThemeSelector && <ThemeSelector />}
         </div>
       </header>
 

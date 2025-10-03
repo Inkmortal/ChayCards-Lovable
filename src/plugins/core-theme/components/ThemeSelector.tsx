@@ -9,12 +9,12 @@ import { PluginManager } from '../../../shared/plugin-system';
 
 interface ThemeSelectorProps {
   className?: string;
-  showIcon?: boolean;
+  variant?: '3d' | 'flat';
 }
 
 export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   className = '',
-  showIcon = true
+  variant = '3d'
 }) => {
   const [currentTheme, setCurrentTheme] = useState<Theme | null>(null);
   const [availableThemes, setAvailableThemes] = useState<Theme[]>([]);
@@ -58,11 +58,18 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
       {/* Theme selector button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
+        className={variant === '3d'
+          ? "w-10 h-10 flex items-center justify-center rounded-lg border-2 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
+          : "flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
+        }
+        style={variant === '3d' ? {
+          boxShadow: '0 8px 0 color-mix(in oklab, hsl(var(--muted)), black 25%), 0 12px 20px color-mix(in oklab, hsl(var(--muted)), black 50%), inset 0 1px 0 hsl(var(--background))',
+          background: 'hsl(var(--background))',
+          borderColor: 'hsl(var(--muted))',
+          color: 'hsl(var(--muted-foreground))'
+        } : undefined}
       >
-        {showIcon && <Palette className="w-4 h-4" />}
-        <span className="text-sm font-medium">{currentTheme.name}</span>
-        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <Palette className="w-4 h-4" />
       </button>
 
       {/* Dropdown menu */}

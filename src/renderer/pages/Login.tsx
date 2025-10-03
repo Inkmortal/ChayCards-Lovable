@@ -6,6 +6,7 @@ import { BookOpen, ArrowLeft, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { STORAGE_KEYS } from "@/shared/constants";
+import { PluginManager } from "@/shared/plugin-system";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,6 +14,10 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Get ThemeSelector from plugin
+  const manager = PluginManager.getInstance();
+  const ThemeSelector = manager.getComponent('core-theme/ThemeSelector');
 
   const handleLogin = async () => {
     setError("");
@@ -97,7 +102,11 @@ const Login = () => {
               ChayCards
             </h1>
           </div>
-          <div className="w-16" /> {/* Spacer for center alignment */}
+          <div className="flex items-center space-x-4">
+            {/* Theme selector from plugin */}
+            {ThemeSelector && <ThemeSelector />}
+            <div className="w-10" /> {/* Spacer for alignment */}
+          </div>
         </div>
       </header>
 
