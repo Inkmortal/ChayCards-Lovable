@@ -120,13 +120,18 @@ const Setup = () => {
 
       // Fallback: Save settings and continue (shouldn't reach here with current options)
       const pluginManager = PluginManager.getInstance();
-      const settingsService = pluginManager.getService('core-settings/settingsService');
 
+      // Initialize storage FIRST (ensures SettingsService has storage available)
+      console.log('[Setup] Initializing storage...');
+      await pluginManager.initializeStorage();
+      console.log('[Setup] Storage initialized');
+
+      // Mark setup as complete (now that storage is ready)
+      const settingsService = pluginManager.getService('core-settings/settingsService');
       if (settingsService) {
         const storageMode = selectedOption as 'local' | 'sync' | 'cloud';
         await settingsService.completeSetup(storageMode);
-        console.log('Setup complete with storage mode:', storageMode);
-        await pluginManager.initializeStorage();
+        console.log('[Setup] Setup complete with storage mode:', storageMode);
         navigate('/app/demo');
       } else {
         console.error('SettingsService not available');

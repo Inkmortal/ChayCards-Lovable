@@ -17,28 +17,90 @@ export const AppShell: React.FC = () => {
   const location = useLocation();
   const pluginManager = PluginManager.getInstance();
 
-  // Auth guard - redirect to login if not authenticated
+  // Auth guard - check for local profile (Electron) OR cloud auth token (Web)
   useEffect(() => {
-    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-    if (!token) {
-      console.log('[AppShell] No auth token found, redirecting to login');
-      navigate('/login', { replace: true });
-      return;
-    }
+    const checkAuthAndLoadPlugins = async () => {
+      // Check if we're in Electron - use multiple detection methods
+      const isElectron = !!(window.electronAPI || navigator.userAgent.includes('Electron'));
 
-    // If authenticated, initialize plugins
-    const initPlugins = async () => {
-      const routes = pluginManager.getAllRoutes();
-      if (routes.length === 0) {
-        console.log('[AppShell] Loading plugins...');
-        await pluginManager.loadAllPlugins();
-        setPluginsLoaded(true);
+      console.log('[AppShell] Platform detection:', {
+        hasElectronAPI: !!window.electronAPI,
+        userAgent: navigator.userAgent,
+        isElectron
+      });
+
+      if (isElectron && window.electronAPI) {
+        // Electron: Check for active local profile
+        const lastProfileId = localStorage.getItem(STORAGE_KEYS.LAST_PROFILE_ID);
+
+        if (!lastProfileId) {
+          console.log('[AppShell] No profile selected, redirecting to profile picker');
+          navigate('/profile', { replace: true });
+          return;
+        }
+
+        try {
+          const profile = await window.electronAPI.user.get(lastProfileId);
+          if (!profile) {
+            console.log('[AppShell] Profile not found, redirecting to profile picker');
+            localStorage.removeItem(STORAGE_KEYS.LAST_PROFILE_ID);
+            navigate('/profile', { replace: true });
+            return;
+          }
+
+          console.log('[AppShell] Local profile authenticated:', profile.profileName);
+          console.log('[AppShell] Storage mode from profile:', profile.storageMode);
+
+          // Update last used timestamp
+          await window.electronAPI.user.setActive(lastProfileId);
+
+          // Load plugins (which initializes storage)
+          const routes = pluginManager.getAllRoutes();
+          if (routes.length === 0) {
+            console.log('[AppShell] Loading plugins...');
+            await pluginManager.loadAllPlugins();
+
+            // Mark setup as complete with storage mode from user profile
+            const settingsService = pluginManager.getService('core-settings/settingsService');
+            if (settingsService && !settingsService.isSetupComplete()) {
+              console.log('[AppShell] Completing setup with storage mode:', profile.storageMode);
+              await settingsService.completeSetup(profile.storageMode);
+            }
+
+            setPluginsLoaded(true);
+          } else {
+            console.log('[AppShell] Plugins already loaded');
+            setPluginsLoaded(true);
+          }
+        } catch (error) {
+          console.error('[AppShell] Failed to verify profile:', error);
+          navigate('/profile', { replace: true });
+          return;
+        }
       } else {
-        setPluginsLoaded(true);
+        // Web: Check for cloud auth token
+        const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+        if (!token) {
+          console.log('[AppShell] No auth token found, redirecting to login');
+          navigate('/login', { replace: true });
+          return;
+        }
+        console.log('[AppShell] Cloud user authenticated');
+
+        // Load plugins for web
+        const routes = pluginManager.getAllRoutes();
+        if (routes.length === 0) {
+          console.log('[AppShell] Loading plugins...');
+          await pluginManager.loadAllPlugins();
+          setPluginsLoaded(true);
+        } else {
+          console.log('[AppShell] Plugins already loaded');
+          setPluginsLoaded(true);
+        }
       }
     };
 
-    initPlugins();
+    checkAuthAndLoadPlugins();
   }, [navigate]);
 
   // Get plugin-driven content

@@ -27,7 +27,9 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
     this.apiUrl = apiUrl || envUrl || defaultUrl;
 
-    console.log('[PostgreSQLAdapter] API URL:', this.apiUrl);
+    if (import.meta.env.DEV) {
+      console.log('[PostgreSQLAdapter] API URL:', this.apiUrl);
+    }
   }
 
   /**
@@ -46,37 +48,51 @@ export class PostgreSQLAdapter implements StorageAdapter {
     return headers;
   }
 
+  /**
+   * Handle authentication errors (401/403)
+   * Redirects to login on protected pages, ignores on public pages
+   */
+  private handleAuthError(): void {
+    if (!isPublicPage()) {
+      console.error('[PostgreSQLAdapter] Auth error - redirecting to login');
+      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+      window.location.href = '/login';
+    } else {
+      console.warn('[PostgreSQLAdapter] Auth error on public page - ignoring');
+    }
+  }
+
   async get<T = any>(key: string): Promise<T | null> {
     const url = `${this.apiUrl}/${encodeURIComponent(key)}`;
 
     try {
-      console.log(`[PostgreSQLAdapter] GET ${url}`);
+      if (import.meta.env.DEV) {
+        console.log(`[PostgreSQLAdapter] GET ${url}`);
+      }
       const response = await fetch(url, {
         headers: this.getAuthHeaders()
       });
 
-      console.log(`[PostgreSQLAdapter] Response:`, {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        headers: Object.fromEntries(response.headers.entries())
-      });
+      if (import.meta.env.DEV) {
+        console.log(`[PostgreSQLAdapter] Response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+      }
 
       if (!response.ok) {
         if (response.status === 404) {
-          console.log(`[PostgreSQLAdapter] Key not found: ${key}`);
+          if (import.meta.env.DEV) {
+            console.log(`[PostgreSQLAdapter] Key not found: ${key}`);
+          }
           return null;
         }
 
         // Handle auth errors - only redirect if not already on public pages
         if (response.status === 401 || response.status === 403) {
-          if (!isPublicPage()) {
-            console.error(`[PostgreSQLAdapter] Auth error - redirecting to login`);
-            localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-            window.location.href = '/login';
-          } else {
-            console.warn(`[PostgreSQLAdapter] Auth error on public page - ignoring`);
-          }
+          this.handleAuthError();
           return null;
         }
 
@@ -87,11 +103,15 @@ export class PostgreSQLAdapter implements StorageAdapter {
       }
 
       const data = await response.json();
-      console.log(`[PostgreSQLAdapter] Successfully got key "${key}":`, data);
+      if (import.meta.env.DEV) {
+        console.log(`[PostgreSQLAdapter] Successfully got key "${key}":`, data);
+      }
       return data.value as T;
     } catch (error) {
       console.error(`[PostgreSQLAdapter] Failed to get key "${key}":`, error);
-      console.error(`[PostgreSQLAdapter] Request URL was: ${url}`);
+      if (import.meta.env.DEV) {
+        console.error(`[PostgreSQLAdapter] Request URL was: ${url}`);
+      }
       return null;
     }
   }
@@ -100,29 +120,27 @@ export class PostgreSQLAdapter implements StorageAdapter {
     const url = `${this.apiUrl}/${encodeURIComponent(key)}`;
 
     try {
-      console.log(`[PostgreSQLAdapter] PUT ${url}`, { value });
+      if (import.meta.env.DEV) {
+        console.log(`[PostgreSQLAdapter] PUT ${url}`, { value });
+      }
       const response = await fetch(url, {
         method: 'PUT',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({ value })
       });
 
-      console.log(`[PostgreSQLAdapter] PUT Response:`, {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
+      if (import.meta.env.DEV) {
+        console.log(`[PostgreSQLAdapter] PUT Response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+      }
 
       if (!response.ok) {
         // Handle auth errors - only redirect if not already on public pages
         if (response.status === 401 || response.status === 403) {
-          if (!isPublicPage()) {
-            console.error(`[PostgreSQLAdapter] Auth error - redirecting to login`);
-            localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-            window.location.href = '/login';
-          } else {
-            console.warn(`[PostgreSQLAdapter] Auth error on public page - ignoring`);
-          }
+          this.handleAuthError();
           return;
         }
 
@@ -137,7 +155,9 @@ export class PostgreSQLAdapter implements StorageAdapter {
         throw new Error('Server returned success: false');
       }
 
-      console.log(`[PostgreSQLAdapter] Successfully set key "${key}"`);
+      if (import.meta.env.DEV) {
+        console.log(`[PostgreSQLAdapter] Successfully set key "${key}"`);
+      }
     } catch (error) {
       console.error(`[PostgreSQLAdapter] Failed to set key "${key}":`, error);
       throw error;
@@ -207,7 +227,9 @@ export class PostgreSQLAdapter implements StorageAdapter {
         throw new Error('Server returned success: false');
       }
 
-      console.log('[PostgreSQLAdapter] Storage cleared');
+      if (import.meta.env.DEV) {
+        console.log('[PostgreSQLAdapter] Storage cleared');
+      }
     } catch (error) {
       console.error('[PostgreSQLAdapter] Failed to clear storage:', error);
       throw error;

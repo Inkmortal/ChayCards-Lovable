@@ -19,8 +19,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // User API - Local user management
   user: {
     create: (userData) => ipcRenderer.invoke('user:create', userData),
+    exists: (profileName) => ipcRenderer.invoke('user:exists', profileName),
     get: (userId) => ipcRenderer.invoke('user:get', userId),
-    getCurrent: () => ipcRenderer.invoke('user:getCurrent')
+    getCurrent: () => ipcRenderer.invoke('user:getCurrent'),
+    list: () => ipcRenderer.invoke('user:list'),
+    setActive: (userId) => ipcRenderer.invoke('user:setActive', userId)
   },
 
   // Storage API - SQLite via IPC

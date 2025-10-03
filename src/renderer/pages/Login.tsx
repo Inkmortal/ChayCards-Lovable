@@ -17,7 +17,11 @@ const Login = () => {
   const handleLogin = async () => {
     setError("");
 
-    if (!username || !password) {
+    // Trim whitespace from inputs
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedUsername || !trimmedPassword) {
       setError("Please enter both username and password");
       return;
     }
@@ -28,7 +32,7 @@ const Login = () => {
       const response = await fetch('https://api.chaycards.com/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: trimmedUsername, password: trimmedPassword })
       });
 
       if (!response.ok) {

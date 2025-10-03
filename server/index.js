@@ -135,19 +135,23 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, password } = req.body;
 
+    // Trim whitespace and normalize username
+    const trimmedUsername = username?.trim().toLowerCase();
+    const trimmedPassword = password?.trim();
+
     // Validation
-    if (!username || !password) {
+    if (!trimmedUsername || !trimmedPassword) {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
-    if (password.length < 8) {
+    if (trimmedPassword.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
 
     // Check if username exists
     const existing = await pool.query(
       'SELECT id FROM users WHERE username = $1',
-      [username]
+      [trimmedUsername]
     );
 
     if (existing.rows.length > 0) {
@@ -155,14 +159,14 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(trimmedPassword, 10);
 
     // Create user
     const result = await pool.query(
       `INSERT INTO users (username, password_hash)
        VALUES ($1, $2)
        RETURNING id, username, created_at`,
-      [username, passwordHash]
+      [trimmedUsername, passwordHash]
     );
 
     const user = result.rows[0];
@@ -194,15 +198,19 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
+    // Trim whitespace and normalize username
+    const trimmedUsername = username?.trim().toLowerCase();
+    const trimmedPassword = password?.trim();
+
     // Validation
-    if (!username || !password) {
+    if (!trimmedUsername || !trimmedPassword) {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
     // Find user
     const result = await pool.query(
       'SELECT id, username, password_hash, created_at FROM users WHERE username = $1',
-      [username]
+      [trimmedUsername]
     );
 
     if (result.rows.length === 0) {
@@ -212,7 +220,7 @@ app.post('/api/auth/login', async (req, res) => {
     const user = result.rows[0];
 
     // Verify password
-    const validPassword = await bcrypt.compare(password, user.password_hash);
+    const validPassword = await bcrypt.compare(trimmedPassword, user.password_hash);
 
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid username or password' });

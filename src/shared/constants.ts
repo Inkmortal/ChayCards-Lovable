@@ -13,6 +13,7 @@ export const STORAGE_KEYS = {
   USER_PREFERENCES: 'user_preferences',
   THEME: 'theme',
   LAST_SYNC: 'last_sync',
+  LAST_PROFILE_ID: 'last_profile_id', // Electron only: last used profile
 } as const;
 
 // Public routes that don't require authentication

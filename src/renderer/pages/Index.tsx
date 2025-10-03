@@ -18,53 +18,62 @@ const Index = () => {
   const isWeb = !isElectron;
   const isMobile = window.innerWidth <= 768; // Simple mobile detection
 
-  // Check setup status and redirect accordingly
+  // Check for existing profile and auto-login
   useEffect(() => {
-    const checkSetupStatus = async () => {
-      try {
-        // Check BOTH settings AND actual storage data
-        const manager = PluginManager.getInstance();
-        const settingsService = manager.getService('core-settings/settingsService');
+    const checkProfileAndRedirect = async () => {
+      if (isElectron) {
+        // ONLY run this logic if we're actually on the Index page (Electron-only guard)
+        if (window.location.pathname !== '/') {
+          return;
+        }
+        // Electron: Check for existing profiles
+        try {
+          const lastProfileId = localStorage.getItem('last_profile_id');
 
-        // First check: Do we have settings that say setup is complete?
-        if (settingsService?.isSetupComplete()) {
-          console.log('[Index] User setup complete (via settings), redirecting to app');
+          if (lastProfileId) {
+            // User has a last-used profile, verify it exists
+            const profile = await window.electronAPI.user.get(lastProfileId);
+            if (profile) {
+              console.log('[Index] Auto-login to last used profile:', profile.profileName);
+              navigate('/app');
+              return;
+            } else {
+              // Profile was deleted, clear localStorage
+              console.log('[Index] Last profile not found, clearing');
+              localStorage.removeItem('last_profile_id');
+            }
+          }
+
+          // Check if any profiles exist at all
+          const profiles = await window.electronAPI.user.list();
+          if (profiles.length > 0) {
+            // Profiles exist but no last_profile_id - go to profile picker
+            console.log('[Index] Profiles exist, showing profile picker');
+            navigate('/profile');
+            return;
+          }
+
+          // No profiles exist - first time setup
+          console.log('[Index] No profiles found, showing setup');
+          navigate('/setup?platform=desktop');
+        } catch (error) {
+          console.error('[Index] Failed to check profiles:', error);
+          navigate('/setup?platform=desktop');
+        }
+      } else {
+        // Web: Check for cloud auth token
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          console.log('[Index] Web user has token, redirecting to app');
           navigate('/app');
           return;
         }
-
-        // Second check: Even if settings say incomplete, check if we have ACTUAL data in storage
-        // This handles the case where localStorage was cleared but SQLite data still exists
-        if (isElectron && manager.isStorageReady()) {
-          try {
-            const storage = manager.getStorage();
-            const keys = await storage.list();
-
-            // If we have settings in storage, load them and go to app
-            const settingsKey = 'core-settings:app-settings';
-            if (keys.includes(settingsKey)) {
-              console.log('[Index] Found existing settings in storage, redirecting to app');
-              navigate('/app');
-              return;
-            }
-          } catch (error) {
-            console.warn('[Index] Could not check storage:', error);
-          }
-        }
-
-        // No setup found - show setup screen for Electron
-        if (isElectron) {
-          console.log('[Index] Electron first-time user, showing setup');
-          navigate('/setup?platform=desktop');
-        }
-        // Web first-time users stay on landing page to see features
-      } catch (error) {
-        console.warn('[Index] Could not check setup status:', error);
+        // No token - stay on landing page to show features
       }
     };
 
-    checkSetupStatus();
-  }, [navigate, isElectron]);
+    checkProfileAndRedirect();
+  }, []); // Run once on mount only - prevents navigation race conditions
 
   // Handle platform-specific routing
   const handleGetStarted = () => {

@@ -18,18 +18,23 @@ const Register = () => {
   const handleRegister = async () => {
     setError("");
 
+    // Trim whitespace from inputs
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+    const trimmedConfirmPassword = confirmPassword.trim();
+
     // Validation
-    if (!username || !password || !confirmPassword) {
+    if (!trimmedUsername || !trimmedPassword || !trimmedConfirmPassword) {
       setError("Please fill in all fields");
       return;
     }
 
-    if (password.length < 8) {
+    if (trimmedPassword.length < 8) {
       setError("Password must be at least 8 characters");
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (trimmedPassword !== trimmedConfirmPassword) {
       setError("Passwords do not match");
       return;
     }
@@ -40,7 +45,7 @@ const Register = () => {
       const response = await fetch('https://api.chaycards.com/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: trimmedUsername, password: trimmedPassword })
       });
 
       if (!response.ok) {

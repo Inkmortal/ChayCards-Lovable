@@ -119,12 +119,81 @@ function initDatabase() {
     db.exec(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
-        profile_name TEXT NOT NULL,
+        profile_name TEXT NOT NULL UNIQUE,
+        storage_mode TEXT NOT NULL DEFAULT 'local',
         has_password INTEGER DEFAULT 0,
         password_hash TEXT,
-        created_at INTEGER DEFAULT (strftime('%s', 'now'))
+        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+        last_used_at INTEGER DEFAULT (strftime('%s', 'now'))
       )
     `);
+
+    // Migration: Add new columns if they don't exist
+    // Note: SQLite ALTER TABLE doesn't support function expressions in DEFAULT,
+    // so we add the column first, then backfill with UPDATE
+    try {
+      db.exec(`ALTER TABLE users ADD COLUMN storage_mode TEXT`);
+      // Backfill existing rows with default value
+      db.exec(`UPDATE users SET storage_mode = 'local' WHERE storage_mode IS NULL`);
+      console.log('✓ Migrated storage_mode column');
+    } catch (e) {
+      // Column already exists, ignore
+      if (!e.message.includes('duplicate column name')) {
+        console.warn('Migration warning (storage_mode):', e.message);
+      }
+    }
+    try {
+      db.exec(`ALTER TABLE users ADD COLUMN last_used_at INTEGER`);
+      // Backfill existing rows with current timestamp
+      db.exec(`UPDATE users SET last_used_at = strftime('%s', 'now') WHERE last_used_at IS NULL`);
+      console.log('✓ Migrated last_used_at column');
+    } catch (e) {
+      // Column already exists, ignore
+      if (!e.message.includes('duplicate column name')) {
+        console.warn('Migration warning (last_used_at):', e.message);
+      }
+    }
+
+    // Migration: Add UNIQUE constraint to profile_name
+    // SQLite doesn't support ADD CONSTRAINT, so we need to recreate the table if constraint is missing
+    try {
+      // Check if UNIQUE constraint exists
+      const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get();
+      if (tableInfo && !tableInfo.sql.includes('UNIQUE')) {
+        console.log('⚠ Adding UNIQUE constraint to profile_name - recreating users table');
+
+        // Create new table with UNIQUE constraint
+        db.exec(`
+          CREATE TABLE users_new (
+            id TEXT PRIMARY KEY,
+            profile_name TEXT NOT NULL UNIQUE,
+            storage_mode TEXT NOT NULL DEFAULT 'local',
+            has_password INTEGER DEFAULT 0,
+            password_hash TEXT,
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
+            last_used_at INTEGER DEFAULT (strftime('%s', 'now'))
+          )
+        `);
+
+        // Copy data from old table, removing duplicates (keep first occurrence)
+        db.exec(`
+          INSERT INTO users_new (id, profile_name, storage_mode, has_password, password_hash, created_at, last_used_at)
+          SELECT id, profile_name, storage_mode, has_password, password_hash, created_at, last_used_at
+          FROM users
+          WHERE id IN (
+            SELECT MIN(id) FROM users GROUP BY profile_name
+          )
+        `);
+
+        // Drop old table and rename new one
+        db.exec(`DROP TABLE users`);
+        db.exec(`ALTER TABLE users_new RENAME TO users`);
+
+        console.log('✓ UNIQUE constraint added to profile_name');
+      }
+    } catch (e) {
+      console.warn('Migration warning (UNIQUE constraint):', e.message);
+    }
 
     // Initialize storage table (with user_id for local user scoping)
     db.exec(`
@@ -160,12 +229,17 @@ app.on('before-quit', () => {
 
 // User management IPC handlers
 ipcMain.handle('user:create', (event, userData) => {
-  const { id, profileName, hasPassword, passwordHash } = userData;
+  const { id, profileName, storageMode = 'local', hasPassword, passwordHash } = userData;
   db.prepare(`
-    INSERT INTO users (id, profile_name, has_password, password_hash, created_at)
-    VALUES (?, ?, ?, ?, strftime('%s', 'now'))
-  `).run(id, profileName, hasPassword ? 1 : 0, passwordHash);
+    INSERT INTO users (id, profile_name, storage_mode, has_password, password_hash, created_at, last_used_at)
+    VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now'))
+  `).run(id, profileName, storageMode, hasPassword ? 1 : 0, passwordHash);
   return true;
+});
+
+ipcMain.handle('user:exists', (event, profileName) => {
+  const row = db.prepare('SELECT id FROM users WHERE profile_name = ?').get(profileName);
+  return !!row;
 });
 
 ipcMain.handle('user:get', (event, userId) => {
@@ -173,9 +247,30 @@ ipcMain.handle('user:get', (event, userId) => {
   return row ? {
     id: row.id,
     profileName: row.profile_name,
+    storageMode: row.storage_mode,
     hasPassword: row.has_password === 1,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at
   } : null;
+});
+
+ipcMain.handle('user:list', () => {
+  const rows = db.prepare('SELECT * FROM users ORDER BY last_used_at DESC').all();
+  return rows.map(row => ({
+    id: row.id,
+    profileName: row.profile_name,
+    storageMode: row.storage_mode,
+    hasPassword: row.has_password === 1,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at
+  }));
+});
+
+ipcMain.handle('user:setActive', (event, userId) => {
+  db.prepare(`
+    UPDATE users SET last_used_at = strftime('%s', 'now') WHERE id = ?
+  `).run(userId);
+  return true;
 });
 
 ipcMain.handle('user:getCurrent', () => {

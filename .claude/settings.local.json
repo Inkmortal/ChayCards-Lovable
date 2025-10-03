@@ -89,7 +89,11 @@
       "Bash(docker exec:*)",
       "Read(//mnt/c/Users/danhc/.cloudflared/**)",
       "mcp__notion__notion-update-database",
-      "Bash(npm run notion-pm:server:*)"
+      "Bash(npm run notion-pm:server:*)",
+      "Bash(kill:*)",
+      "Bash(sqlite3:*)",
+      "Bash(CONFIRM=yes node scripts/clear-database.cjs)",
+      "mcp__zen__debug"
     ],
     "deny": []
   },

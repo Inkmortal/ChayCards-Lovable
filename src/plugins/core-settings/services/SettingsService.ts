@@ -58,22 +58,22 @@ export class SettingsService {
   /**
    * Update settings
    */
-  updateSettings(partial: Partial<UserSettings>): void {
+  async updateSettings(partial: Partial<UserSettings>): Promise<void> {
     this.settings = {
       ...this.settings,
       ...partial,
       updatedAt: Date.now()
     };
 
-    this.saveSettings();
+    await this.saveSettings();
     this.notifyListeners();
   }
 
   /**
    * Complete setup with storage choice
    */
-  completeSetup(storageMode: StorageMode): void {
-    this.updateSettings({
+  async completeSetup(storageMode: StorageMode): Promise<void> {
+    await this.updateSettings({
       storageMode,
       setupComplete: true
     });
@@ -147,9 +147,9 @@ export class SettingsService {
   /**
    * Reset settings to defaults (for testing/debugging)
    */
-  reset(): void {
+  async reset(): Promise<void> {
     this.settings = getDefaultSettings();
-    this.saveSettings();
+    await this.saveSettings();
     this.notifyListeners();
   }
 }
