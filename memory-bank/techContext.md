@@ -128,18 +128,34 @@ npm run dev:electron # Electron + Web
 
 ### npm Scripts
 ```bash
-npm run dev          # Start Vite dev server
+npm run dev          # Start Vite dev server (port 8080)
 npm run dev:electron # Start Electron with Vite
+npm run server       # Start backend API server (port 7243, Windows only)
+npm run notion-pm:server # Start Notion PM sync server (port 3001)
 npm run build        # Build for production
 npm run preview      # Preview production build
 ```
 
+**Important: Backend Server Environment**
+- `npm run server` MUST run from Windows Command Prompt (not WSL)
+- Required for login/authentication to work
+- Cloudflare tunnel on Windows routes to Windows localhost:7243
+- WSL localhost and Windows localhost are different network namespaces
+
 ### Development Workflow
-1. Make changes in `src/`
-2. Vite hot-reloads automatically
-3. Test in browser at localhost:8080
-4. Test in Electron with `npm run dev:electron`
-5. Check both platforms before committing
+1. **Start Backend (Windows)**: Run `npm run server` from Windows Command Prompt
+2. **Start Frontend (WSL)**: Run `npm run dev` from WSL terminal
+3. Make changes in `src/`
+4. Vite hot-reloads automatically
+5. Test in browser at localhost:8080
+6. Test login/auth features (requires backend server running)
+7. Test in Electron with `npm run dev:electron` (Windows)
+8. Check both platforms before committing
+
+**Multi-Terminal Setup:**
+- Terminal 1 (Windows): `npm run server` - Backend API on port 7243
+- Terminal 2 (WSL): `npm run dev` - Vite dev server on port 8080
+- Terminal 3 (Windows, optional): `npm run notion-pm:server` - Notion PM sync on port 3001
 
 ### Build Process
 1. Vite builds React app to `dist/`

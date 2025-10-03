@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, BookOpen } from 'lucide-react';
+import { Menu, X, BookOpen, Loader2 } from 'lucide-react';
 import { PluginManager } from '../../shared/plugin-system';
 import { PluginHost } from '../plugin-host/PluginHost';
 import { STORAGE_KEYS } from '@/shared/constants';
@@ -13,6 +13,7 @@ import { STORAGE_KEYS } from '@/shared/constants';
 export const AppShell: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [pluginsLoaded, setPluginsLoaded] = useState(false);
+  const [pluginsLoading, setPluginsLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
   const pluginManager = PluginManager.getInstance();
@@ -58,6 +59,7 @@ export const AppShell: React.FC = () => {
           const routes = pluginManager.getAllRoutes();
           if (routes.length === 0) {
             console.log('[AppShell] Loading plugins...');
+            setPluginsLoading(true);
             await pluginManager.loadAllPlugins();
 
             // Mark setup as complete with storage mode from user profile
@@ -68,9 +70,11 @@ export const AppShell: React.FC = () => {
             }
 
             setPluginsLoaded(true);
+            setPluginsLoading(false);
           } else {
             console.log('[AppShell] Plugins already loaded');
             setPluginsLoaded(true);
+            setPluginsLoading(false);
           }
         } catch (error) {
           console.error('[AppShell] Failed to verify profile:', error);
@@ -91,11 +95,14 @@ export const AppShell: React.FC = () => {
         const routes = pluginManager.getAllRoutes();
         if (routes.length === 0) {
           console.log('[AppShell] Loading plugins...');
+          setPluginsLoading(true);
           await pluginManager.loadAllPlugins();
           setPluginsLoaded(true);
+          setPluginsLoading(false);
         } else {
           console.log('[AppShell] Plugins already loaded');
           setPluginsLoaded(true);
+          setPluginsLoading(false);
         }
       }
     };
@@ -227,39 +234,59 @@ export const AppShell: React.FC = () => {
               />
             ))}
 
-            {/* Default route - shows when no plugins have routes */}
+            {/* Default route - shows loading or welcome message */}
             <Route
               path="*"
               element={
                 <div className="flex items-center justify-center h-full">
-                  <div className="text-center space-y-4 max-w-md">
-                    <div
-                      className="w-16 h-16 rounded-3xl mx-auto flex items-center justify-center"
-                      style={{
-                        background: 'linear-gradient(145deg, hsl(var(--muted)), hsl(var(--muted) / 0.5))',
-                        boxShadow: 'var(--shadow-md)'
-                      }}
-                    >
-                      <BookOpen className="w-8 h-8 text-muted-foreground" />
+                  {pluginsLoading ? (
+                    // Loading state - show spinner while plugins are loading
+                    <div className="text-center space-y-4 max-w-md">
+                      <div
+                        className="w-16 h-16 rounded-3xl mx-auto flex items-center justify-center"
+                        style={{
+                          background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))',
+                          boxShadow: 'var(--shadow-md)'
+                        }}
+                      >
+                        <Loader2 className="w-8 h-8 text-primary-foreground animate-spin" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-foreground">Loading your workspace...</h2>
+                      <p className="text-muted-foreground">
+                        Setting up your plugins and preferences
+                      </p>
                     </div>
-                    <h2 className="text-2xl font-bold text-foreground">Welcome to ChayCards</h2>
-                    <p className="text-muted-foreground">
-                      {routes.length === 0
-                        ? 'No plugins are currently loaded.'
-                        : 'Select a navigation item to get started.'}
-                    </p>
-                    <div className="mt-6 space-y-2 text-sm text-muted-foreground">
-                      <p>Available routes:</p>
-                      <ul className="space-y-1">
-                        {routes.map((route) => (
-                          <li key={route.path} className="font-mono">
-                            {route.path}
-                          </li>
-                        ))}
-                        {routes.length === 0 && <li className="italic">No plugin routes registered</li>}
-                      </ul>
+                  ) : (
+                    // No plugins loaded (after loading completed)
+                    <div className="text-center space-y-4 max-w-md">
+                      <div
+                        className="w-16 h-16 rounded-3xl mx-auto flex items-center justify-center"
+                        style={{
+                          background: 'linear-gradient(145deg, hsl(var(--muted)), hsl(var(--muted) / 0.5))',
+                          boxShadow: 'var(--shadow-md)'
+                        }}
+                      >
+                        <BookOpen className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-foreground">Welcome to ChayCards</h2>
+                      <p className="text-muted-foreground">
+                        {routes.length === 0
+                          ? 'No plugins are currently loaded.'
+                          : 'Select a navigation item to get started.'}
+                      </p>
+                      <div className="mt-6 space-y-2 text-sm text-muted-foreground">
+                        <p>Available routes:</p>
+                        <ul className="space-y-1">
+                          {routes.map((route) => (
+                            <li key={route.path} className="font-mono">
+                              {route.path}
+                            </li>
+                          ))}
+                          {routes.length === 0 && <li className="italic">No plugin routes registered</li>}
+                        </ul>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               }
             />

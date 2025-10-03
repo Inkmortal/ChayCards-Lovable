@@ -44,28 +44,66 @@ This project uses a special dual-environment setup:
 - Test Electron functionality using Windows executable
 - Always verify changes work in both environments
 
-### Available Agents
+### Git Commit Policy
+**CRITICAL**: Never include Claude attribution in commit messages.
+- NO "Generated with Claude Code" footer
+- NO "Co-Authored-By: Claude" footer
+- Keep commit messages clean and professional
+- This applies to both regular Claude AND the git-workflow-manager agent
 
-Claude has access to specialized agents through the Task tool for different workflows:
+### Specialized Agents (Sub-agents)
 
-#### Development & Code Quality
+**IMPORTANT**: Claude should **proactively invoke** specialized agents when tasks match their expertise. Agents have separate context windows, specialized prompts, and focused toolsets that make them superior for specific workflows. Don't ask permission - just use them when appropriate.
+
+#### When to Use Agents
+
+**Before Writing Code**:
+- `context-researcher` - ALWAYS use before implementing new features to understand existing patterns
+- `planner` - Use for complex features requiring step-by-step planning
+- `analyze` - Use when evaluating architecture or code structure
+
+**During Implementation**:
+- `general-purpose` - Use for multi-step research or code searches
+- `debug` - Use when encountering errors or investigating issues
+- `tracer` - Use to understand execution flow or dependencies
+
+**After Writing Code**:
+- `code-reviewer` - ALWAYS use after implementing significant functionality
+- `test-runner-validator` - Use to execute and validate tests
+- `unit-test-generator` - Use to create comprehensive test coverage
+- `frontend-qa-tester` - Use to verify UI implementations
+- `code-cleanup-refactor` - Use after refactoring to find unused code
+
+**Before Committing**:
+- `precommit` - Use to validate changes before git commits
+- `security-reviewer` - Use when changes involve auth, data handling, or APIs
+- `secaudit` - Use for comprehensive security review
+
+**Project Management**:
+- `git-workflow-manager` - Use for commits, branches, and git operations
+- `backlog-manager` - Use when tasks are completed or new tasks identified
+- `memory-bank-keeper` - Use after significant changes to update documentation
+
+#### Available Agents
+
+##### Development & Code Quality
 - `general-purpose` - Multi-step research, code search, and complex tasks
-- `context-researcher` - Gather codebase context before implementing features
-- `code-reviewer` - Review code after implementation with quality checks
+- `context-researcher` - Gather codebase context BEFORE implementing features
+- `code-reviewer` - Review code AFTER implementation with quality checks
 - `code-cleanup-refactor` - Clean up unused code and artifacts after refactoring
 - `unit-test-generator` - Generate comprehensive test coverage
 - `test-runner-validator` - Execute and validate unit tests
 
-#### Project Management
+##### Project Management
 - `git-workflow-manager` - Manage git operations, commits, and branches
 - `backlog-manager` - Track and manage project tasks and backlog
 - `memory-bank-keeper` - Update Memory Bank documentation after changes
 
-#### Security & Testing
+##### Security & Testing
 - `security-reviewer` - Review security vulnerabilities and authentication
 - `frontend-qa-tester` - Verify frontend implementations and user interactions
 
-#### Zen MCP Advanced Tools
+##### Zen MCP Advanced Tools
 - `chat` - Collaborative thinking and brainstorming partner
 - `thinkdeep` - Multi-stage investigation for complex problems
 - `planner` - Interactive sequential planning with branching
@@ -81,6 +119,14 @@ Claude has access to specialized agents through the Task tool for different work
 - `testgen` - Generate comprehensive test suites
 - `challenge` - Force critical thinking to prevent reflexive agreement
 
-#### Integration Tools
+##### Integration Tools
 - **Notion MCP** - Track tasks in ChayCards_Dev database across sessions
 - **Puppeteer MCP** - Automated browser testing and UI verification
+
+#### Agent Best Practices
+
+1. **Be Proactive**: Don't wait for user to ask - invoke agents when their expertise matches the task
+2. **Use Before Implementation**: Context research prevents reinventing existing patterns
+3. **Use After Implementation**: Code review and testing ensure quality
+4. **Chain Agents**: Use multiple agents in sequence (research → implement → review → test)
+5. **Parallel Execution**: Run independent agents in parallel when possible (e.g., multiple file searches)

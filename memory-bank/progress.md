@@ -172,6 +172,7 @@ We are in the **Core App Implementation** phase:
 11. ✅ Fixed plugins loading on public pages causing 401 errors (October 2, 2025)
 12. ✅ Fixed double redirect when accessing /app without auth (October 2, 2025)
 13. ✅ Fixed theme not working on public pages (dual storage strategy, October 2, 2025)
+14. ✅ Fixed login JSON parse error - backend server must run on Windows for Cloudflare tunnel access (October 2, 2025)
 
 ## Evolution of Project Decisions
 
@@ -200,6 +201,9 @@ We are in the **Core App Implementation** phase:
 11. **Cloudflare Tunnel for development** - Production URL works locally via tunnel, eliminates environment config
 12. **Hardcoded production URLs simplify deployment** - Same code works everywhere (dev/preview/production)
 13. **CORS callback patterns matter** - Use `callback(null, false)` to reject origins, not error throwing
+14. **Backend server environment matters** - Backend API must run on Windows (not WSL) when using Windows-based Cloudflare tunnel
+15. **Network namespace isolation** - WSL localhost ≠ Windows localhost - services in one can't reach the other
+16. **JSON parse errors often mean server down** - When API returns HTML 404 instead of JSON, check if backend server is running
 
 ## Next Milestones
 

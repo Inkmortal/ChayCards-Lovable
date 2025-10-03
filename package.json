@@ -19,7 +19,8 @@
     "cap:android": "npx cap run android",
     "cap:sync": "npx cap sync",
     "notion-pm:sync": "tsx scripts/notion-pm-sync-cli.ts",
-    "notion-pm:server": "tsx scripts/notion-pm-server.ts"
+    "notion-pm:server": "tsx scripts/notion-pm-server.ts",
+    "server": "cd server && node index.js"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",

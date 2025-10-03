@@ -30,6 +30,36 @@ We are building the foundation architecture for ChayCards with a focus on:
 
 ## Recent Changes
 
+### Backend API Server and Login Issue Resolution (October 2, 2025)
+- **Backend API Server Setup**: Added npm script to run Express server
+  - Script: `npm run server` runs `cd server && node index.js`
+  - Server must run on port 7243 (Windows, not WSL)
+  - Provides REST API for authentication and storage operations
+  - Uses PostgreSQL database for data persistence
+- **Login Issue Root Cause Identified and Fixed**:
+  - **Problem**: Login failing with "JSON.parse: unexpected character at line 1 column 1"
+  - **Root Cause**: Backend API server on port 7243 was not running
+  - **How it works**: Cloudflare tunnel at api.chaycards.com routes to localhost:7243
+  - **Why it failed**: When server not running, tunnel returns HTML 404 page instead of JSON
+  - **What broke**: Login.tsx expects JSON response with `token` field from `/api/auth/login`
+  - **Solution**: Run `npm run server` (from Windows) before testing login/auth
+- **WSL vs Windows Networking Discovery**: Critical infrastructure learning
+  - Backend server MUST run on Windows (not WSL) for Cloudflare tunnel compatibility
+  - **Why**: Cloudflare tunnel runs on Windows and points to Windows localhost:7243
+  - **Key insight**: Windows localhost ≠ WSL localhost (different network namespaces)
+  - **Tunnel config**: Routes api.chaycards.com → Windows localhost:7243
+  - If server runs in WSL, Windows tunnel cannot reach it (different localhost)
+- **Current Multi-Server Setup**:
+  - Backend API: `npm run server` (port 7243, run from Windows for tunnel access)
+  - Dev server: `npm run dev` (Vite on port 8080, can run in WSL)
+  - Notion PM sync: `npm run notion-pm:server` (port 3001)
+  - Cloudflare tunnel routes:
+    - `api.chaycards.com` → Windows `localhost:7243` (backend API)
+    - `dev.chaycards.com` → Windows `localhost:3001` (Notion PM sync)
+- **Files Changed**:
+  - `package.json` - Added "server": "cd server && node index.js" script (line 23)
+  - No code changes needed - purely operational/infrastructure issue
+
 ### Authentication Flow and Public Page Optimization (October 2, 2025)
 - **Fixed Public Page Plugin Loading**: Plugins no longer load on public pages
   - Public pages (/, /login, /register, /setup) skip plugin initialization entirely
@@ -287,33 +317,37 @@ We are building the foundation architecture for ChayCards with a focus on:
 
 ## Learnings and Project Insights
 
-1. **Lovable Compatibility**: Must keep gptengineer.js script and lovable-tagger
-2. **WSL vs Windows**: Node modules installed in one environment won't work in the other
-3. **Native Modules**: better-sqlite3 must be compiled for Electron's specific Node.js version
-4. **Python for node-gyp**: Requires Python in PATH; conda activation solves this in batch scripts
-5. **One-Click Setup**: Batch script can detect missing setup and auto-rebuild on first run
-6. **Storage Lifecycle**: Must initialize storage AFTER core-settings but BEFORE other plugins
-7. **User Flow**: Platform detection enables different first-run experiences (setup vs landing)
-8. **Development vs Production**: `import.meta.env.DEV` cleanly separates dev/prod features
-9. **ES Modules**: Package.json "type": "module" affects all .js files
-10. **Plugin Architecture**: Simple is better - like game mods, not enterprise
-11. **Theme System**: CSS variable-based theming works excellently with plugin architecture
-12. **Component Sharing**: Optional core.ui plugin provides consistency without forcing it
-13. **Storage Keys**: Each plugin should own its own storage namespace (e.g., `plugin-id:key-name`)
-14. **localStorage vs StorageAdapter**: Only use StorageAdapter - localStorage should be avoided except for pre-storage-init fallbacks
-15. **Setup Persistence**: Check actual storage data, not just in-memory flags, to handle localStorage clearing
-16. **Electron Title Bar**: Frameless windows (`frame: false`) require custom drag regions (`-webkit-app-region: drag`)
-17. **Scrollbar Hierarchy**: Use `h-full overflow-y-auto` on pages, not `min-h-screen`, to prevent double scrollbars
-18. **Theme Persistence**: Theme service should manage its own storage key, not rely on settings service
-19. **Cloudflare Tunnel**: Provides production-ready HTTPS without certificates, bypasses firewalls, enables local-to-cloud flow
-20. **CORS Callbacks**: In Express CORS configuration, use `callback(null, false)` to reject origins, NOT `callback(new Error(...))`
-21. **Hardcoded Production URLs**: Simplifies deployment - same code works in dev/preview/production when using production infrastructure
-22. **Uncommon Ports**: Using port 7243 instead of common ports (3000, 8000) adds basic security through obscurity
-23. **WSL + Windows Shared node_modules**: Single node_modules works for both environments - WSL reads source files, Windows uses native binaries
-24. **npm Install Location Matters**: ALWAYS run `npm install` from Windows (not WSL) to ensure Electron gets Windows-compiled native modules
-25. **Electron ABI Versioning**: electron-rebuild MUST be passed explicit `--version` flag in dual environments to avoid auto-detection failures
-26. **Database Manual Management**: For schema changes, manually recreate databases via bash/sqlite3 commands instead of hardcoding migrations
-27. **Public Page Plugin Isolation**: Plugins should NOT load on public pages (/, /login, /register, /setup) to prevent auth errors
-28. **Auth Guard Placement**: Check authentication in AppShell BEFORE loading plugins, not after - prevents double redirects
-29. **Theme Universal Access**: Theme must work on ALL pages, so use localStorage for public pages and dual storage for app pages
-30. **Plugin Loading Timing**: Never load plugins in main.tsx for /app routes - let AppShell handle auth check first, then load plugins
+1. **Backend Server Windows Requirement**: Backend API server must run on Windows (not WSL) for Cloudflare tunnel compatibility
+2. **WSL vs Windows Network Isolation**: Windows localhost and WSL localhost are different network namespaces - tunnel on Windows cannot reach WSL services
+3. **Login JSON Parse Errors**: "JSON.parse: unexpected character" errors often mean server not running - tunnel returns HTML 404 instead of expected JSON response
+4. **Multi-Server Development**: Complex projects may need multiple servers (backend API, dev server, PM sync) running simultaneously across environments
+5. **Lovable Compatibility**: Must keep gptengineer.js script and lovable-tagger
+6. **WSL vs Windows**: Node modules installed in one environment won't work in the other
+7. **Native Modules**: better-sqlite3 must be compiled for Electron's specific Node.js version
+8. **Python for node-gyp**: Requires Python in PATH; conda activation solves this in batch scripts
+9. **One-Click Setup**: Batch script can detect missing setup and auto-rebuild on first run
+10. **Storage Lifecycle**: Must initialize storage AFTER core-settings but BEFORE other plugins
+11. **User Flow**: Platform detection enables different first-run experiences (setup vs landing)
+12. **Development vs Production**: `import.meta.env.DEV` cleanly separates dev/prod features
+13. **ES Modules**: Package.json "type": "module" affects all .js files
+14. **Plugin Architecture**: Simple is better - like game mods, not enterprise
+15. **Theme System**: CSS variable-based theming works excellently with plugin architecture
+16. **Component Sharing**: Optional core.ui plugin provides consistency without forcing it
+17. **Storage Keys**: Each plugin should own its own storage namespace (e.g., `plugin-id:key-name`)
+18. **localStorage vs StorageAdapter**: Only use StorageAdapter - localStorage should be avoided except for pre-storage-init fallbacks
+19. **Setup Persistence**: Check actual storage data, not just in-memory flags, to handle localStorage clearing
+20. **Electron Title Bar**: Frameless windows (`frame: false`) require custom drag regions (`-webkit-app-region: drag`)
+21. **Scrollbar Hierarchy**: Use `h-full overflow-y-auto` on pages, not `min-h-screen`, to prevent double scrollbars
+22. **Theme Persistence**: Theme service should manage its own storage key, not rely on settings service
+23. **Cloudflare Tunnel**: Provides production-ready HTTPS without certificates, bypasses firewalls, enables local-to-cloud flow
+24. **CORS Callbacks**: In Express CORS configuration, use `callback(null, false)` to reject origins, NOT `callback(new Error(...))`
+25. **Hardcoded Production URLs**: Simplifies deployment - same code works in dev/preview/production when using production infrastructure
+26. **Uncommon Ports**: Using port 7243 instead of common ports (3000, 8000) adds basic security through obscurity
+27. **WSL + Windows Shared node_modules**: Single node_modules works for both environments - WSL reads source files, Windows uses native binaries
+28. **npm Install Location Matters**: ALWAYS run `npm install` from Windows (not WSL) to ensure Electron gets Windows-compiled native modules
+29. **Electron ABI Versioning**: electron-rebuild MUST be passed explicit `--version` flag in dual environments to avoid auto-detection failures
+30. **Database Manual Management**: For schema changes, manually recreate databases via bash/sqlite3 commands instead of hardcoding migrations
+31. **Public Page Plugin Isolation**: Plugins should NOT load on public pages (/, /login, /register, /setup) to prevent auth errors
+32. **Auth Guard Placement**: Check authentication in AppShell BEFORE loading plugins, not after - prevents double redirects
+33. **Theme Universal Access**: Theme must work on ALL pages, so use localStorage for public pages and dual storage for app pages
+34. **Plugin Loading Timing**: Never load plugins in main.tsx for /app routes - let AppShell handle auth check first, then load plugins

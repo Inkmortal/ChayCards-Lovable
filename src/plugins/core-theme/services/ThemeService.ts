@@ -16,16 +16,26 @@ export class ThemeService {
   private storage: StorageAdapter | null = null;
 
   constructor() {
+    console.log('[ThemeService] Constructor called');
+
     // Try to load theme from localStorage first (works on all pages)
     const localThemeId = localStorage.getItem(THEME_LOCALSTORAGE_KEY);
+    console.log('[ThemeService] localStorage theme ID:', localThemeId);
+
     if (localThemeId) {
       const theme = ALL_THEMES.find(t => t.id === localThemeId);
       if (theme) {
+        console.log('[ThemeService] Found theme in localStorage:', theme.name);
         this.currentTheme = theme;
+      } else {
+        console.warn('[ThemeService] Theme ID in localStorage not found in ALL_THEMES:', localThemeId);
       }
+    } else {
+      console.log('[ThemeService] No theme in localStorage, using default:', DEFAULT_THEME.name);
     }
 
     // Apply theme immediately
+    console.log('[ThemeService] Applying theme:', this.currentTheme.name);
     this.applyTheme(this.currentTheme);
   }
 
@@ -63,6 +73,7 @@ export class ThemeService {
    * Get all available themes
    */
   getAvailableThemes(): Theme[] {
+    console.log('[ThemeService] getAvailableThemes called, returning', ALL_THEMES.length, 'themes');
     return [...ALL_THEMES];
   }
 
@@ -70,6 +81,7 @@ export class ThemeService {
    * Get current active theme
    */
   getCurrentTheme(): Theme {
+    console.log('[ThemeService] getCurrentTheme called, returning:', this.currentTheme.name);
     return this.currentTheme;
   }
 

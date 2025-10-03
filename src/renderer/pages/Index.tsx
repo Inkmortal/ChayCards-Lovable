@@ -1,14 +1,17 @@
 import { Button } from "@/renderer/components/ui/button";
 import { Card } from "@/renderer/components/ui/card";
-import { BookOpen, FileText, CheckSquare, Search, ArrowRight, Play, Palette, Code, ExternalLink } from "lucide-react";
+import { BookOpen, Code, ArrowRight, Palette } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { PluginManager } from "../../shared/plugin-system";
+import { HeroSection, FeaturesSection, DevelopmentPanel } from "@/renderer/components/landing";
 
 const Index = () => {
   const navigate = useNavigate();
-  const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [showDevPanel, setShowDevPanel] = useState(false);
+  const [showThemeDropdown, setShowThemeDropdown] = useState(false);
+  const [themes, setThemes] = useState<any[]>([]);
+  const [currentTheme, setCurrentTheme] = useState<any>(null);
 
   // Development mode detection
   const isDevelopment = import.meta.env.DEV;
@@ -91,144 +94,54 @@ const Index = () => {
     console.log('Download requested for platform:', { isElectron, isWeb, isMobile });
   };
 
-  // Simple theme dropdown component
-  const ThemeDropdown = ({ onClose }: { onClose: () => void }) => {
-    const [themes, setThemes] = useState<any[]>([]);
-    const [currentTheme, setCurrentTheme] = useState<any>(null);
+  // Load themes from plugin on mount
+  useEffect(() => {
+    console.log('[Index] Loading themes from plugin...');
+    try {
+      const manager = PluginManager.getInstance();
+      console.log('[Index] PluginManager instance:', manager);
 
-    useEffect(() => {
-      try {
-        const manager = PluginManager.getInstance();
-        const themeService = manager.getService('core-theme/themeService');
+      const themeService = manager.getService('core-theme/themeService');
+      console.log('[Index] ThemeService:', themeService);
 
-        if (themeService) {
-          setThemes(themeService.getAvailableThemes());
-          setCurrentTheme(themeService.getCurrentTheme());
+      if (themeService) {
+        const availableThemes = themeService.getAvailableThemes();
+        const current = themeService.getCurrentTheme();
 
-          // Subscribe to theme changes
-          const unsubscribe = themeService.onThemeChange((theme: any) => {
-            setCurrentTheme(theme);
-          });
+        console.log('[Index] Available themes:', availableThemes);
+        console.log('[Index] Current theme:', current);
 
-          return unsubscribe;
-        }
-      } catch (error) {
-        console.warn('Theme service not available:', error);
+        setThemes(availableThemes);
+        setCurrentTheme(current);
+
+        const unsubscribe = themeService.onThemeChange((theme: any) => {
+          console.log('[Index] Theme changed to:', theme);
+          setCurrentTheme(theme);
+        });
+
+        return unsubscribe;
+      } else {
+        console.error('[Index] Theme service is null/undefined!');
       }
-    }, []);
+    } catch (error) {
+      console.error('[Index] Error loading theme service:', error);
+    }
+  }, []);
 
-    const handleThemeSelect = (themeId: string) => {
-      try {
-        const manager = PluginManager.getInstance();
-        const themeService = manager.getService('core-theme/themeService');
+  const handleThemeSelect = (themeId: string) => {
+    try {
+      const manager = PluginManager.getInstance();
+      const themeService = manager.getService('core-theme/themeService');
 
-        if (themeService) {
-          themeService.setTheme(themeId);
-        }
-      } catch (error) {
-        console.warn('Failed to set theme:', error);
+      if (themeService) {
+        themeService.setTheme(themeId);
       }
-
-      onClose();
-    };
-
-    if (!themes.length) {
-      return (
-        <div className="p-3 text-sm text-muted-foreground">
-          Loading themes...
-        </div>
-      );
+    } catch (error) {
+      console.warn('[Index] Failed to set theme:', error);
     }
 
-    return (
-      <div className="space-y-1">
-        {themes.map((theme) => (
-          <button
-            key={theme.id}
-            onClick={() => handleThemeSelect(theme.id)}
-            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-              theme.id === currentTheme?.id
-                ? 'bg-accent text-accent-foreground'
-                : 'hover:bg-accent hover:text-accent-foreground'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span>{theme.name}</span>
-              {theme.id === currentTheme?.id && (
-                <div className="w-2 h-2 rounded-full bg-primary" />
-              )}
-            </div>
-          </button>
-        ))}
-      </div>
-    );
+    setShowThemeDropdown(false);
   };
-
-  // Development panel with quick navigation
-  const DevelopmentPanel = ({ onClose }: { onClose: () => void }) => {
-    const routes = [
-      { path: '/setup?platform=desktop', label: 'Setup Page (Desktop)', description: 'Local/Sync/Cloud options' },
-      { path: '/setup?platform=web', label: 'Setup Page (Web)', description: 'Cloud-first with download option' },
-      // Future routes for when they're implemented
-      { path: '/app', label: 'Main App', description: 'Coming soon - main workspace' },
-      { path: '/documents', label: 'Documents', description: 'Coming soon - document management' },
-      { path: '/tasks', label: 'Tasks', description: 'Coming soon - task tracking' },
-    ];
-
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-sm text-foreground">Development Routes</h3>
-          <span className="text-xs text-muted-foreground">Lovable Testing</span>
-        </div>
-        {routes.map((route) => (
-          <button
-            key={route.path}
-            onClick={() => {
-              navigate(route.path);
-              onClose();
-            }}
-            className="w-full text-left p-3 rounded-md hover:bg-accent transition-colors group"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm text-foreground group-hover:text-accent-foreground">
-                  {route.label}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {route.description}
-                </div>
-              </div>
-              <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-accent-foreground" />
-            </div>
-          </button>
-        ))}
-        <div className="border-t border-border pt-3 mt-3">
-          <div className="text-xs text-muted-foreground text-center">
-            Direct page access for prototyping
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const features = [
-    {
-      title: "Write & organize",
-      description: "Rich documents with markdown support",
-      icon: FileText,
-    },
-    {
-      title: "Learn & remember",
-      description: "AI-generated flashcards from your content",
-      icon: BookOpen,
-    },
-    {
-      title: "Track & complete",
-      description: "Tasks extracted automatically from documents",
-      icon: CheckSquare,
-    }
-  ];
 
   return (
     <div className="h-full overflow-y-auto bg-background">
@@ -277,7 +190,7 @@ const Index = () => {
             <Button
               variant="3d-muted"
               size="sm"
-              onClick={() => setShowThemeSelector(!showThemeSelector)}
+              onClick={() => setShowThemeDropdown(!showThemeDropdown)}
             >
               <Palette className="w-4 h-4" />
             </Button>
@@ -324,19 +237,44 @@ const Index = () => {
           </>
         )}
 
-        {/* Theme Selector Dropdown */}
-        {showThemeSelector && (
+        {/* Theme Dropdown */}
+        {showThemeDropdown && (
           <>
             {/* Backdrop */}
             <div
               className="fixed inset-0 z-40 bg-black/20"
-              onClick={() => setShowThemeSelector(false)}
+              onClick={() => setShowThemeDropdown(false)}
             />
 
             {/* Theme dropdown */}
             <div className="absolute top-16 right-6 z-50 min-w-[200px] rounded-lg border border-border bg-popover shadow-lg">
               <div className="p-1">
-                <ThemeDropdown onClose={() => setShowThemeSelector(false)} />
+                {themes.length === 0 ? (
+                  <div className="p-3 text-sm text-muted-foreground">
+                    Loading themes...
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {themes.map((theme) => (
+                      <button
+                        key={theme.id}
+                        onClick={() => handleThemeSelect(theme.id)}
+                        className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                          theme.id === currentTheme?.id
+                            ? 'bg-accent text-accent-foreground'
+                            : 'hover:bg-accent hover:text-accent-foreground'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>{theme.name}</span>
+                          {theme.id === currentTheme?.id && (
+                            <div className="w-2 h-2 rounded-full bg-primary" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </>
@@ -344,141 +282,10 @@ const Index = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="py-20 px-6 bg-gradient-to-br from-background via-card to-background">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center space-y-8 mb-16">
-            <h2 className="text-7xl font-bold leading-tight" style={{ textShadow: '0 2px 4px hsl(var(--foreground) / 0.1)' }}>
-              <span style={{ color: 'hsl(var(--foreground))' }}>Your digital brain</span>
-              <span className="block" style={{ color: 'hsl(var(--primary))' }}>for everything</span>
-            </h2>
-            <p className="text-xl max-w-3xl mx-auto leading-relaxed" style={{ 
-              color: 'hsl(var(--muted-foreground))', 
-              textShadow: '0 1px 2px hsl(var(--muted-foreground) / 0.1)' 
-            }}>
-              ChayCards transforms how you work with knowledge. Write documents, 
-              create flashcards, manage tasks - all connected by AI in one beautiful workspace.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-6 justify-center">
-              <Button
-                size="lg"
-                onClick={handleGetStarted}
-                className="px-12 py-6 text-lg font-semibold rounded-2xl hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150"
-                style={{
-                  background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.85))',
-                  color: 'hsl(var(--primary-foreground))',
-                  boxShadow: '0 10px 0 color-mix(in oklab, hsl(var(--primary)), black 25%), 0 15px 25px color-mix(in oklab, hsl(var(--primary)), black 50%), inset 0 2px 0 hsl(var(--primary) / 0.3)',
-                  textShadow: '0 1px 2px hsl(var(--primary-foreground) / 0.3)'
-                }}
-              >
-                Start building
-                <ArrowRight className="w-6 h-6 ml-3" style={{ strokeWidth: '2.5' }} />
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="px-12 py-6 text-lg font-semibold rounded-2xl border-2 hover:translate-y-[-4px] active:translate-y-[-1px] transition-all duration-150"
-                style={{
-                  boxShadow: '0 10px 0 hsl(var(--foreground) / 0.15), 0 15px 25px hsl(var(--foreground) / 0.1), inset 0 1px 0 hsl(var(--background))',
-                  background: 'hsl(var(--background))',
-                  borderColor: 'hsl(var(--border))',
-                  color: 'hsl(var(--foreground))',
-                  textShadow: '0 1px 2px hsl(var(--foreground) / 0.2)'
-                }}
-              >
-                <Play className="w-6 h-6 mr-3" style={{ strokeWidth: '2.5' }} />
-                Watch demo
-              </Button>
-            </div>
-          </div>
-
-          {/* Colorful Feature Pills */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-16">
-            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl border-2 hover:scale-105 transition-transform duration-200 bg-success/10 border-success/20 shadow-lg">
-              <div className="w-4 h-4 rounded-full bg-success"></div>
-              <span className="text-sm font-medium text-foreground">Free forever</span>
-            </div>
-            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl border-2 hover:scale-105 transition-transform duration-200 bg-info/10 border-info/20 shadow-lg">
-              <div className="w-4 h-4 rounded-full bg-info"></div>
-              <span className="text-sm font-medium text-foreground">Works offline</span>
-            </div>
-            <div className="flex items-center justify-center space-x-3 p-4 rounded-2xl border-2 hover:scale-105 transition-transform duration-200 bg-tertiary/10 border-tertiary/20 shadow-lg">
-              <div className="w-4 h-4 rounded-full bg-tertiary"></div>
-              <span className="text-sm font-medium text-foreground">Privacy first</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HeroSection onGetStarted={handleGetStarted} />
 
       {/* Features */}
-      <section className="py-16 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h3 className="text-5xl font-bold mb-6" style={{ color: 'hsl(var(--foreground))', textShadow: '0 2px 4px hsl(var(--foreground) / 0.1)' }}>
-              Everything works together
-            </h3>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-              Stop switching between apps. ChayCards brings documents, tasks, and learning into one unified workspace.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {features.map((feature, index) => {
-              const colorClasses = [
-                { bg: 'bg-accent/10', border: 'border-accent/30', iconBg: 'bg-accent/10', icon: 'text-accent' },
-                { bg: 'bg-info/10', border: 'border-info/30', iconBg: 'bg-info/10', icon: 'text-info' },
-                { bg: 'bg-tertiary/10', border: 'border-tertiary/30', iconBg: 'bg-tertiary/10', icon: 'text-tertiary' }
-              ];
-              const colorClass = colorClasses[index];
-              
-              return (
-                <Card 
-                  key={index} 
-                  className={`p-8 border-2 hover:shadow-xl hover:translate-y-[-4px] duration-300 rounded-3xl transition-all ${colorClass.bg} ${colorClass.border}`}
-                >
-                  <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mb-6 border-2 ${colorClass.iconBg} ${colorClass.border}`}>
-                    <feature.icon className={`w-8 h-8 ${colorClass.icon}`} strokeWidth={2.5} />
-                  </div>
-                  <h4 className="text-2xl font-bold mb-4 text-foreground">
-                    {feature.title}
-                  </h4>
-                  <p className="text-muted-foreground text-lg leading-relaxed">
-                    {feature.description}
-                  </p>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="py-16 px-6 bg-card/30">
-        <div className="max-w-5xl mx-auto">
-          <h3 className="text-4xl font-bold text-foreground mb-12 text-center">
-            How ChayCards works
-          </h3>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              { step: 1, title: "Write documents", desc: "Create notes, research, or any content using our markdown editor.", colorClass: 'primary' },
-              { step: 2, title: "AI extracts knowledge", desc: "Key concepts become flashcards. Tasks are identified automatically.", colorClass: 'secondary' },
-              { step: 3, title: "Learn & stay organized", desc: "Review with spaced repetition. Track tasks. Search everything.", colorClass: 'success' }
-            ].map((item, index) => (
-              <Card key={index} className="p-6 border-2 border-transparent hover:scale-105 transition-all duration-300 rounded-2xl shadow-lg">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 font-bold text-lg bg-${item.colorClass} text-${item.colorClass}-foreground border-2 border-${item.colorClass}/40`}
-                >
-                  {item.step}
-                </div>
-                <h4 className="font-bold text-xl mb-3 text-foreground">{item.title}</h4>
-                <p className="text-muted-foreground leading-relaxed">
-                  {item.desc}
-                </p>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
+      <FeaturesSection />
 
       {/* CTA */}
       <section className="py-20 px-6">

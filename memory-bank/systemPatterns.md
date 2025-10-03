@@ -300,6 +300,67 @@ Each plugin owns its own storage namespace:
 5. Load remaining plugins (all get initialized storage)
 ```
 
+### Backend API Server Requirements
+**Critical Pattern: Windows-Only Backend for Cloudflare Tunnel**
+
+When using Cloudflare tunnel on Windows, the backend API server MUST run on Windows:
+
+```
+┌─────────────────────────────────────────────────┐
+│           Frontend (Any Environment)             │
+│    (WSL Dev / Windows / Lovable Preview)        │
+└────────────────┬────────────────────────────────┘
+                 │ HTTPS Request
+                 │ https://api.chaycards.com
+                 ▼
+┌─────────────────────────────────────────────────┐
+│      Cloudflare Tunnel (Windows Process)         │
+│  - Runs on Windows                               │
+│  - Routes to Windows localhost:7243              │
+└────────────────┬────────────────────────────────┘
+                 │
+                 │ MUST be Windows localhost
+                 ▼
+┌─────────────────────────────────────────────────┐
+│   Backend API Server (Windows localhost:7243)    │
+│  - npm run server (from Windows)                 │
+│  - Express REST API                              │
+│  - ❌ CANNOT run in WSL                          │
+└────────────────┬────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────┐
+│        PostgreSQL Database (Port 5433)           │
+└─────────────────────────────────────────────────┘
+```
+
+**Why This Pattern?**
+- Windows and WSL have **different network namespaces**
+- Windows `localhost:7243` ≠ WSL `localhost:7243`
+- Cloudflare tunnel runs on Windows and points to Windows localhost
+- If backend runs in WSL, Windows tunnel cannot reach it
+- Frontend in WSL CAN access Windows backend via tunnel (goes through internet)
+
+**Commands:**
+- ✅ Correct: Run `npm run server` from **Windows Command Prompt**
+- ❌ Wrong: Run `npm run server` from **WSL terminal**
+
+**Multi-Server Development Setup:**
+```bash
+# Windows Command Prompt:
+npm run server              # Backend API (port 7243)
+npm run notion-pm:server    # Notion PM sync (port 3001)
+
+# WSL Terminal:
+npm run dev                 # Vite dev server (port 8080)
+```
+
+**Debugging Login Issues:**
+- Error: "JSON.parse: unexpected character at line 1 column 1"
+- Cause: Backend server not running on Windows
+- Result: Cloudflare tunnel returns HTML 404 instead of JSON
+- Solution: Check backend server is running on Windows, not WSL
+
 ## Plugin Communication Patterns
 
 ### Synchronous Communication
