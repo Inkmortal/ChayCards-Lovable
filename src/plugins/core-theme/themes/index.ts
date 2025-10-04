@@ -1,29 +1,10 @@
 /**
- * Theme Registry
- * All available themes for ChayCards
+ * Theme Type Definitions and Default Theme
+ * Individual themes are now registered by separate theme plugins
  */
 
-export { catppuccinLatte, catppuccinFrappe } from './catppuccin';
-export { draculaDark } from './dracula';
-export { tokyoNightStorm, tokyoNightLight } from './tokyonight';
-export { gruvboxDark, gruvboxLight } from './gruvbox';
-
+// Export types for theme plugins to use
 export type { Theme, ThemeVariables } from './catppuccin';
 
-// Export all themes as a registry
-import { catppuccinLatte, catppuccinFrappe } from './catppuccin';
-import { draculaDark } from './dracula';
-import { tokyoNightStorm, tokyoNightLight } from './tokyonight';
-import { gruvboxDark, gruvboxLight } from './gruvbox';
-
-export const ALL_THEMES = [
-  catppuccinLatte,
-  catppuccinFrappe,
-  draculaDark,
-  tokyoNightStorm,
-  tokyoNightLight,
-  gruvboxDark,
-  gruvboxLight
-];
-
-export const DEFAULT_THEME = catppuccinLatte;
+// Export default theme (Catppuccin Latte) - keeps core-theme minimal
+export { catppuccinLatte as DEFAULT_THEME } from './catppuccin';

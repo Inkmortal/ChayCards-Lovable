@@ -1,11 +1,12 @@
 /**
  * ThemeSelector - UI component for switching themes
+ * Uses stateful observer pattern via custom hooks
  */
 
-import React, { useState, useEffect } from 'react';
-import { ChevronDown, Palette } from 'lucide-react';
-import type { Theme } from '../themes';
+import React, { useState } from 'react';
+import { Palette } from 'lucide-react';
 import { PluginManager } from '../../../shared/plugin-system';
+import { useCurrentTheme, useAvailableThemes } from '../hooks/useThemes';
 
 interface ThemeSelectorProps {
   className?: string;
@@ -16,27 +17,10 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   className = '',
   variant = '3d'
 }) => {
-  const [currentTheme, setCurrentTheme] = useState<Theme | null>(null);
-  const [availableThemes, setAvailableThemes] = useState<Theme[]>([]);
+  // Custom hooks handle all subscription logic and provide immediate state
+  const currentTheme = useCurrentTheme();
+  const availableThemes = useAvailableThemes();
   const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    const manager = PluginManager.getInstance();
-    const themeService = manager.getService('core-theme/themeService');
-
-    if (themeService) {
-      // Get current theme and available themes
-      setCurrentTheme(themeService.getCurrentTheme());
-      setAvailableThemes(themeService.getAvailableThemes());
-
-      // Subscribe to theme changes
-      const unsubscribe = themeService.onThemeChange((theme: Theme) => {
-        setCurrentTheme(theme);
-      });
-
-      return unsubscribe;
-    }
-  }, []);
 
   const handleThemeSelect = (themeId: string) => {
     const manager = PluginManager.getInstance();

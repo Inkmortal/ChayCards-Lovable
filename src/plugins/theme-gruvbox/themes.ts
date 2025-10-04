@@ -4,7 +4,7 @@
  * Official colors from https://github.com/morhetz/gruvbox
  */
 
-import type { Theme } from './catppuccin';
+import type { Theme } from '../core-theme/themes';
 
 export const gruvboxDark: Theme = {
   id: 'gruvbox-dark',

@@ -100,7 +100,10 @@
       "WebFetch(domain:favicon.io)",
       "Bash(convert:*)",
       "Bash(env)",
-      "Bash(tsx:*)"
+      "Bash(tsx:*)",
+      "Bash(/dev/null)",
+      "mcp__zen__listmodels",
+      "Read(//mnt/c/Users/danhc/.claude/**)"
     ],
     "deny": []
   },

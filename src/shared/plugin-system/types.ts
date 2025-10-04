@@ -12,6 +12,9 @@ export interface Plugin {
   description?: string;    // What this plugin does
   author?: string;         // Plugin author
 
+  // Public page compatibility
+  publicSafe?: boolean;    // Can run on public pages without user storage (default: false)
+
   // Dependencies
   requires?: string[];     // Array of plugin IDs this depends on
 

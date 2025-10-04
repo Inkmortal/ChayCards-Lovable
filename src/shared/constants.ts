@@ -82,7 +82,7 @@ export function buildPluginStorageKey(pluginId: string, key: string): string {
 }
 
 // Public routes that don't require authentication
-export const PUBLIC_ROUTES = ['/', '/login', '/register', '/setup'] as const;
+export const PUBLIC_ROUTES = ['/', '/login', '/register', '/setup', '/profile'] as const;
 
 // Plugin system
 export const PLUGIN_API_VERSION = '1.0.0';

@@ -518,6 +518,453 @@ const DocumentMetadataPlugin: Plugin = {
 };
 ```
 
+## Plugin Service Patterns
+
+### Stateful Observer Pattern for React Integration
+
+When plugin services need to expose data to React components, use the **stateful observer pattern** to handle component lifecycle timing issues.
+
+#### The Problem
+
+Components may mount/unmount during plugin loading:
+
+```typescript
+// ❌ PROBLEM: Component mounts before theme plugins register
+useEffect(() => {
+  const themeService = manager.getService('core-theme/themeService');
+
+  // Subscribe to changes
+  const unsubscribe = themeService.onThemeListChange(() => {
+    setThemes(themeService.getAvailableThemes());
+  });
+
+  // Initial state
+  setThemes(themeService.getAvailableThemes()); // Only has 1 default theme
+
+  return unsubscribe;
+}, []);
+
+// Component gets stale data if it mounts before other theme plugins load!
+// When theme plugins register later, component has already unmounted/remounted
+// and missed the registration events
+```
+
+#### The Solution: Stateful Observers
+
+Subscription callbacks should **immediately invoke with current state**, then notify on future changes:
+
+```typescript
+// ✅ SOLUTION: Service immediately provides current state
+class ThemeService {
+  private currentTheme: Theme = DEFAULT_THEME;
+  private themes: Map<string, Theme> = new Map();
+  private listeners: Set<(theme: Theme) => void> = new Set();
+  private themeListListeners: Set<(themes: Theme[]) => void> = new Set();
+
+  /**
+   * Subscribe to theme changes
+   * Immediately invokes callback with current theme, then on future changes
+   */
+  onThemeChange(callback: (theme: Theme) => void): () => void {
+    // Immediately provide current state (solves late subscriber problem)
+    callback(this.currentTheme);
+
+    // Add to listeners for future changes
+    this.listeners.add(callback);
+
+    // Return unsubscribe function
+    return () => {
+      this.listeners.delete(callback);
+    };
+  }
+
+  /**
+   * Subscribe to theme list changes (when new themes are registered)
+   * Immediately invokes callback with current themes, then on future registrations
+   */
+  onThemeListChange(callback: (themes: Theme[]) => void): () => void {
+    // Immediately provide current state
+    callback(this.getAvailableThemes());
+
+    // Wrap callback to pass themes on future changes
+    const listener = () => callback(this.getAvailableThemes());
+    this.themeListListeners.add(listener);
+
+    // Return unsubscribe function
+    return () => {
+      this.themeListListeners.delete(listener);
+    };
+  }
+
+  setTheme(themeId: string): void {
+    const theme = this.themes.get(themeId);
+    if (!theme) return;
+
+    this.currentTheme = theme;
+    this.applyTheme(theme);
+
+    // Notify all listeners
+    this.listeners.forEach(callback => callback(theme));
+  }
+
+  registerTheme(theme: Theme): void {
+    this.themes.set(theme.id, theme);
+
+    // Notify theme list listeners
+    this.themeListListeners.forEach(callback => {
+      callback(this.getAvailableThemes());
+    });
+  }
+}
+```
+
+#### React Integration with Custom Hooks
+
+Wrap service subscriptions in custom hooks for clean component API:
+
+```typescript
+// src/plugins/core-theme/hooks/useThemes.ts
+import { useState, useEffect } from 'react';
+import { PluginManager } from '@/shared/plugin-system';
+import type { Theme } from '../themes';
+
+const useThemeService = () => {
+  return PluginManager.getInstance().getService('core-theme/themeService');
+};
+
+/**
+ * Hook to get all available themes
+ * Automatically updates when new themes are registered
+ */
+export const useAvailableThemes = (): Theme[] => {
+  const themeService = useThemeService();
+
+  const [themes, setThemes] = useState<Theme[]>(
+    () => themeService?.getAvailableThemes() || []
+  );
+
+  useEffect(() => {
+    if (!themeService) return;
+
+    // onThemeListChange calls setThemes immediately with current state
+    // This solves the late-subscriber problem
+    const unsubscribe = themeService.onThemeListChange(setThemes);
+
+    return unsubscribe;
+  }, [themeService]);
+
+  return themes;
+};
+
+/**
+ * Hook to get the currently active theme
+ */
+export const useCurrentTheme = (): Theme | null => {
+  const themeService = useThemeService();
+
+  const [theme, setTheme] = useState<Theme | null>(
+    () => themeService?.getCurrentTheme() || null
+  );
+
+  useEffect(() => {
+    if (!themeService) return;
+
+    const unsubscribe = themeService.onThemeChange(setTheme);
+
+    return unsubscribe;
+  }, [themeService]);
+
+  return theme;
+};
+```
+
+#### Component Usage
+
+Components now receive immediate state regardless of plugin load order:
+
+```typescript
+// src/plugins/core-theme/components/ThemeSelector.tsx
+import { useCurrentTheme, useAvailableThemes } from '../hooks/useThemes';
+
+export const ThemeSelector = () => {
+  // Custom hooks handle all subscription logic
+  const currentTheme = useCurrentTheme();
+  const availableThemes = useAvailableThemes();
+
+  // Component always has current data, even if it mounts before
+  // theme plugins finish loading
+  return (
+    <select value={currentTheme?.id}>
+      {availableThemes.map(theme => (
+        <option key={theme.id} value={theme.id}>
+          {theme.name}
+        </option>
+      ))}
+    </select>
+  );
+};
+```
+
+#### Why This Works
+
+1. **Late Subscriber Problem Solved**: Components that mount after events fire still receive current state immediately
+2. **Component Lifecycle Independent**: Mount/unmount/remount during navigation doesn't cause stale data
+3. **Load Order Resilient**: Works regardless of when plugins load relative to component mounting
+4. **Standard Pattern**: Matches how Zustand, Jotai, and other modern state libraries work
+5. **Plugin Philosophy**: Simple observer pattern, no complex state management needed
+
+#### When to Use This Pattern
+
+Use stateful observers when your plugin service:
+- Exposes data to React components
+- Manages state that changes over time (theme, settings, collections)
+- Can be accessed before all plugins have loaded
+- Needs to work across component mount/unmount cycles
+
+#### When to Use Event Bus vs Stateful Observers
+
+**Use Stateful Observers** for data that components need to **read and react to**:
+- ✅ Current theme
+- ✅ Available themes list
+- ✅ User settings
+- ✅ Document collections
+- ✅ Any state that React components render
+
+**Use Event Bus** for notifications and actions that don't need state:
+- ✅ "Document was saved" (trigger analytics, show toast)
+- ✅ "User clicked share button" (open share dialog)
+- ✅ "Task completed" (play sound, update badge)
+- ✅ "Error occurred" (log to console, show error notification)
+- ✅ Cross-plugin notifications where sender doesn't care about current state
+
+#### Example: Event Bus for Actions
+
+```typescript
+// ✅ GOOD: Event bus for one-time notifications
+class DocumentService {
+  async save(doc: Document) {
+    await this.storage.set(`docs/${doc.id}`, doc);
+
+    // Emit event for other plugins to react
+    const eventBus = manager.getEventBus();
+    eventBus.emit('document:saved', {
+      id: doc.id,
+      title: doc.title
+    });
+  }
+}
+
+// Analytics plugin reacts
+eventBus.on('document:saved', (data) => {
+  trackEvent('document_save', { documentId: data.id });
+});
+
+// Notification plugin reacts
+eventBus.on('document:saved', (data) => {
+  showToast(`Saved: ${data.title}`);
+});
+```
+
+#### Anti-Pattern: Event Bus for State
+
+❌ **Don't use event bus when components need current state**:
+
+```typescript
+// BAD: Component misses events if it mounts late
+useEffect(() => {
+  eventBus.on('theme:registered', () => {
+    setThemes(themeService.getAvailableThemes());
+  });
+}, []);
+// Problem: If themes already registered, component never updates
+```
+
+✅ **Use stateful observers instead**:
+
+```typescript
+// GOOD: Service provides immediate state on subscription
+useEffect(() => {
+  const unsubscribe = themeService.onThemeListChange(setThemes);
+  // setThemes called immediately with current data
+  return unsubscribe;
+}, []);
+```
+
+#### Quick Decision Guide
+
+**Ask yourself one question: "What am I doing with this data?"**
+
+1. **Rendering it in a React component** → Stateful Observer
+   ```typescript
+   const themes = useAvailableThemes(); // Custom hook wraps observer
+   return <select>{themes.map(...)}</select>;
+   ```
+
+2. **Broadcasting a one-time event** → Event Bus
+   ```typescript
+   eventBus.emit('document:saved', { id, title });
+   // Other plugins react with analytics, notifications, etc.
+   ```
+
+3. **Getting a return value immediately** → Service Method
+   ```typescript
+   const theme = themeService.getThemeById(id);
+   const results = await documentService.search(query);
+   ```
+
+#### Decision Tree
+
+```
+Do React components need to RENDER this data?
+│
+├─ YES → Stateful Observer Pattern
+│         (Service maintains state, callbacks get immediate value)
+│         Examples: themes, settings, collections, user preferences
+│
+└─ NO → Is this a one-time NOTIFICATION or ACTION?
+        │
+        ├─ YES → Event Bus
+        │         (Fire-and-forget, listeners react but don't track state)
+        │         Examples: "saved", "clicked", "error", analytics events
+        │
+        └─ NO → Do you need IMMEDIATE RETURN VALUE?
+                │
+                └─ YES → Service Method Call
+                          (Synchronous/async query or computation)
+                          Examples: search, calculate, getById, validate
+```
+
+#### Why Three Patterns?
+
+**This isn't arbitrary complexity** - every major plugin system (VSCode, Obsidian, Chrome Extensions) uses multiple patterns because the use cases are fundamentally different:
+
+| Pattern | Memory | Performance | Type Safety | Best For |
+|---------|--------|-------------|-------------|----------|
+| **Stateful Observer** | Moderate | Low overhead | ✅ Strong types | React state that changes over time |
+| **Event Bus** | Low | Minimal | ⚠️ Any type | Fire-and-forget notifications |
+| **Service Method** | Minimal | Direct call | ✅ Strong types | Synchronous queries & mutations |
+
+**Mental Model**: Think of them as different communication styles:
+- **Stateful Observer** = "Tell me the current value, then notify me when it changes"
+- **Event Bus** = "Something just happened, anyone who cares can react"
+- **Service Method** = "I need this data/action right now"
+
+#### Common Mistakes to Avoid
+
+##### ❌ Mistake 1: Using Event Bus for React State
+
+```typescript
+// BAD: Component mounted after events fired = no data
+function ThemeSelector() {
+  const [themes, setThemes] = useState([]);
+
+  useEffect(() => {
+    eventBus.on('theme:registered', () => {
+      setThemes(themeService.getAvailableThemes());
+    });
+  }, []);
+
+  // Problem: If themes registered before mount, component stays empty
+}
+```
+
+```typescript
+// GOOD: Stateful observer provides immediate state
+function ThemeSelector() {
+  const themes = useAvailableThemes(); // Gets current + future
+  // Always has data, regardless of mount timing
+}
+```
+
+##### ❌ Mistake 2: Using Stateful Observer for One-Time Events
+
+```typescript
+// BAD: Unnecessary subscription for notification
+class DocumentService {
+  saveDocument(doc: Document) {
+    this.storage.save(doc);
+
+    // Wrong: This isn't state that changes over time
+    this.notifySaveListeners(doc);
+  }
+
+  onDocumentSaved(callback: (doc: Document) => void) {
+    this.saveListeners.add(callback);
+  }
+}
+```
+
+```typescript
+// GOOD: Event bus for fire-and-forget notifications
+class DocumentService {
+  saveDocument(doc: Document) {
+    this.storage.save(doc);
+
+    // Right: One-time notification
+    eventBus.emit('document:saved', { id: doc.id, title: doc.title });
+  }
+}
+```
+
+##### ❌ Mistake 3: Using Service Methods for Reactive Data
+
+```typescript
+// BAD: Manual polling to check for changes
+function ThemeSelector() {
+  const [theme, setTheme] = useState(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTheme(themeService.getCurrentTheme()); // Polling!
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, []);
+}
+```
+
+```typescript
+// GOOD: Stateful observer automatically notifies on changes
+function ThemeSelector() {
+  const theme = useCurrentTheme(); // Reactive, no polling
+}
+```
+
+##### ❌ Mistake 4: Forgetting to Unsubscribe
+
+```typescript
+// BAD: Memory leak - subscription never cleaned up
+useEffect(() => {
+  themeService.onThemeChange((theme) => {
+    setTheme(theme);
+  });
+  // Missing return cleanup function!
+}, []);
+```
+
+```typescript
+// GOOD: Always return cleanup function
+useEffect(() => {
+  const unsubscribe = themeService.onThemeChange(setTheme);
+  return unsubscribe; // Cleanup on unmount
+}, []);
+```
+
+##### ❌ Mistake 5: Event Bus Without Namespace
+
+```typescript
+// BAD: Generic event names cause collisions
+eventBus.emit('save', { data }); // Which plugin's save?
+eventBus.on('update', handler);  // Update what?
+```
+
+```typescript
+// GOOD: Namespaced events
+eventBus.emit('document:save', { data });
+eventBus.on('theme:update', handler);
+// Format: 'plugin-domain:action'
+```
+
 ## Plugin Communication Patterns
 
 Plugins communicate through well-defined patterns that maintain loose coupling while enabling rich interactions.

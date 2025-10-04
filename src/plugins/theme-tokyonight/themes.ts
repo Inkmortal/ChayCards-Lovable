@@ -4,7 +4,7 @@
  * Official colors from Tokyo Night VS Code theme specifications
  */
 
-import type { Theme } from './catppuccin';
+import type { Theme } from '../core-theme/themes';
 
 export const tokyoNightStorm: Theme = {
   id: 'tokyo-night-storm',

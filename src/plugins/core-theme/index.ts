@@ -13,6 +13,9 @@ export const CoreThemePlugin: Plugin = {
   version: '1.0.0',
   description: 'Provides theming capabilities with multiple theme variants',
 
+  // Can run on public pages with localStorage, syncs to user storage when authenticated
+  publicSafe: true,
+
   // No dependencies - works standalone with localStorage on public pages,
   // syncs to user storage when available on authenticated pages
   requires: [],
@@ -35,14 +38,15 @@ export const CoreThemePlugin: Plugin = {
     console.log('[CoreThemePlugin] ThemeService:', !!themeService);
     console.log('[CoreThemePlugin] Storage:', !!storage);
 
-    // Initialize theme service with storage for persistence (null on public pages)
+    // Initialize theme service with storage for persistence (authenticated pages only)
     if (themeService && storage) {
       console.log('[CoreThemePlugin] Initializing theme service with storage...');
       await themeService.initialize(storage);
     } else if (themeService && !storage) {
-      console.log('[CoreThemePlugin] No storage available (public page), applying localStorage theme...');
-      // On public pages, manually apply the theme from localStorage since initialize() won't be called
-      await themeService.applyLocalStorageTheme();
+      console.log('[CoreThemePlugin] No storage available (public page)');
+      console.log('[CoreThemePlugin] Theme will be applied after all theme plugins load');
+      // DON'T call applyLocalStorageTheme() here - theme plugins haven't loaded yet!
+      // main.tsx will call it after all theme plugins are loaded
     }
 
     // Emit theme system ready event

@@ -4,7 +4,7 @@
  * Official colors from https://draculatheme.com/spec
  */
 
-import type { Theme } from './catppuccin';
+import type { Theme } from '../core-theme/themes';
 
 export const draculaDark: Theme = {
   id: 'dracula-dark',

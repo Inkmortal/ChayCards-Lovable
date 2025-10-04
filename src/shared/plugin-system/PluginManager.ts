@@ -277,6 +277,55 @@ export class PluginManager implements IPluginManager {
     }
   }
 
+  // Load only public-safe plugins (for anonymous users on public pages)
+  async loadPublicSafePlugins(): Promise<void> {
+    try {
+      console.log('[PluginManager] Loading public-safe plugins for anonymous user...');
+
+      // Use Vite's glob import to discover all plugins
+      const pluginModules = import.meta.glob('../../plugins/*/index.ts', { eager: false });
+
+      // Load and filter for publicSafe plugins
+      const plugins: Plugin[] = [];
+      for (const [path, importFn] of Object.entries(pluginModules)) {
+        try {
+          const module = await importFn() as { default: Plugin };
+          if (module.default?.publicSafe) {
+            plugins.push(module.default);
+            console.log(`[PluginManager] Discovered public-safe plugin: ${module.default.id}`);
+          }
+        } catch (error) {
+          console.error(`Failed to import plugin from ${path}:`, error);
+        }
+      }
+
+      // Sort by dependencies to ensure correct load order
+      const sortedPlugins = this.sortPluginsByDependencies(plugins);
+
+      // Load plugins in dependency order
+      for (const plugin of sortedPlugins) {
+        await this.loadPlugin(plugin);
+      }
+
+      console.log(`[PluginManager] Loaded ${sortedPlugins.length} public-safe plugins successfully`);
+
+      // Apply localStorage theme after all theme plugins have loaded
+      const themeService = this.getService('core-theme/themeService');
+      if (themeService) {
+        console.log('[PluginManager] Applying localStorage theme after all plugins loaded...');
+        await themeService.applyLocalStorageTheme();
+        console.log('[PluginManager] Available themes:', themeService.getAvailableThemes());
+        console.log('[PluginManager] Current theme:', themeService.getCurrentTheme());
+      }
+
+      this.eventBus.emit('plugins:public-safe-loaded', { count: sortedPlugins.length });
+
+    } catch (error) {
+      console.error('Failed to load public-safe plugins:', error);
+      throw error;
+    }
+  }
+
   // Reload all plugins (used for HMR)
   private async reloadAllPlugins(): Promise<void> {
     console.log('[HMR] Reloading all plugins...');
@@ -380,7 +429,7 @@ export class PluginManager implements IPluginManager {
   }
 
   // Sort plugins by dependencies (topological sort)
-  private sortPluginsByDependencies(plugins: Plugin[]): Plugin[] {
+  public sortPluginsByDependencies(plugins: Plugin[]): Plugin[] {
     const sorted: Plugin[] = [];
     const visited = new Set<string>();
     const visiting = new Set<string>();

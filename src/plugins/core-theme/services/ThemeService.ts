@@ -4,7 +4,7 @@
  */
 
 import type { Theme } from '../themes';
-import { ALL_THEMES, DEFAULT_THEME } from '../themes';
+import { DEFAULT_THEME } from '../themes';
 import type { StorageAdapter } from '@/shared/storage';
 import { STORAGE_KEYS } from '@/shared/constants';
 
@@ -13,40 +13,48 @@ const THEME_LOCALSTORAGE_KEY = 'chaycards-theme'; // Fallback for public pages
 export class ThemeService {
   private currentTheme: Theme = DEFAULT_THEME;
   private listeners: Set<(theme: Theme) => void> = new Set();
+  private themeListListeners: Set<() => void> = new Set();
   private storage: StorageAdapter | null = null;
+  private themes: Map<string, Theme> = new Map();
 
   constructor() {
     console.log('[ThemeService] Constructor called');
 
-    // Read localStorage theme ID but DON'T apply it yet
-    // This is just for fallback if storage initialization doesn't find anything
-    const localThemeId = localStorage.getItem(THEME_LOCALSTORAGE_KEY);
-    console.log('[ThemeService] localStorage theme ID:', localThemeId);
+    // Register default theme (Catppuccin Latte)
+    // Other themes will be registered by their respective plugins during onLoad
+    this.themes.set(DEFAULT_THEME.id, DEFAULT_THEME);
+    console.log('[ThemeService] Initialized with default theme:', DEFAULT_THEME.name);
 
-    if (localThemeId) {
-      const theme = ALL_THEMES.find(t => t.id === localThemeId);
-      if (theme) {
-        console.log('[ThemeService] Found theme in localStorage (not applying yet):', theme.name);
-        this.currentTheme = theme;
-      } else {
-        console.warn('[ThemeService] Theme ID in localStorage not found in ALL_THEMES:', localThemeId);
-      }
-    } else {
-      console.log('[ThemeService] No theme in localStorage, will use default:', DEFAULT_THEME.name);
-    }
-
-    // DON'T apply theme here - wait for initialize() to check storage first
-    console.log('[ThemeService] Theme ready, waiting for initialize() to apply');
+    // NOTE: DON'T read localStorage here - theme plugins haven't loaded yet!
+    // localStorage theme will be loaded in applyLocalStorageTheme() or initialize()
+    // after all theme plugins have registered their themes
   }
 
   /**
    * Apply theme from localStorage (for public pages without storage)
-   * This is called when no storage adapter is available
+   * This is called AFTER all plugins have loaded
    */
   async applyLocalStorageTheme(): Promise<void> {
-    // Theme is already loaded in constructor, just apply it
-    console.log('[ThemeService] Applying localStorage theme:', this.currentTheme.name);
-    this.applyTheme(this.currentTheme);
+    // NOW we can safely read localStorage - all theme plugins have registered
+    const localThemeId = localStorage.getItem(THEME_LOCALSTORAGE_KEY);
+    console.log('[ThemeService] Reading localStorage theme ID:', localThemeId);
+
+    if (localThemeId) {
+      const theme = this.themes.get(localThemeId);
+      if (theme) {
+        console.log('[ThemeService] Found theme in localStorage:', theme.name);
+        this.currentTheme = theme;
+        this.applyTheme(theme);
+      } else {
+        console.warn('[ThemeService] Theme ID in localStorage not found:', localThemeId);
+        console.warn('[ThemeService] Available themes:', Array.from(this.themes.keys()));
+        // Fall back to default
+        this.applyTheme(this.currentTheme);
+      }
+    } else {
+      console.log('[ThemeService] No theme in localStorage, using default:', this.currentTheme.name);
+      this.applyTheme(this.currentTheme);
+    }
   }
 
   /**
@@ -63,7 +71,7 @@ export class ThemeService {
     try {
       const savedThemeId = await storage.get(STORAGE_KEYS.CORE_THEME);
       if (savedThemeId) {
-        const theme = ALL_THEMES.find(t => t.id === savedThemeId);
+        const theme = this.themes.get(savedThemeId);
         if (theme) {
           themeToApply = theme;
           this.currentTheme = theme;
@@ -90,11 +98,20 @@ export class ThemeService {
   }
 
   /**
+   * Register a new theme (called by theme plugins during onLoad)
+   */
+  registerTheme(theme: Theme): void {
+    this.themes.set(theme.id, theme);
+    console.log(`[ThemeService] Registered theme: ${theme.name} (${theme.id})`);
+    this.notifyThemeListListeners();
+  }
+
+  /**
    * Get all available themes
    */
   getAvailableThemes(): Theme[] {
-    console.log('[ThemeService] getAvailableThemes called, returning', ALL_THEMES.length, 'themes');
-    return [...ALL_THEMES];
+    console.log('[ThemeService] getAvailableThemes called, returning', this.themes.size, 'themes');
+    return Array.from(this.themes.values());
   }
 
   /**
@@ -110,7 +127,7 @@ export class ThemeService {
    * Saves to both user storage (if available) and localStorage (always)
    */
   async setTheme(themeId: string): Promise<void> {
-    const theme = ALL_THEMES.find(t => t.id === themeId);
+    const theme = this.themes.get(themeId);
     if (!theme) {
       console.warn(`Theme ${themeId} not found`);
       return;
@@ -137,13 +154,36 @@ export class ThemeService {
 
   /**
    * Subscribe to theme changes
+   * Immediately invokes callback with current theme, then on future changes
    */
   onThemeChange(callback: (theme: Theme) => void): () => void {
+    // Immediately provide current state (solves late subscriber problem)
+    callback(this.currentTheme);
+
+    // Add to listeners for future changes
     this.listeners.add(callback);
 
     // Return unsubscribe function
     return () => {
       this.listeners.delete(callback);
+    };
+  }
+
+  /**
+   * Subscribe to theme list changes (when new themes are registered)
+   * Immediately invokes callback with current themes, then on future registrations
+   */
+  onThemeListChange(callback: (themes: Theme[]) => void): () => void {
+    // Immediately provide current state (solves late subscriber problem)
+    callback(this.getAvailableThemes());
+
+    // Wrap callback to pass themes on future changes
+    const listener = () => callback(this.getAvailableThemes());
+    this.themeListListeners.add(listener);
+
+    // Return unsubscribe function
+    return () => {
+      this.themeListListeners.delete(listener);
     };
   }
 
@@ -182,10 +222,23 @@ export class ThemeService {
   }
 
   /**
+   * Notify all listeners of theme list change
+   */
+  private notifyThemeListListeners(): void {
+    this.themeListListeners.forEach(callback => {
+      try {
+        callback();
+      } catch (error) {
+        console.error('Error in theme list change callback:', error);
+      }
+    });
+  }
+
+  /**
    * Get theme by ID
    */
   getThemeById(themeId: string): Theme | undefined {
-    return ALL_THEMES.find(t => t.id === themeId);
+    return this.themes.get(themeId);
   }
 
   /**

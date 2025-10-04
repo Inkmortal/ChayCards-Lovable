@@ -71,6 +71,41 @@ const TaskList = getComponent('core.tasks/TaskList');
 4. Declare dependencies in 'requires' array
 5. Services also namespaced: 'plugin-id/serviceName'
 
+## Communication Patterns: Which Should I Use?
+
+**Quick Decision**: What are you doing with this data?
+
+1. **Rendering in React** → Stateful Observer + Custom Hook
+   ```typescript
+   // Service
+   onThemeChange(callback: (theme: Theme) => void): () => void {
+     callback(this.currentTheme); // Immediate state
+     this.listeners.add(callback);
+     return () => this.listeners.delete(callback);
+   }
+
+   // Hook
+   export const useCurrentTheme = () => {
+     const [theme, setTheme] = useState(service.getCurrentTheme());
+     useEffect(() => service.onThemeChange(setTheme), []);
+     return theme;
+   };
+   ```
+
+2. **Broadcasting event** → Event Bus
+   ```typescript
+   eventBus.emit('document:saved', { id, title });
+   eventBus.on('document:saved', (data) => trackAnalytics(data));
+   ```
+
+3. **Getting return value** → Service Method
+   ```typescript
+   const theme = themeService.getThemeById(id);
+   const results = await documentService.search(query);
+   ```
+
+**See full docs**: `/memory-bank/docs/PLUGIN_SYSTEM.md` (lines 521-967)
+
 ## Component Pattern
 ```typescript
 // components/MyList.tsx

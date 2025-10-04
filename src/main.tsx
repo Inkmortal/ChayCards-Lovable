@@ -6,10 +6,6 @@ import { isPublicPage } from './utils/routeUtils'
 import { STORAGE_KEYS } from './shared/constants'
 import { isElectron } from './utils/platform'
 
-// Import public-safe plugins (no user-specific data)
-import CoreUIPlugin from './plugins/core-ui'
-import CoreThemePlugin from './plugins/core-theme'
-
 async function startApp() {
   try {
     // Check if we're on a public page
@@ -30,25 +26,9 @@ async function startApp() {
       // Anonymous user on public page - load minimal plugins with localStorage only
       console.log('[main.tsx] Anonymous user on public page - loading public-safe plugins only');
 
-      // Get plugin manager (no initialization needed - plugins handle storage gracefully)
+      // Get plugin manager and load public-safe plugins (UI + themes)
       const pluginManager = PluginManager.getInstance();
-
-      // Load only UI and theme plugins (no user-specific settings for anonymous users)
-      console.log('[main.tsx] Loading CoreUIPlugin...');
-      await pluginManager.loadPlugin(CoreUIPlugin);
-
-      console.log('[main.tsx] Loading CoreThemePlugin...');
-      await pluginManager.loadPlugin(CoreThemePlugin);
-
-      console.log('[main.tsx] Public-safe plugins loaded successfully:', ['core-ui', 'core-theme']);
-
-      // Verify theme service is available
-      const themeService = pluginManager.getService('core-theme/themeService');
-      console.log('[main.tsx] ThemeService available:', !!themeService);
-      if (themeService) {
-        console.log('[main.tsx] Available themes:', themeService.getAvailableThemes());
-        console.log('[main.tsx] Current theme:', themeService.getCurrentTheme());
-      }
+      await pluginManager.loadPublicSafePlugins();
 
       // Start React app with plugins available
       createRoot(document.getElementById("root")!).render(<App />);

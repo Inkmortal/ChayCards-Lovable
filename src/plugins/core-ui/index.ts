@@ -18,6 +18,9 @@ export const CoreUIPlugin: Plugin = {
   version: '1.0.0',
   description: 'Shared UI component library for plugin ecosystem',
 
+  // Can run on public pages (no user storage needed)
+  publicSafe: true,
+
   // No dependencies - this is a base library
   requires: [],
 
