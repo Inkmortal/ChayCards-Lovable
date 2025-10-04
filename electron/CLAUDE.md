@@ -3,9 +3,24 @@
 ## Purpose
 This directory contains Electron-specific files that handle window management, system integration, and the bridge between the main process and renderer process. These files ONLY run in Electron, never in the web version.
 
+## Structure
+```
+electron/
+├── main.cjs           - Main process entry point (126 lines)
+├── preload.cjs        - Secure IPC bridge
+├── database.cjs       - SQLite database manager
+└── ipc/               - IPC handler modules
+    ├── storageHandlers.cjs  - Storage operations (6 handlers)
+    ├── userHandlers.cjs     - User management (6 handlers)
+    ├── windowHandlers.cjs   - Window controls (4 handlers)
+    └── systemHandlers.cjs   - OS integration (5 handlers)
+```
+
 ## Files
-- `main.cjs` - Main process entry point (creates windows, app lifecycle)
+- `main.cjs` - Main process entry point (window creation, app lifecycle)
 - `preload.cjs` - Secure bridge between main and renderer processes
+- `database.cjs` - DatabaseManager class for SQLite initialization and migrations
+- `ipc/` - IPC handler modules organized by functionality
 
 ## Key Concepts
 
@@ -63,18 +78,79 @@ const server = spawn('node', ['src/server/local.js'], {
 - Protocol handling
 - Auto-updater
 
+## Modular Architecture
+
+### IPC Handler Organization
+Each handler module follows a consistent pattern:
+
+```javascript
+// electron/ipc/exampleHandlers.cjs
+const { ipcMain } = require('electron');
+
+function registerExampleHandlers(dependencies) {
+  ipcMain.handle('example:action', async (event, data) => {
+    // Implementation using injected dependencies
+  });
+}
+
+module.exports = { registerExampleHandlers };
+```
+
+### Handler Registration (main.cjs)
+```javascript
+// 1. Initialize database
+dbManager = new DatabaseManager(app);
+db = dbManager.initialize();
+
+// 2. Register handlers that depend on database
+registerStorageHandlers(db);
+registerUserHandlers(db);
+
+// 3. Create window
+createWindow();
+
+// 4. Register handlers that depend on window
+registerWindowHandlers(mainWindow);
+registerSystemHandlers(mainWindow);
+```
+
+### Benefits of Modular Structure
+- **Single Responsibility**: Each module handles one domain
+- **Testable**: Dependencies are injected, easy to mock
+- **Maintainable**: Small, focused files (~70-100 lines each)
+- **Clear Dependencies**: Explicit parameter passing shows what each handler needs
+
 ## Common Tasks
 
 ### Adding IPC Handlers
+1. Create handler in appropriate module (or create new module in `ipc/`)
+2. Export registration function
+3. Import and call in `main.cjs` `app.whenReady()`
+4. Expose in `preload.cjs` if needed by renderer
+
 ```javascript
+// electron/ipc/newHandlers.cjs
+const { ipcMain } = require('electron');
+
+function registerNewHandlers(dependencies) {
+  ipcMain.handle('new:action', async (event, data) => {
+    // Implementation
+  });
+}
+
+module.exports = { registerNewHandlers };
+
 // main.cjs
-ipcMain.handle('get-data', async (event, key) => {
-  return await storage.get(key)
-})
+const { registerNewHandlers } = require('./ipc/newHandlers.cjs');
+
+app.whenReady().then(() => {
+  // ... other initialization
+  registerNewHandlers(dependencies);
+});
 
 // preload.cjs
 electronAPI: {
-  getData: (key) => ipcRenderer.invoke('get-data', key)
+  newAction: (data) => ipcRenderer.invoke('new:action', data)
 }
 ```
 
