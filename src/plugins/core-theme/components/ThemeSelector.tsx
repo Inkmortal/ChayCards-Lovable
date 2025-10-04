@@ -63,10 +63,10 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           : "flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
         }
         style={variant === '3d' ? {
-          boxShadow: '0 8px 0 color-mix(in oklab, hsl(var(--muted)), black 25%), 0 12px 20px color-mix(in oklab, hsl(var(--muted)), black 50%), inset 0 1px 0 hsl(var(--background))',
+          boxShadow: '0 8px 0 color-mix(in oklab, hsl(var(--primary)), black 25%), 0 12px 20px color-mix(in oklab, hsl(var(--primary)), black 50%), inset 0 1px 0 hsl(var(--background))',
           background: 'hsl(var(--background))',
-          borderColor: 'hsl(var(--muted))',
-          color: 'hsl(var(--muted-foreground))'
+          borderColor: 'hsl(var(--primary))',
+          color: 'hsl(var(--primary))'
         } : undefined}
       >
         <Palette className="w-4 h-4" />
