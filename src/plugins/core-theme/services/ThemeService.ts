@@ -18,25 +18,25 @@ export class ThemeService {
   constructor() {
     console.log('[ThemeService] Constructor called');
 
-    // Try to load theme from localStorage first (works on all pages)
+    // Read localStorage theme ID but DON'T apply it yet
+    // This is just for fallback if storage initialization doesn't find anything
     const localThemeId = localStorage.getItem(THEME_LOCALSTORAGE_KEY);
     console.log('[ThemeService] localStorage theme ID:', localThemeId);
 
     if (localThemeId) {
       const theme = ALL_THEMES.find(t => t.id === localThemeId);
       if (theme) {
-        console.log('[ThemeService] Found theme in localStorage:', theme.name);
+        console.log('[ThemeService] Found theme in localStorage (not applying yet):', theme.name);
         this.currentTheme = theme;
       } else {
         console.warn('[ThemeService] Theme ID in localStorage not found in ALL_THEMES:', localThemeId);
       }
     } else {
-      console.log('[ThemeService] No theme in localStorage, using default:', DEFAULT_THEME.name);
+      console.log('[ThemeService] No theme in localStorage, will use default:', DEFAULT_THEME.name);
     }
 
-    // Apply theme immediately
-    console.log('[ThemeService] Applying theme:', this.currentTheme.name);
-    this.applyTheme(this.currentTheme);
+    // DON'T apply theme here - wait for initialize() to check storage first
+    console.log('[ThemeService] Theme ready, waiting for initialize() to apply');
   }
 
   /**
@@ -46,27 +46,36 @@ export class ThemeService {
    */
   async initialize(storage: StorageAdapter): Promise<void> {
     this.storage = storage;
+    let themeToApply = this.currentTheme; // Default to what constructor loaded from localStorage
 
     // Try to load theme from user storage (cloud/local database)
+    // This takes priority over localStorage
     try {
       const savedThemeId = await storage.get(THEME_KEY);
       if (savedThemeId) {
         const theme = ALL_THEMES.find(t => t.id === savedThemeId);
         if (theme) {
+          themeToApply = theme;
           this.currentTheme = theme;
-          this.applyTheme(theme);
           // Sync to localStorage as fallback
           localStorage.setItem(THEME_LOCALSTORAGE_KEY, savedThemeId);
           console.log('[ThemeService] Loaded theme from user storage:', savedThemeId);
-          return;
+        }
+      } else {
+        console.log('[ThemeService] No theme in user storage, checking localStorage fallback');
+        // If no theme in storage but we have one in localStorage, migrate it
+        if (this.currentTheme.id !== DEFAULT_THEME.id) {
+          console.log('[ThemeService] Migrating localStorage theme to storage:', this.currentTheme.id);
+          await storage.set(THEME_KEY, this.currentTheme.id);
         }
       }
     } catch (error) {
       console.error('[ThemeService] Failed to load theme from storage:', error);
     }
 
-    // If no user storage theme, keep the localStorage theme (already loaded in constructor)
-    console.log('[ThemeService] Using theme from localStorage or default:', this.currentTheme.id);
+    // NOW apply the theme (whether from storage, localStorage, or default)
+    console.log('[ThemeService] Applying final theme:', themeToApply.name);
+    this.applyTheme(themeToApply);
   }
 
   /**

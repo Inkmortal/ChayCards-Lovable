@@ -9,6 +9,7 @@ import { Menu, X, BookOpen, Loader2 } from 'lucide-react';
 import { PluginManager } from '../../shared/plugin-system';
 import { PluginHost } from '../plugin-host/PluginHost';
 import { STORAGE_KEYS } from '@/shared/constants';
+import { isElectron } from '@/utils/platform';
 
 export const AppShell: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -24,16 +25,12 @@ export const AppShell: React.FC = () => {
   // Auth guard - check for local profile (Electron) OR cloud auth token (Web)
   useEffect(() => {
     const checkAuthAndLoadPlugins = async () => {
-      // Check if we're in Electron - use multiple detection methods
-      const isElectron = !!(window.electronAPI || navigator.userAgent.includes('Electron'));
-
       console.log('[AppShell] Platform detection:', {
-        hasElectronAPI: !!window.electronAPI,
-        userAgent: navigator.userAgent,
-        isElectron
+        isElectron: isElectron(),
+        userAgent: navigator.userAgent
       });
 
-      if (isElectron && window.electronAPI) {
+      if (isElectron() && window.electronAPI) {
         // Electron: Check for active local profile
         const lastProfileId = localStorage.getItem(STORAGE_KEYS.LAST_PROFILE_ID);
 
@@ -60,6 +57,24 @@ export const AppShell: React.FC = () => {
 
           // Load plugins (which initializes storage)
           const routes = pluginManager.getAllRoutes();
+
+          // CRITICAL: Re-initialize theme service with storage if plugins were pre-loaded
+          // This happens when user visits public page first, then selects profile
+          const storage = pluginManager.getStorage();
+          const themeService = pluginManager.getService('core-theme/themeService');
+          console.log('[AppShell] Theme re-init check:', {
+            hasStorage: !!storage,
+            hasThemeService: !!themeService
+          });
+          if (storage && themeService) {
+            console.log('[AppShell] Re-initializing theme service with storage...');
+            await themeService.initialize(storage);
+          } else {
+            console.log('[AppShell] Skipping theme re-init - missing:', {
+              storage: !storage ? 'missing' : 'ok',
+              themeService: !themeService ? 'missing' : 'ok'
+            });
+          }
           if (routes.length === 0) {
             console.log('[AppShell] Loading plugins...');
             setPluginsLoading(true);
@@ -96,6 +111,23 @@ export const AppShell: React.FC = () => {
 
         // Load plugins for web
         const routes = pluginManager.getAllRoutes();
+
+        // CRITICAL: Re-initialize theme service with storage if plugins were pre-loaded
+        const storage = pluginManager.getStorage();
+        const themeService = pluginManager.getService('core-theme/themeService');
+        console.log('[AppShell] Theme re-init check:', {
+          hasStorage: !!storage,
+          hasThemeService: !!themeService
+        });
+        if (storage && themeService) {
+          console.log('[AppShell] Re-initializing theme service with storage...');
+          await themeService.initialize(storage);
+        } else {
+          console.log('[AppShell] Skipping theme re-init - missing:', {
+            storage: !storage ? 'missing' : 'ok',
+            themeService: !themeService ? 'missing' : 'ok'
+          });
+        }
         if (routes.length === 0) {
           console.log('[AppShell] Loading plugins...');
           setPluginsLoading(true);
