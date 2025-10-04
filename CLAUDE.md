@@ -44,6 +44,36 @@ This project uses a special dual-environment setup:
 - Test Electron functionality using Windows executable
 - Always verify changes work in both environments
 
+### Platform Detection Standard
+
+**CRITICAL**: Always use `src/utils/platform.ts` for platform detection. NEVER check `window.electronAPI` directly.
+
+```typescript
+// ✅ CORRECT - Use standardized utility
+import { isElectron, isWeb, isCapacitor } from '@/utils/platform';
+
+if (isElectron()) {
+  // Access Electron API
+  await window.electronAPI.storage.get(key);
+}
+
+// ❌ WRONG - Direct window.electronAPI check
+if (window.electronAPI !== undefined) {  // DON'T DO THIS
+  //...
+}
+```
+
+**Available utilities**:
+- `isElectron()` - Desktop Electron app (local SQLite storage)
+- `isWeb()` - Browser (cloud PostgreSQL storage)
+- `isCapacitor()` - Mobile iOS/Android
+- `isMobile()` - Alias for isCapacitor()
+- `isDesktop()` - Alias for isElectron()
+- `getPlatform()` - Returns 'electron' | 'web' | 'capacitor'
+- `platformCapabilities` - Feature detection (hasFileSystem, hasNativeFeatures, etc.)
+
+See `src/utils/platform.ts:src/utils/platform.ts` for full JSDoc documentation.
+
 ### Git Commit Policy
 **CRITICAL**: Never include Claude attribution in commit messages.
 - NO "Generated with Claude Code" footer
@@ -121,6 +151,9 @@ This project uses a special dual-environment setup:
 
 ##### Integration Tools
 - **Notion MCP** - Track tasks in ChayCards_Dev database across sessions
+  - **CRITICAL**: When human mentions status terms (e.g., "in progress", "backlog", "done"), these refer to the **literal Notion Status property values**
+  - Always filter queries by Status property when these terms are mentioned
+  - See notion.md for complete Status filtering guide
 - **Puppeteer MCP** - Automated browser testing and UI verification
 
 #### Agent Best Practices

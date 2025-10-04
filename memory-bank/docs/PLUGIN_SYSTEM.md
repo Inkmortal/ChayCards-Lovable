@@ -309,6 +309,115 @@ async function loadAllPlugins(): Promise<void> {
 - **HMR Support**: Hot reload works in development
 - **Tree Shaking**: Unused plugin code isn't bundled
 
+### Per-User Plugin Loading (Multi-Tenant Scalability)
+
+The dynamic import architecture solves the critical multi-tenant problem: **How do different users get different plugins from the same deployment?**
+
+**Build Process:**
+```bash
+npm run build
+→ Creates ONE build for all users:
+   assets/
+   ├── index-abc123.js           (core app ~5MB)
+   ├── core-theme-def456.js      (plugin chunk ~500KB)
+   ├── core-documents-ghi789.js  (plugin chunk ~800KB)
+   ├── core-tasks-jkl012.js      (plugin chunk ~600KB)
+   ├── ai-assistant-mno345.js    (plugin chunk ~1.2MB)
+   └── ... (100+ plugin chunks)
+```
+
+**Per-User Loading:**
+```typescript
+// Client initialization - only loads user's enabled plugins
+async function initUserSession(userId: string) {
+  // 1. Server returns which plugins THIS user has enabled
+  const { enabledPlugins } = await fetch(`/api/users/${userId}/plugins`)
+    .then(r => r.json());
+  // Response: { enabledPlugins: ['core-theme', 'core-documents'] }
+
+  // 2. Load ONLY those plugin chunks (not all 100+)
+  const manager = PluginManager.getInstance();
+  for (const pluginId of enabledPlugins) {
+    // Downloads core-theme-def456.js and core-documents-ghi789.js
+    // Other plugin chunks (tasks, ai-assistant, etc.) are NEVER downloaded
+    await loadPluginModule(pluginId);
+  }
+
+  // 3. Render app with user's specific plugin set
+  renderApp();
+}
+```
+
+**Scalability Benefits:**
+- ✅ **No per-user builds** - One build serves all users
+- ✅ **Minimal storage** - ~50MB total for entire app (all plugins)
+- ✅ **Bandwidth efficient** - Users download only what they need
+- ✅ **Plugin overrides work** - Load order determines which plugin wins
+
+**Example:**
+
+| User | Enabled Plugins | Downloads |
+|------|----------------|-----------|
+| User A | `['core-theme', 'core-documents']` | Core (5MB) + 2 chunks (1.3MB) = **6.3MB** |
+| User B | `['core-theme', 'core-tasks', 'ai-assistant']` | Core (5MB) + 3 chunks (2.3MB) = **7.3MB** |
+| User C | All 100 plugins | Core (5MB) + 100 chunks (45MB) = **50MB** |
+
+**Same build, different downloads.** No expensive per-user bundle storage.
+
+**Plugin Override Example:**
+
+User wants custom theme selector from third-party plugin instead of core-theme's version:
+
+```typescript
+// Server returns plugins in specific load order
+{
+  enabledPlugins: [
+    'core-theme',        // Loads first (base implementation)
+    'theme-pack-pro'     // Loads second (overwrites ThemeSelector)
+  ]
+}
+
+// Result: User sees ThemeSelector from theme-pack-pro
+// because it was loaded after core-theme and replaced it in registry
+```
+
+**Backend Implementation:**
+
+```typescript
+// Database schema
+users_plugins {
+  userId: string,
+  pluginId: string,
+  enabled: boolean,
+  loadOrder: number  // Controls override priority
+}
+
+// API endpoint
+app.get('/api/users/:userId/plugins', async (req, res) => {
+  const plugins = await db.query(`
+    SELECT pluginId
+    FROM users_plugins
+    WHERE userId = $1 AND enabled = true
+    ORDER BY loadOrder ASC
+  `, [req.params.userId]);
+
+  res.json({
+    enabledPlugins: plugins.map(p => p.pluginId)
+  });
+});
+```
+
+**Local (Electron) vs Cloud (Web):**
+
+| Aspect | Electron | Web |
+|--------|----------|-----|
+| Plugin source | Local filesystem (`~/.chaycards/plugins/`) | CDN chunks |
+| User preferences | SQLite database | PostgreSQL database |
+| Loading mechanism | `import.meta.glob()` same code | `import.meta.glob()` same code |
+| Per-user isolation | One user per install | Database-driven filtering |
+
+**Same plugin system, same code, works in both environments.**
+
 ## Extension Patterns
 
 ### 1. Component Wrapping
@@ -1256,6 +1365,8 @@ This plugin could provide:
 
 ## FAQ
 
+### Plugin Conflicts & Load Order
+
 **Q: What if two plugins modify the same component?**
 A: Last one loaded wins. Users can control load order in settings.
 
@@ -1264,6 +1375,8 @@ A: Plugin DevTools will show what modified what, in what order.
 
 **Q: Can plugins break the app?**
 A: Yes, just like game mods. Users accept this when installing plugins.
+
+### Distribution & Monetization
 
 **Q: How do I distribute my plugin?**
 A: Package as npm module or zip file. Will have marketplace later.
@@ -1274,6 +1387,8 @@ A: Yes, plugins are your IP. Marketplace will support paid plugins.
 **Q: Can plugins manage other plugins?**
 A: Yes! Even plugin management is a plugin. Users can install alternative plugin managers.
 
+### Python Backend
+
 **Q: Can plugins include Python backends?**
 A: Yes! Plugins can bundle Python code that runs as managed child processes. See the [Python Backend documentation](./PLUGIN_PYTHON_BACKEND.md).
 
@@ -1282,3 +1397,75 @@ A: Python dependencies are installed during build and bundled with the Electron 
 
 **Q: Do users need Python installed?**
 A: No, the Electron app bundles a Python runtime. Everything is included in the installer.
+
+### Multi-Tenant Deployment & Scalability
+
+**Q: In cloud hosting, do I need to build separate bundles for each user?**
+A: No! One build serves all users. Vite's code-splitting creates separate chunks for each plugin. Users download only the chunks for plugins they've enabled. No per-user builds or storage duplication needed.
+
+**Q: What if I have 10,000 users with different plugin combinations?**
+A: Still one build. Example:
+- Build output: 1 core bundle + 100 plugin chunks = ~50MB total
+- User A enables 5 plugins → downloads core + 5 chunks (~8MB)
+- User B enables 20 plugins → downloads core + 20 chunks (~15MB)
+- Storage cost: $0.50/month for entire app on CDN
+- Bandwidth: Pay only for what users actually download
+
+**Q: How do I track which plugins each user has enabled?**
+A: Database table:
+```sql
+CREATE TABLE users_plugins (
+  user_id UUID,
+  plugin_id VARCHAR(255),
+  enabled BOOLEAN DEFAULT true,
+  load_order INTEGER,  -- Controls override priority
+  PRIMARY KEY (user_id, plugin_id)
+);
+```
+
+**Q: How does the client know which plugins to load?**
+A: API endpoint returns user's enabled plugins:
+```typescript
+GET /api/users/:userId/plugins
+→ { enabledPlugins: ['core-theme', 'core-documents', 'ai-assistant'] }
+```
+Client loops through this list and dynamically imports only those chunks.
+
+**Q: Can different users have different versions of the same plugin?**
+A: Not from same deployment. All users get same plugin version per deployment. For different versions, users need separate deployments or you need plugin versioning system (each version = separate chunk).
+
+**Q: How do plugin overrides work in multi-tenant?**
+A: Load order from database determines priority. User's `load_order` column controls which plugin loads last (and thus overrides others). User A can have `['core-theme', 'theme-pro']` (pro wins), User B can have just `['core-theme']` (core wins).
+
+**Q: Does this work the same in Electron and Web?**
+A: Yes! Same code:
+- **Electron**: Plugins load from local filesystem, user prefs in SQLite
+- **Web**: Plugins load from CDN chunks, user prefs in PostgreSQL
+- Same `import.meta.glob()`, same PluginManager, same dynamic imports
+
+**Q: What about plugin security in cloud hosting?**
+A: No sandboxing - game mod philosophy. Plugins run with full access. Security is review-based (marketplace moderation), not technical isolation. Users accept risk when installing plugins, same as Skyrim mods or VSCode extensions.
+
+**Q: How do I handle plugin marketplace with thousands of plugins?**
+A: Build process discovers plugins automatically:
+```typescript
+// Vite scans /src/plugins/* and creates chunks for ALL of them
+const pluginModules = import.meta.glob('/src/plugins/*/index.ts');
+// Each plugin becomes a chunk: plugin-name-hash123.js
+```
+Users can browse marketplace, enable plugins, and client downloads chunks on-demand. No rebuild needed when adding new plugins to marketplace - just deploy new plugin chunks to CDN.
+
+**Q: What if a plugin is 50MB (huge ML model)?**
+A: Still works - it's just a bigger chunk. User who enables it downloads 50MB. User who doesn't enable it downloads 0MB. That's the beauty of code-splitting.
+
+**Q: Can I lazy-load parts of a plugin?**
+A: Yes! Use dynamic imports inside the plugin:
+```typescript
+// Plugin loads fast, ML model loads only when needed
+export const AIPlugin = {
+  async processImage(img) {
+    const { heavyMLModel } = await import('./ml-model.js'); // Separate chunk
+    return heavyMLModel.process(img);
+  }
+}
+```

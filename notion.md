@@ -45,38 +45,97 @@ Tasks use **Notion-flavored Markdown** directly in the content field during crea
 
 ## Querying Tasks
 
-To see all incomplete tasks (default):
-```
-mcp__notion__notion-search
-- query: ""
-- data_source_url: "collection://1fcbbd9b-1a29-80d5-bc07-000be692a8ea"
-- filters: {
-    "created_by_user_ids": [],
-    "created_date_range": {"start_date": "2024-01-01"}
-  }
+### CRITICAL: Status Property Values
+When the human mentions status terms, they refer to the **literal Status property values** in Notion:
+- **"Not started"** = Status property equals "Not started"
+- **"In progress"** = Status property equals "In progress"
+- **"Backlog"** = Status property equals "Backlog"
+- **"In Review"** = Status property equals "In Review"
+- **"Done"** = Status property equals "Done"
+
+**ALWAYS filter by Status property** when human mentions these terms to save context and get exactly what they mean.
+
+### How to Query by Status (HYBRID APPROACH)
+
+**The MCP server doesn't expose database queries** - use this two-step hybrid flow:
+
+**Step 1: Query with Official Notion API (curl)**
+```bash
+curl -X POST https://api.notion.com/v1/databases/1fcbbd9b-1a29-8037-93a7-f8088c952035/query \
+  -H "Authorization: Bearer ${NOTION_API_KEY}" \
+  -H "Notion-Version: 2022-06-28" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": {
+      "property": "Status",
+      "status": {"equals": "In progress"}
+    }
+  }'
 ```
 
-To filter by specific status:
-```
-- filter: {"property": "Status", "status": {"equals": "In progress"}}
+This returns an array of page objects with IDs like:
+```json
+{"results": [
+  {"id": "280bbd9b-1a29-8166-b3a6-d82d29898b58", "properties": {...}},
+  {"id": "280bbd9b-1a29-8175-b6b2-f141a5aea2b4", "properties": {...}}
+]}
 ```
 
-To see all tasks (including completed):
+**Step 2: Fetch Full Details with MCP**
+Use the page IDs from Step 1 to get complete content:
 ```
-mcp__notion__API-post-database-query
-- database_id: "1fcbbd9b-1a29-8037-93a7-f8088c952035"
-- sorts: [{"property": "Priority", "direction": "ascending"}]
+mcp__notion__notion-fetch
+- id: "280bbd9b-1a29-8166-b3a6-d82d29898b58"
 ```
+
+Returns full page with Notion-flavored Markdown content, properties, and acceptance criteria.
+
+### Why Hybrid?
+- **curl**: Official API supports property filtering (Status, Priority, etc.)
+- **MCP fetch**: Returns rich formatted content (checkboxes, sections, full details)
+- **MCP**: Limited to basic tools (search, fetch, create, update) - no query/filter
+
+### Complete Example: "Show me tasks in progress"
+
+```bash
+# Step 1: Query by Status via API
+curl -X POST https://api.notion.com/v1/databases/1fcbbd9b-1a29-8037-93a7-f8088c952035/query \
+  -H "Authorization: Bearer ${NOTION_API_KEY}" \
+  -H "Notion-Version: 2022-06-28" \
+  -H "Content-Type: application/json" \
+  -d '{"filter": {"property": "Status", "status": {"equals": "In progress"}}}'
+
+# Returns 3 task IDs:
+# - 280bbd9b-1a29-8166-b3a6-d82d29898b58 (Refactor electron/main.cjs)
+# - 280bbd9b-1a29-8175-b6b2-f141a5aea2b4 (Centralize Plugin Storage Key)
+# - 280bbd9b-1a29-81bc-b1fb-e46e3d4b06c9 (Standardize Platform Detection)
+```
+
+Then fetch details for each:
+```
+mcp__notion__notion-fetch
+- id: "280bbd9b-1a29-81bc-b1fb-e46e3d4b06c9"
+```
+
+Returns full task with acceptance criteria, problem description, solution steps.
 
 ## Updating Tasks
 
 ### CRITICAL RULE: Status Changes
-**Claude MUST NOT change task Status property** - Only the human can move tasks between "Not started", "In progress", and "Done".
+**Claude MUST NOT change task Status property** - Only the human can move tasks between statuses.
+
+**Status workflow:**
+- "Not started" → "In progress": Human only
+- "In progress" → "In Review": Claude MAY do this, but MUST ask human first
+- "In Review" → "Done": Human only
+
+**NEVER move directly to "Done"** - Tasks must go through "In Review" first and await human approval.
 
 Claude IS ALLOWED to:
 - Update checkboxes in task content for progress tracking
 - Add notes and implementation details
 - Update acceptance criteria checkboxes
+- Ask to move task to "In Review" when work is complete
 
 ### Update Checkboxes (ALLOWED):
 ```
