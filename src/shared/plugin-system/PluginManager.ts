@@ -219,9 +219,19 @@ export class PluginManager implements IPluginManager {
   async loadAllPlugins(): Promise<void> {
     try {
       // Use Vite's glob import to discover plugins
-      const pluginModules = import.meta.glob('../../plugins/*/index.ts');
+      // { eager: false } enables HMR for individual plugin changes
+      const pluginModules = import.meta.glob('../../plugins/*/index.ts', { eager: false });
 
       console.log('Discovered plugins:', Object.keys(pluginModules));
+
+      // Enable HMR for plugin modules in development
+      if (import.meta.hot) {
+        import.meta.hot.accept(Object.keys(pluginModules), async (newModules) => {
+          console.log('[HMR] Plugin modules updated, reloading...');
+          // Reload all plugins to pick up changes
+          await this.reloadAllPlugins();
+        });
+      }
 
       // Load all plugin modules
       const plugins: Plugin[] = [];
@@ -265,6 +275,69 @@ export class PluginManager implements IPluginManager {
       console.error('Failed to load plugins:', error);
       throw error;
     }
+  }
+
+  // Reload all plugins (used for HMR)
+  private async reloadAllPlugins(): Promise<void> {
+    console.log('[HMR] Reloading all plugins...');
+
+    // Get current plugin IDs to reload
+    const pluginIds = Array.from(this.loadedPlugins.keys());
+
+    // Unload all plugins (in reverse dependency order)
+    for (const pluginId of pluginIds.reverse()) {
+      try {
+        await this.unloadPlugin(pluginId);
+      } catch (error) {
+        console.error(`[HMR] Failed to unload plugin ${pluginId}:`, error);
+      }
+    }
+
+    // Clear registries to prevent stale references
+    this.components.clear();
+    this.services.clear();
+    this.routes.clear();
+    this.navigationItems = [];
+    this.regions.clear();
+
+    // Re-import plugin modules (fresh from disk)
+    const pluginModules = import.meta.glob('../../plugins/*/index.ts', { eager: false });
+    const plugins: Plugin[] = [];
+
+    for (const [path, importFn] of Object.entries(pluginModules)) {
+      try {
+        const module = await importFn() as { default: Plugin };
+        if (module.default) {
+          plugins.push(module.default);
+        }
+      } catch (error) {
+        console.error(`[HMR] Failed to re-import plugin from ${path}:`, error);
+      }
+    }
+
+    // Sort and reload
+    const sortedPlugins = this.sortPluginsByDependencies(plugins);
+
+    // Load core-settings first
+    const coreSettings = sortedPlugins.find(p => p.id === 'core-settings');
+    if (coreSettings) {
+      await this.loadPlugin(coreSettings);
+
+      // Re-initialize storage if needed
+      if (!this.storageInitialized) {
+        await this.initializeStorage();
+      }
+    }
+
+    // Load remaining plugins
+    for (const plugin of sortedPlugins) {
+      if (plugin.id !== 'core-settings') {
+        await this.loadPlugin(plugin);
+      }
+    }
+
+    console.log('[HMR] Plugins reloaded successfully');
+    this.eventBus.emit('plugins:reloaded');
   }
 
   // Unload a plugin (for testing or dynamic plugin management)

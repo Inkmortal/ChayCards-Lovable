@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     strictPort: true, // Exit if port is already in use instead of trying another
+    hmr: {
+      overlay: true, // Show HMR errors in browser
+    },
   },
   plugins: [
     react(),
@@ -19,5 +22,11 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  optimizeDeps: {
+    // Force Vite to pre-bundle plugin modules for faster HMR
+    include: ['react', 'react-dom'],
+    // Exclude plugins from pre-bundling so HMR can reload them individually
+    exclude: ['src/plugins/*'],
   },
 }));
