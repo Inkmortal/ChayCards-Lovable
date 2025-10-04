@@ -10,7 +10,7 @@ const Index = () => {
   // Check for existing profile and auto-login
   useEffect(() => {
     const checkProfileAndRedirect = async () => {
-      if (isElectron) {
+      if (isElectron()) {
         // ONLY run this logic if we're actually on the Index page (Electron-only guard)
         if (window.location.pathname !== '/') {
           return;
@@ -66,10 +66,10 @@ const Index = () => {
 
   // Handle platform-specific routing
   const handleGetStarted = () => {
-    if (isElectron) {
+    if (isElectron()) {
       // Desktop: Show setup screen for local/sync/cloud choice
       navigate('/setup');
-    } else if (isWeb) {
+    } else if (isWeb()) {
       // Web: Direct to registration for cloud-first experience
       navigate('/register');
     }
@@ -77,7 +77,7 @@ const Index = () => {
 
   const handleDownload = () => {
     // TODO: Implement download logic
-    console.log('Download requested for platform:', { isElectron, isWeb, isMobile });
+    console.log('Download requested for platform:', { isElectron: isElectron(), isWeb: isWeb(), isMobile });
   };
 
   return (
@@ -95,7 +95,7 @@ const Index = () => {
       <CTASection
         onGetStarted={handleGetStarted}
         onDownload={handleDownload}
-        isElectron={isElectron}
+        isElectron={isElectron()}
       />
 
       {/* Footer */}
