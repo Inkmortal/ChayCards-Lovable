@@ -11,8 +11,7 @@ import type { UserSettings, StorageMode } from '../types';
 import { getDefaultSettings } from '../types';
 import type { StorageAdapter } from '@/shared/storage';
 import { isElectron } from '@/utils/platform';
-
-const SETTINGS_KEY = 'core-settings:app-settings';
+import { STORAGE_KEYS } from '@/shared/constants';
 
 export class SettingsService {
   private settings: UserSettings = getDefaultSettings();
@@ -99,7 +98,7 @@ export class SettingsService {
     try {
       if (this.storage) {
         // Load from StorageAdapter (SQLite/PostgreSQL)
-        const stored = await this.storage.get(SETTINGS_KEY);
+        const stored = await this.storage.get(STORAGE_KEYS.CORE_SETTINGS);
         if (stored) {
           this.settings = { ...getDefaultSettings(), ...stored };
           console.log('[SettingsService] Loaded settings from storage:', this.settings);
@@ -122,7 +121,7 @@ export class SettingsService {
     try {
       if (this.storage) {
         // Save to StorageAdapter (SQLite/PostgreSQL)
-        await this.storage.set(SETTINGS_KEY, this.settings);
+        await this.storage.set(STORAGE_KEYS.CORE_SETTINGS, this.settings);
         console.log('[SettingsService] Saved settings to storage');
       } else {
         console.warn('[SettingsService] Cannot save - storage not initialized yet');

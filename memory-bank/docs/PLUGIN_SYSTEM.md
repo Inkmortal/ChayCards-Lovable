@@ -952,13 +952,61 @@ export const AnalyticsPlugin: Plugin = {
 };
 ```
 
+### Storage Key Naming Pattern
+
+All plugins MUST follow the `plugin-id:key-name` naming pattern for storage keys:
+
+```typescript
+import { buildPluginStorageKey } from '@/shared/constants';
+
+export class MyPluginService {
+  private PLUGIN_ID = 'my-plugin';
+
+  async saveData(storage: StorageAdapter, data: any) {
+    // Use the helper function to build keys
+    const key = buildPluginStorageKey(this.PLUGIN_ID, 'user-data');
+    await storage.set(key, data);
+    // Stored as: 'my-plugin:user-data'
+  }
+
+  async loadData(storage: StorageAdapter) {
+    const key = buildPluginStorageKey(this.PLUGIN_ID, 'user-data');
+    return await storage.get(key);
+  }
+
+  async getAllKeys(storage: StorageAdapter) {
+    // Query all keys for this plugin
+    const prefix = `${this.PLUGIN_ID}:`;
+    return await storage.list(prefix);
+    // Returns: ['my-plugin:user-data', 'my-plugin:settings', ...]
+  }
+}
+```
+
+**Core Plugin Constants** (for ChayCards core plugins only):
+
+```typescript
+import { STORAGE_KEYS } from '@/shared/constants';
+
+// Core plugins use predefined constants
+await storage.set(STORAGE_KEYS.CORE_SETTINGS, data);
+await storage.set(STORAGE_KEYS.CORE_THEME, theme);
+```
+
+**Why This Pattern?**
+1. ✅ Prevents key collisions between plugins
+2. ✅ Enables plugin-scoped queries with `list(pluginId + ':')`
+3. ✅ Makes storage keys self-documenting
+4. ✅ Consistent across all plugins
+
 ### Best Practices for Plugin Storage
 
 1. **Use the Storage Adapter** - Never access database directly
-2. **Namespace Your Keys** - Storage is already namespaced by plugin ID
+2. **Use buildPluginStorageKey()** - Always namespace keys with `plugin-id:key-name` pattern
 3. **Handle Missing Data** - Core data might exist without enhancement data
 4. **Async Enhancement** - Don't block core operations for enhancement features
 5. **Let Platform Handle User Context** - Don't manage user IDs yourself
+6. **Keep Keys Lowercase** - Use kebab-case for key names (e.g., `'user-settings'` not `'UserSettings'`)
 
 ## Backend Adapter Pattern
 

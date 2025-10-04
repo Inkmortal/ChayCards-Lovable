@@ -4,6 +4,7 @@
  */
 
 import type { StorageAdapter } from '../../../shared/storage';
+import { buildPluginStorageKey } from '@/shared/constants';
 
 export interface DemoNote {
   id: string;
@@ -13,7 +14,8 @@ export interface DemoNote {
 }
 
 export class DemoDataService {
-  private storageKey = 'demo-plugin:notes';
+  private readonly PLUGIN_ID = 'demo-plugin';
+  private readonly storageKey = buildPluginStorageKey(this.PLUGIN_ID, 'notes');
   private storage: StorageAdapter | null = null;
   private cachedNotes: DemoNote[] = [];
 

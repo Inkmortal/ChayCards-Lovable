@@ -7,14 +7,79 @@ export const APP_VERSION = '0.0.1';
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 export const API_TIMEOUT = 30000; // 30 seconds
 
-// Storage keys
+// Storage keys (legacy - consider using plugin-namespaced keys instead)
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'auth_token',
   USER_PREFERENCES: 'user_preferences',
   THEME: 'theme',
   LAST_SYNC: 'last_sync',
   LAST_PROFILE_ID: 'last_profile_id', // Electron only: last used profile
+
+  // Core plugin storage keys (plugin-namespaced)
+  CORE_SETTINGS: 'core-settings:app-settings',
+  CORE_THEME: 'core-theme:preference',
 } as const;
+
+/**
+ * Plugin storage key prefixes for consistent naming across the application.
+ * All plugins should namespace their storage keys using the `plugin-id:key-name` pattern.
+ *
+ * @example
+ * // Core plugins use predefined prefixes
+ * const settingsPrefix = STORAGE_KEY_PREFIX.SETTINGS; // 'core-settings'
+ *
+ * @example
+ * // Third-party plugins use their plugin ID
+ * const customPrefix = STORAGE_KEY_PREFIX.PLUGIN('my-plugin'); // 'my-plugin'
+ */
+export const STORAGE_KEY_PREFIX = {
+  /** Core settings plugin prefix */
+  SETTINGS: 'core-settings',
+  /** Core theme plugin prefix */
+  THEME: 'core-theme',
+  /** Generate prefix for any plugin by ID */
+  PLUGIN: (pluginId: string) => pluginId,
+} as const;
+
+/**
+ * Builds a properly namespaced storage key for a plugin following the `plugin-id:key-name` pattern.
+ * This ensures consistent key naming and prevents collisions between plugins.
+ *
+ * All plugin storage keys MUST use this format to:
+ * - Prevent key collisions between plugins
+ * - Enable plugin-scoped queries with `storage.list(pluginId + ':')`
+ * - Make storage keys self-documenting
+ *
+ * @param pluginId - The unique identifier of the plugin (must match the plugin's `id` property)
+ * @param key - The specific data key within the plugin's namespace (lowercase, kebab-case recommended)
+ * @returns A namespaced storage key in the format `plugin-id:key-name`
+ *
+ * @example
+ * // Core settings plugin
+ * const settingsKey = buildPluginStorageKey('core-settings', 'app-settings');
+ * // Returns: 'core-settings:app-settings'
+ * await storage.set(settingsKey, { theme: 'dark' });
+ *
+ * @example
+ * // Theme preference
+ * const themeKey = buildPluginStorageKey('core-theme', 'preference');
+ * // Returns: 'core-theme:preference'
+ * await storage.set(themeKey, 'catppuccin-latte');
+ *
+ * @example
+ * // Third-party plugin with multiple keys
+ * const notesKey = buildPluginStorageKey('my-notes-plugin', 'notes');
+ * const configKey = buildPluginStorageKey('my-notes-plugin', 'config');
+ * // Returns: 'my-notes-plugin:notes', 'my-notes-plugin:config'
+ *
+ * @example
+ * // Query all keys for a plugin
+ * const allPluginKeys = await storage.list('my-notes-plugin:');
+ * // Returns: ['my-notes-plugin:notes', 'my-notes-plugin:config', ...]
+ */
+export function buildPluginStorageKey(pluginId: string, key: string): string {
+  return `${pluginId}:${key}`;
+}
 
 // Public routes that don't require authentication
 export const PUBLIC_ROUTES = ['/', '/login', '/register', '/setup'] as const;

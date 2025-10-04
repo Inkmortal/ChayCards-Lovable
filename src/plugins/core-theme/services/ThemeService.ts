@@ -6,8 +6,8 @@
 import type { Theme } from '../themes';
 import { ALL_THEMES, DEFAULT_THEME } from '../themes';
 import type { StorageAdapter } from '@/shared/storage';
+import { STORAGE_KEYS } from '@/shared/constants';
 
-const THEME_KEY = 'core-theme:preference';
 const THEME_LOCALSTORAGE_KEY = 'chaycards-theme'; // Fallback for public pages
 
 export class ThemeService {
@@ -61,7 +61,7 @@ export class ThemeService {
     // Try to load theme from user storage (cloud/local database)
     // This takes priority over localStorage
     try {
-      const savedThemeId = await storage.get(THEME_KEY);
+      const savedThemeId = await storage.get(STORAGE_KEYS.CORE_THEME);
       if (savedThemeId) {
         const theme = ALL_THEMES.find(t => t.id === savedThemeId);
         if (theme) {
@@ -76,7 +76,7 @@ export class ThemeService {
         // If no theme in storage but we have one in localStorage, migrate it
         if (this.currentTheme.id !== DEFAULT_THEME.id) {
           console.log('[ThemeService] Migrating localStorage theme to storage:', this.currentTheme.id);
-          await storage.set(THEME_KEY, this.currentTheme.id);
+          await storage.set(STORAGE_KEYS.CORE_THEME, this.currentTheme.id);
         }
       }
     } catch (error) {
@@ -84,8 +84,9 @@ export class ThemeService {
     }
 
     // NOW apply the theme (whether from storage, localStorage, or default)
+    // Use setTheme to ensure listeners are notified (fixes UI state desync bug)
     console.log('[ThemeService] Applying final theme:', themeToApply.name);
-    this.applyTheme(themeToApply);
+    await this.setTheme(themeToApply.id);
   }
 
   /**
@@ -124,7 +125,7 @@ export class ThemeService {
     // Also save to user storage if available (for syncing across devices)
     if (this.storage) {
       try {
-        await this.storage.set(THEME_KEY, themeId);
+        await this.storage.set(STORAGE_KEYS.CORE_THEME, themeId);
         console.log('[ThemeService] Saved theme to user storage:', themeId);
       } catch (error) {
         console.error('[ThemeService] Failed to save theme to user storage:', error);
