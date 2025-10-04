@@ -40,6 +40,16 @@ export class ThemeService {
   }
 
   /**
+   * Apply theme from localStorage (for public pages without storage)
+   * This is called when no storage adapter is available
+   */
+  async applyLocalStorageTheme(): Promise<void> {
+    // Theme is already loaded in constructor, just apply it
+    console.log('[ThemeService] Applying localStorage theme:', this.currentTheme.name);
+    this.applyTheme(this.currentTheme);
+  }
+
+  /**
    * Initialize with StorageAdapter for persistence
    * Should be called during plugin onLoad after storage is ready
    * Priority: User storage > localStorage > default

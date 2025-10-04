@@ -40,7 +40,9 @@ export const CoreThemePlugin: Plugin = {
       console.log('[CoreThemePlugin] Initializing theme service with storage...');
       await themeService.initialize(storage);
     } else if (themeService && !storage) {
-      console.log('[CoreThemePlugin] No storage available (public page), theme service will use localStorage only');
+      console.log('[CoreThemePlugin] No storage available (public page), applying localStorage theme...');
+      // On public pages, manually apply the theme from localStorage since initialize() won't be called
+      await themeService.applyLocalStorageTheme();
     }
 
     // Emit theme system ready event
