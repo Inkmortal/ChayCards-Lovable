@@ -10,6 +10,7 @@
 import type { UserSettings, StorageMode } from '../types';
 import { getDefaultSettings } from '../types';
 import type { StorageAdapter } from '@/shared/storage';
+import { isElectron } from '@/utils/platform';
 
 const SETTINGS_KEY = 'core-settings:app-settings';
 
@@ -20,7 +21,7 @@ export class SettingsService {
   private isElectron: boolean;
 
   constructor(storage?: StorageAdapter) {
-    this.isElectron = window.electronAPI !== undefined;
+    this.isElectron = isElectron();
     this.storage = storage || null;
     this.loadSettings();
   }

@@ -4,6 +4,7 @@ import './index.css'
 import { PluginManager } from './shared/plugin-system'
 import { isPublicPage } from './utils/routeUtils'
 import { STORAGE_KEYS } from './shared/constants'
+import { isElectron } from './utils/platform'
 
 // Import public-safe plugins (no user-specific data)
 import CoreUIPlugin from './plugins/core-ui'
@@ -14,8 +15,7 @@ async function startApp() {
     // Check if we're on a public page
     if (isPublicPage()) {
       // Check authentication status (works for both Electron and web)
-      const isElectron = !!(window.electronAPI || navigator.userAgent.includes('Electron'));
-      const hasAuth = isElectron
+      const hasAuth = isElectron()
         ? !!localStorage.getItem(STORAGE_KEYS.LAST_PROFILE_ID)
         : !!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
 

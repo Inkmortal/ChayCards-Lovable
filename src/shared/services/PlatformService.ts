@@ -2,14 +2,14 @@
 import { PlatformAdapter } from '../types';
 import { WebAdapter } from '../adapters/WebAdapter';
 import { ElectronAdapter } from '../adapters/ElectronAdapter';
+import { isElectron } from '../../utils/platform';
 
 class PlatformService {
   private adapter: PlatformAdapter;
 
   constructor() {
-    // Detect if running in Electron
-    const isElectron = window.electronAPI !== undefined;
-    this.adapter = isElectron ? new ElectronAdapter() : new WebAdapter();
+    // Use standardized platform detection utility
+    this.adapter = isElectron() ? new ElectronAdapter() : new WebAdapter();
   }
 
   getAdapter(): PlatformAdapter {

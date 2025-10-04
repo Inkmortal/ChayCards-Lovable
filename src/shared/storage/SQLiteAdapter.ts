@@ -6,12 +6,13 @@
  */
 
 import type { StorageAdapter } from './StorageAdapter';
+import { isElectron } from '@/utils/platform';
 
 export class SQLiteAdapter implements StorageAdapter {
   private isElectron: boolean;
 
   constructor() {
-    this.isElectron = window.electronAPI !== undefined;
+    this.isElectron = isElectron();
 
     if (!this.isElectron) {
       console.warn('[SQLiteAdapter] Created in non-Electron environment');

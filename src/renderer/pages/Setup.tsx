@@ -4,6 +4,7 @@ import { BookOpen, Cloud, HardDrive, RefreshCw, Download, ArrowLeft, Check } fro
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { PluginManager } from "@/shared/plugin-system";
+import { isElectron, isWeb } from "@/utils/platform";
 
 const Setup = () => {
   const navigate = useNavigate();
@@ -15,9 +16,7 @@ const Setup = () => {
   const ThemeSelector = manager.getComponent('core-theme/ThemeSelector');
 
   // Platform detection
-  const isElectron = window.electronAPI !== undefined;
-  const isWeb = !isElectron;
-  const platform = searchParams.get('platform') || (isElectron ? 'desktop' : 'web');
+  const platform = searchParams.get('platform') || (isElectron() ? 'desktop' : 'web');
 
   // Setup options based on platform
   const getSetupOptions = () => {

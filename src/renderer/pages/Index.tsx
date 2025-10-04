@@ -1,13 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { HeroSection, FeaturesSection, LandingHeader, CTASection } from "@/renderer/components/landing";
+import { isElectron, isWeb } from "@/utils/platform";
 
 const Index = () => {
   const navigate = useNavigate();
-
-  // Platform detection
-  const isElectron = window.electronAPI !== undefined;
-  const isWeb = !isElectron;
   const isMobile = window.innerWidth <= 768; // Simple mobile detection
 
   // Check for existing profile and auto-login

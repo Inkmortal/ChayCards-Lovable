@@ -66,7 +66,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onGetStarted }) =>
           )}
 
           {/* Theme selector from plugin */}
-          {ThemeSelector && <ThemeSelector />}
+          {ThemeSelector && <ThemeSelector variant="3d" />}
 
           {/* Login button */}
           <Button

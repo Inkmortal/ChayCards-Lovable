@@ -32,10 +32,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
  * Web → cloud storage (PostgreSQL via API)
  * Electron → local storage (SQLite via IPC)
  */
+import { isElectron } from '@/utils/platform';
+
 export function getDefaultSettings(): UserSettings {
-  const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
   return {
-    storageMode: isElectron ? 'local' : 'cloud',
+    storageMode: isElectron() ? 'local' : 'cloud',
     setupComplete: false,
     updatedAt: Date.now()
   };

@@ -1,12 +1,12 @@
 import { Minus, Square, X, BookOpen } from "lucide-react";
 import { useState, useEffect } from "react";
+import { isElectron } from "@/utils/platform";
 
 export const TitleBar = () => {
   const [isMaximized, setIsMaximized] = useState(false);
-  const isElectron = window.electronAPI !== undefined;
 
   // Don't render title bar if not in Electron
-  if (!isElectron) return null;
+  if (!isElectron()) return null;
 
   useEffect(() => {
     const checkMaximized = async () => {
