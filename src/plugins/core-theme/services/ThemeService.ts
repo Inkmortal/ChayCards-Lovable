@@ -16,6 +16,7 @@ export class ThemeService {
   private themeListListeners: Set<() => void> = new Set();
   private storage: StorageAdapter | null = null;
   private themes: Map<string, Theme> = new Map();
+  private pendingThemeId: string | null = null; // Deferred theme application
 
   constructor() {
     console.log('[ThemeService] Constructor called');
@@ -59,42 +60,37 @@ export class ThemeService {
 
   /**
    * Initialize with StorageAdapter for persistence
-   * Should be called during plugin onLoad after storage is ready
-   * Priority: User storage > localStorage > default
+   * Loads theme ID from storage but DOES NOT apply it yet
+   * Theme will be applied later via applyStoredTheme() after all plugins loaded
    */
   async initialize(storage: StorageAdapter): Promise<void> {
     this.storage = storage;
-    let themeToApply = this.currentTheme; // Default to what constructor loaded from localStorage
 
-    // Try to load theme from user storage (cloud/local database)
-    // This takes priority over localStorage
+    // Load theme ID from user storage (cloud/local database)
     try {
       const savedThemeId = await storage.get(STORAGE_KEYS.CORE_THEME);
       if (savedThemeId) {
-        const theme = this.themes.get(savedThemeId);
-        if (theme) {
-          themeToApply = theme;
-          this.currentTheme = theme;
-          // Sync to localStorage as fallback
-          localStorage.setItem(THEME_LOCALSTORAGE_KEY, savedThemeId);
-          console.log('[ThemeService] Loaded theme from user storage:', savedThemeId);
-        }
+        console.log('[ThemeService] Loaded theme ID from user storage:', savedThemeId);
+        this.pendingThemeId = savedThemeId;
+        // Sync to localStorage as fallback
+        localStorage.setItem(THEME_LOCALSTORAGE_KEY, savedThemeId);
       } else {
         console.log('[ThemeService] No theme in user storage, checking localStorage fallback');
-        // If no theme in storage but we have one in localStorage, migrate it
-        if (this.currentTheme.id !== DEFAULT_THEME.id) {
-          console.log('[ThemeService] Migrating localStorage theme to storage:', this.currentTheme.id);
-          await storage.set(STORAGE_KEYS.CORE_THEME, this.currentTheme.id);
+        // If no theme in storage but we have one in localStorage, load it
+        const localThemeId = localStorage.getItem(THEME_LOCALSTORAGE_KEY);
+        if (localThemeId && localThemeId !== DEFAULT_THEME.id) {
+          console.log('[ThemeService] Found localStorage theme, will migrate to storage:', localThemeId);
+          this.pendingThemeId = localThemeId;
+          // Migrate to storage when we apply the theme
         }
       }
     } catch (error) {
       console.error('[ThemeService] Failed to load theme from storage:', error);
     }
 
-    // NOW apply the theme (whether from storage, localStorage, or default)
-    // Use setTheme to ensure listeners are notified (fixes UI state desync bug)
-    console.log('[ThemeService] Applying final theme:', themeToApply.name);
-    await this.setTheme(themeToApply.id);
+    // DON'T apply theme yet - theme plugins might not have registered their themes
+    // Application happens in applyStoredTheme() after plugins:all-loaded event
+    console.log('[ThemeService] Initialization complete, theme application deferred');
   }
 
   /**
@@ -104,6 +100,33 @@ export class ThemeService {
     this.themes.set(theme.id, theme);
     console.log(`[ThemeService] Registered theme: ${theme.name} (${theme.id})`);
     this.notifyThemeListListeners();
+  }
+
+  /**
+   * Apply the stored theme after all theme plugins have registered
+   * Called after plugins:all-loaded event or by PluginManager post-load
+   */
+  async applyStoredTheme(): Promise<void> {
+    if (!this.pendingThemeId) {
+      console.log('[ThemeService] No pending theme to apply, using default');
+      return;
+    }
+
+    const theme = this.themes.get(this.pendingThemeId);
+    if (theme) {
+      console.log('[ThemeService] Applying stored theme:', theme.name);
+      await this.setTheme(this.pendingThemeId);
+      this.pendingThemeId = null; // Clear pending
+    } else {
+      console.warn('[ThemeService] Stored theme not found:', this.pendingThemeId);
+      console.warn('[ThemeService] Available themes:', Array.from(this.themes.keys()));
+      // Migrate to storage if we have one
+      if (this.storage && this.pendingThemeId) {
+        console.log('[ThemeService] Saving default theme to storage (migration)');
+        await this.storage.set(STORAGE_KEYS.CORE_THEME, DEFAULT_THEME.id);
+      }
+      this.pendingThemeId = null; // Clear invalid pending
+    }
   }
 
   /**

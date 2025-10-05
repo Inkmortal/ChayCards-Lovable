@@ -37,6 +37,7 @@ export interface Plugin {
 
   // Lifecycle hooks
   onLoad?: (manager: PluginManager) => void | Promise<void>;
+  onPluginsReady?: (manager: PluginManager) => void | Promise<void>;
   onUnload?: () => void | Promise<void>;
 }
 

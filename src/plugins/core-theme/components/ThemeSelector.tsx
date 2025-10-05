@@ -3,7 +3,7 @@
  * Uses stateful observer pattern via custom hooks
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Palette } from 'lucide-react';
 import { PluginManager } from '../../../shared/plugin-system';
 import { useCurrentTheme, useAvailableThemes } from '../hooks/useThemes';
@@ -21,6 +21,19 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   const currentTheme = useCurrentTheme();
   const availableThemes = useAvailableThemes();
   const [isOpen, setIsOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+
+  // Calculate dropdown position when opened
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 4, // 4px gap below button
+        right: window.innerWidth - rect.right
+      });
+    }
+  }, [isOpen]);
 
   const handleThemeSelect = (themeId: string) => {
     const manager = PluginManager.getInstance();
@@ -41,6 +54,7 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
     <div className={`relative ${className}`}>
       {/* Theme selector button */}
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
         className={variant === '3d'
           ? "w-10 h-10 flex items-center justify-center rounded-lg border-2 font-semibold hover:translate-y-[-4px] active:translate-y-[-2px] transition-all duration-150"
@@ -61,12 +75,18 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-[9998]"
             onClick={() => setIsOpen(false)}
           />
 
-          {/* Menu */}
-          <div className="absolute top-full mt-1 right-0 z-50 min-w-[200px] rounded-lg border border-border bg-popover shadow-lg">
+          {/* Menu - using fixed positioning to escape stacking context */}
+          <div
+            className="fixed z-[9999] min-w-[200px] rounded-lg border border-border bg-popover shadow-lg"
+            style={{
+              top: `${dropdownPosition.top}px`,
+              right: `${dropdownPosition.right}px`
+            }}
+          >
             <div className="p-1">
               {availableThemes.map((theme) => (
                 <button

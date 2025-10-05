@@ -11,10 +11,28 @@ Use Puppeteer MCP to test and verify frontend implementations during development
 ## Core Commands
 
 ### Navigation
+
+**CRITICAL**: Always use GPU acceleration flags when navigating to ensure proper rendering of CSS transparency, shadows, and visual effects in WSL.
+
 ```
 mcp__puppeteer__puppeteer_navigate
 - url: "http://localhost:8080"
+- launchOptions: {
+    "headless": true,
+    "args": [
+      "--enable-gpu",
+      "--use-gl=desktop",
+      "--enable-webgl",
+      "--ignore-gpu-blocklist",
+      "--enable-accelerated-2d-canvas"
+    ]
+  }
 ```
+
+**Why these flags matter**:
+- Without GPU acceleration, WSL renders CSS opacity/transparency as diagonal stripe patterns
+- Shadows, blurs, and semi-transparent backgrounds will look broken
+- These flags force Chromium to use hardware acceleration for proper compositing
 
 ### Screenshots
 ```
@@ -63,9 +81,19 @@ mcp__puppeteer__puppeteer_screenshot
 ### 2. After Implementation
 Verify the changes:
 ```
-# Navigate to the page
+# Navigate to the page (with GPU acceleration)
 mcp__puppeteer__puppeteer_navigate
 - url: "http://localhost:8080/path"
+- launchOptions: {
+    "headless": true,
+    "args": [
+      "--enable-gpu",
+      "--use-gl=desktop",
+      "--enable-webgl",
+      "--ignore-gpu-blocklist",
+      "--enable-accelerated-2d-canvas"
+    ]
+  }
 
 # Wait for content to load
 mcp__puppeteer__puppeteer_evaluate
@@ -154,9 +182,19 @@ mcp__puppeteer__puppeteer_evaluate
 
 ## Mobile Testing
 ```
-# Set mobile viewport
+# Set mobile viewport (with GPU acceleration)
 mcp__puppeteer__puppeteer_navigate
 - url: "http://localhost:8080"
+- launchOptions: {
+    "headless": true,
+    "args": [
+      "--enable-gpu",
+      "--use-gl=desktop",
+      "--enable-webgl",
+      "--ignore-gpu-blocklist",
+      "--enable-accelerated-2d-canvas"
+    ]
+  }
 
 # Then immediately set viewport
 mcp__puppeteer__puppeteer_evaluate

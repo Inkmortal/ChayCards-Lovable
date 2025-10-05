@@ -198,6 +198,52 @@ Plugins load before React starts, ensuring:
 - All components registered before routes created
 - Services available immediately
 
+## Plugin Lifecycle Pattern (IMPORTANT!)
+
+### Two Lifecycle Hooks for Clean Separation
+
+ChayCards provides **two lifecycle hooks** to prevent race conditions:
+- ✅ `onLoad` - Register components/services (90% of plugins)
+- ✅ `onPluginsReady` - Use other plugins' registrations (10% of plugins)
+- ✅ No manual event handling required
+- ✅ Clear separation prevents timing bugs
+
+### Race Condition Prevention
+
+**Problem**: Plugin A loads before Plugin B registers definitions
+```typescript
+// ❌ BAD: theme-gruvbox hasn't registered yet!
+onLoad: async (manager) => {
+  const themeService = manager.getService('core-theme/themeService');
+  await themeService.applyTheme('gruvbox-dark');  // FAILS - not found
+}
+```
+
+**Solution**: Use `onPluginsReady` hook
+```typescript
+// ✅ GOOD: Load data in onLoad, apply in onPluginsReady
+onLoad: async (manager) => {
+  const themeService = manager.getService('core-theme/themeService');
+  const storage = manager.getStorage();
+
+  // Load theme ID from storage (safe - just data)
+  await themeService.initialize(storage);
+},
+
+onPluginsReady: async (manager) => {
+  const themeService = manager.getService('core-theme/themeService');
+
+  // Apply theme now - all theme plugins registered
+  await themeService.applyStoredTheme();  // Safe!
+}
+```
+
+### Provider vs Consumer Pattern
+- **Provider**: Registers definitions (themes, components, etc.) - only needs `onLoad`
+- **Consumer**: Uses others' definitions - uses both `onLoad` and `onPluginsReady`
+
+**See**: `/memory-bank/docs/PLUGIN_SYSTEM.md` (Plugin Lifecycle section) for full docs
+
 ## File Structure
 ```
 plugin-system/

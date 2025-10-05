@@ -38,23 +38,16 @@ export const CoreThemePlugin: Plugin = {
     console.log('[CoreThemePlugin] ThemeService:', !!themeService);
     console.log('[CoreThemePlugin] Storage:', !!storage);
 
-    // Initialize theme service with storage for persistence (authenticated pages only)
+    // Initialize theme service with storage (loads theme ID but doesn't apply yet)
     if (themeService && storage) {
       console.log('[CoreThemePlugin] Initializing theme service with storage...');
       await themeService.initialize(storage);
+      console.log('[CoreThemePlugin] Theme will be applied in onPluginsReady hook');
     } else if (themeService && !storage) {
       console.log('[CoreThemePlugin] No storage available (public page)');
-      console.log('[CoreThemePlugin] Theme will be applied after all theme plugins load');
-      // DON'T call applyLocalStorageTheme() here - theme plugins haven't loaded yet!
-      // main.tsx will call it after all theme plugins are loaded
+      console.log('[CoreThemePlugin] Theme will be applied by PluginManager after all plugins load');
+      // PluginManager calls applyLocalStorageTheme() after all plugins loaded
     }
-
-    // Emit theme system ready event
-    console.log('[CoreThemePlugin] Emitting theme:system-ready event');
-    manager.getEventBus().emit('theme:system-ready', {
-      currentTheme: themeService?.getCurrentTheme(),
-      availableThemes: themeService?.getAvailableThemes()
-    });
 
     // Listen for theme change requests from other plugins
     manager.getEventBus().on('theme:change-request', async ({ themeId }) => {
@@ -63,6 +56,24 @@ export const CoreThemePlugin: Plugin = {
         await themeService.setTheme(themeId);
       }
     });
+  },
+
+  onPluginsReady: async (manager) => {
+    console.log('[CoreThemePlugin] onPluginsReady called - all theme plugins loaded');
+
+    const themeService = manager.getService('core-theme/themeService');
+
+    // Apply stored theme now that all theme plugins have registered their themes
+    if (themeService) {
+      await themeService.applyStoredTheme();
+
+      // Emit theme system ready event with all themes available
+      console.log('[CoreThemePlugin] Emitting theme:system-ready event');
+      manager.getEventBus().emit('theme:system-ready', {
+        currentTheme: themeService.getCurrentTheme(),
+        availableThemes: themeService.getAvailableThemes()
+      });
+    }
   }
 };
 

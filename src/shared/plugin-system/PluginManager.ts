@@ -271,6 +271,19 @@ export class PluginManager implements IPluginManager {
       console.log(`Loaded ${sortedPlugins.length} plugins successfully`);
       this.eventBus.emit('plugins:all-loaded', { count: sortedPlugins.length });
 
+      // Call onPluginsReady hooks after all plugins loaded
+      console.log('[PluginManager] Calling onPluginsReady hooks...');
+      for (const plugin of sortedPlugins) {
+        if (plugin.onPluginsReady) {
+          try {
+            await plugin.onPluginsReady(this);
+            console.log(`[PluginManager] onPluginsReady called for ${plugin.id}`);
+          } catch (error) {
+            console.error(`[PluginManager] onPluginsReady failed for ${plugin.id}:`, error);
+          }
+        }
+      }
+
       // Apply localStorage theme after all theme plugins have loaded
       // (mirrors loadPublicSafePlugins behavior - see lines 313-318)
       const themeService = this.getService('core-theme/themeService');
@@ -318,6 +331,19 @@ export class PluginManager implements IPluginManager {
       }
 
       console.log(`[PluginManager] Loaded ${sortedPlugins.length} public-safe plugins successfully`);
+
+      // Call onPluginsReady hooks after all plugins loaded
+      console.log('[PluginManager] Calling onPluginsReady hooks...');
+      for (const plugin of sortedPlugins) {
+        if (plugin.onPluginsReady) {
+          try {
+            await plugin.onPluginsReady(this);
+            console.log(`[PluginManager] onPluginsReady called for ${plugin.id}`);
+          } catch (error) {
+            console.error(`[PluginManager] onPluginsReady failed for ${plugin.id}:`, error);
+          }
+        }
+      }
 
       // Apply localStorage theme after all theme plugins have loaded
       const themeService = this.getService('core-theme/themeService');
@@ -424,6 +450,28 @@ export class PluginManager implements IPluginManager {
         if (name.startsWith(`${pluginId}/`)) {
           this.services.delete(name);
         }
+      });
+
+      // Remove plugin's routes
+      const routesToRemove: string[] = [];
+      this.routes.forEach((route, path) => {
+        if (route.component?.startsWith(`${pluginId}/`)) {
+          routesToRemove.push(path);
+        }
+      });
+      routesToRemove.forEach(path => this.routes.delete(path));
+
+      // Remove plugin's navigation items
+      this.navigationItems = this.navigationItems.filter(
+        item => !routesToRemove.includes(item.path)
+      );
+
+      // Remove plugin's region components
+      this.regions.forEach((components, region) => {
+        this.regions.set(
+          region,
+          components.filter(comp => !comp.id.startsWith(`${pluginId}/`) && !comp.id.startsWith(pluginId))
+        );
       });
 
       // Remove from loaded plugins

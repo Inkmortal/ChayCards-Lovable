@@ -83,36 +83,86 @@ See `src/utils/platform.ts:src/utils/platform.ts` for full JSDoc documentation.
 
 ### Specialized Agents (Sub-agents)
 
-**IMPORTANT**: Claude should **proactively invoke** specialized agents when tasks match their expertise. Agents have separate context windows, specialized prompts, and focused toolsets that make them superior for specific workflows. Don't ask permission - just use them when appropriate.
+## MANDATORY AGENT USAGE - NON-NEGOTIABLE RULES
 
-#### When to Use Agents
+**CRITICAL**: The following agent usage is **MANDATORY** and **NON-NEGOTIABLE**. Violating these rules means you are not following project standards. DO NOT ask for permission - these are requirements, not suggestions.
 
-**Before Writing Code**:
-- `context-researcher` - ALWAYS use before implementing new features to understand existing patterns
-- `planner` - Use for complex features requiring step-by-step planning
-- `analyze` - Use when evaluating architecture or code structure
+### ⛔ STOP AND USE AGENTS - Required Trigger Words
 
-**During Implementation**:
+When you see these phrases in user requests, **STOP IMMEDIATELY** and use the specified agent:
+
+**Implementation Triggers** → **MANDATORY: context-researcher FIRST**
+- "implement", "add", "create", "build", "make", "write"
+- "new feature", "new component", "new function", "new file"
+- "refactor", "redesign", "restructure"
+
+**Completion Triggers** → **MANDATORY: code-reviewer AFTER**
+- "done", "finished", "completed", "implemented"
+- "ready for review", "ready to commit"
+- Any TODO marked as completed with >20 lines of code
+
+**Error/Bug Triggers** → **MANDATORY: debug or root-cause-debugger**
+- "error", "bug", "broken", "not working", "fails"
+- "investigate", "why is", "what's wrong"
+- Console errors, stack traces, unexpected behavior
+
+**Commit Triggers** → **MANDATORY: precommit or git-workflow-manager**
+- "commit", "ready to commit", "check in"
+- "push", "PR", "pull request"
+- User says task is complete
+
+### 🚨 Mandatory Agent Workflows (Must Follow)
+
+#### Workflow 1: Implementing New Features
+```
+USER REQUEST → STOP → context-researcher → Write Code → code-reviewer → DONE
+```
+**Never skip context-researcher**. If you write code without researching existing patterns, you're violating project policy.
+
+#### Workflow 2: Fixing Bugs
+```
+BUG REPORT → STOP → debug → Identify Root Cause → Fix → code-reviewer → DONE
+```
+
+#### Workflow 3: Committing Changes
+```
+READY TO COMMIT → STOP → precommit → git-workflow-manager → DONE
+```
+
+#### Workflow 4: Completing Tasks
+```
+TASK DONE → STOP → code-reviewer → test-runner-validator → memory-bank-keeper → DONE
+```
+
+### When to Use Agents (Detailed)
+
+**Before Writing Code (MANDATORY)**:
+- `context-researcher` - **REQUIRED** before implementing ANY new feature/component/function
+- `planner` - **REQUIRED** for complex features requiring step-by-step planning (>3 files, >100 lines)
+- `analyze` - **REQUIRED** when evaluating architecture or code structure
+
+**During Implementation (Use When Appropriate)**:
 - `general-purpose` - Use for multi-step research or code searches
-- `debug` - Use when encountering errors or investigating issues
+- `debug` - **REQUIRED** when encountering errors or investigating issues
 - `tracer` - Use to understand execution flow or dependencies
+- `root-cause-debugger` - **REQUIRED** for mysterious bugs or multi-step investigations
 
-**After Writing Code**:
-- `code-reviewer` - ALWAYS use after implementing significant functionality
-- `test-runner-validator` - Use to execute and validate tests
+**After Writing Code (MANDATORY)**:
+- `code-reviewer` - **REQUIRED** after implementing significant functionality (>20 lines of new code)
+- `test-runner-validator` - **REQUIRED** after implementation to verify tests pass
 - `unit-test-generator` - Use to create comprehensive test coverage
-- `frontend-qa-tester` - Use to verify UI implementations
-- `code-cleanup-refactor` - Use after refactoring to find unused code
+- `frontend-qa-tester` - **REQUIRED** after UI implementation to verify functionality
+- `code-cleanup-refactor` - **REQUIRED** after refactoring to find unused code
 
-**Before Committing**:
-- `precommit` - Use to validate changes before git commits
-- `security-reviewer` - Use when changes involve auth, data handling, or APIs
-- `secaudit` - Use for comprehensive security review
+**Before Committing (MANDATORY)**:
+- `precommit` - **REQUIRED** to validate changes before git commits
+- `security-reviewer` - **REQUIRED** when changes involve auth, data handling, or APIs
+- `secaudit` - Use for comprehensive security review (OWASP, compliance)
 
-**Project Management**:
-- `git-workflow-manager` - Use for commits, branches, and git operations
-- `backlog-manager` - Use when tasks are completed or new tasks identified
-- `memory-bank-keeper` - Use after significant changes to update documentation
+**Project Management (Use Frequently)**:
+- `git-workflow-manager` - **REQUIRED** for commits, branches, and git operations
+- `backlog-manager` - **REQUIRED** when tasks are completed or new tasks identified
+- `memory-bank-keeper` - **REQUIRED** after significant changes to update documentation
 
 #### Available Agents
 

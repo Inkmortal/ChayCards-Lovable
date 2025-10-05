@@ -2,10 +2,27 @@ import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { HeroSection, FeaturesSection, LandingHeader, CTASection } from "@/renderer/components/landing";
 import { isElectron, isWeb } from "@/utils/platform";
+import { PluginManager } from "@/shared/plugin-system";
 
 const Index = () => {
   const navigate = useNavigate();
   const isMobile = window.innerWidth <= 768; // Simple mobile detection
+
+  // Ensure public-safe plugins are loaded for this page
+  useEffect(() => {
+    const ensurePluginsLoaded = async () => {
+      const pluginManager = PluginManager.getInstance();
+      const themeSelector = pluginManager.getComponent('core-theme/ThemeSelector');
+
+      // If ThemeSelector is missing, plugins were unloaded (e.g., navigating back from login)
+      if (!themeSelector) {
+        console.log('[Index] Plugins not loaded, loading public-safe plugins...');
+        await pluginManager.loadPublicSafePlugins();
+      }
+    };
+
+    ensurePluginsLoaded();
+  }, []); // Run once on mount
 
   // Check for existing profile and auto-login
   useEffect(() => {
@@ -35,19 +52,14 @@ const Index = () => {
 
           // Check if any profiles exist at all
           const profiles = await window.electronAPI.user.list();
-          if (profiles.length > 0) {
-            // Profiles exist but no last_profile_id - go to profile picker
-            console.log('[Index] Profiles exist, showing profile picker');
-            navigate('/profile');
-            return;
-          }
 
-          // No profiles exist - first time setup
-          console.log('[Index] No profiles found, showing setup');
-          navigate('/setup?platform=desktop');
+          // Always go to profile selection page (entry point)
+          // Profile page handles both cases: existing profiles or "Add new profile"
+          console.log('[Index] Redirecting to profile selection (entry point)');
+          navigate('/profile');
         } catch (error) {
           console.error('[Index] Failed to check profiles:', error);
-          navigate('/setup?platform=desktop');
+          navigate('/profile'); // Still go to profile page on error
         }
       } else {
         // Web: Check for cloud auth token

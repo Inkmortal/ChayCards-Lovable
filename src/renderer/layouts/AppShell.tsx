@@ -58,24 +58,8 @@ export const AppShell: React.FC = () => {
           // Load plugins (which initializes storage)
           const routes = pluginManager.getAllRoutes();
 
-          // CRITICAL: Re-initialize theme service with storage if plugins were pre-loaded
-          // This happens when user visits public page first, then selects profile
-          const storage = pluginManager.getStorage();
-          const themeService = pluginManager.getService('core-theme/themeService');
-          console.log('[AppShell] Theme re-init check:', {
-            hasStorage: !!storage,
-            hasThemeService: !!themeService
-          });
-          if (storage && themeService) {
-            console.log('[AppShell] Re-initializing theme service with storage...');
-            await themeService.initialize(storage);
-          } else {
-            console.log('[AppShell] Skipping theme re-init - missing:', {
-              storage: !storage ? 'missing' : 'ok',
-              themeService: !themeService ? 'missing' : 'ok'
-            });
-          }
           if (routes.length === 0) {
+            // Fresh load - plugins not loaded yet
             console.log('[AppShell] Loading plugins...');
             setPluginsLoading(true);
             await pluginManager.loadAllPlugins();
@@ -90,7 +74,31 @@ export const AppShell: React.FC = () => {
             setPluginsLoaded(true);
             setPluginsLoading(false);
           } else {
-            console.log('[AppShell] Plugins already loaded');
+            // Plugins were pre-loaded (e.g., from Index page auto-login) - need to reload ALL plugins with storage
+            console.log('[AppShell] Public-safe plugins already loaded - reloading ALL plugins for authenticated user...');
+
+            setPluginsLoading(true);
+
+            // Unload public-safe plugins
+            const loadedPlugins = pluginManager.getLoadedPlugins();
+            console.log('[AppShell] Unloading public-safe plugins:', loadedPlugins.map(p => p.id));
+
+            for (const plugin of loadedPlugins.reverse()) {
+              await pluginManager.unloadPlugin(plugin.id);
+            }
+
+            // Load ALL plugins (including core-settings for storage)
+            console.log('[AppShell] Loading full plugin set with storage...');
+            await pluginManager.loadAllPlugins();
+
+            // Mark setup as complete with storage mode from user profile
+            const settingsService = pluginManager.getService('core-settings/settingsService');
+            if (settingsService && !settingsService.isSetupComplete()) {
+              console.log('[AppShell] Completing setup with storage mode:', profile.storageMode);
+              await settingsService.completeSetup(profile.storageMode);
+            }
+
+            console.log('[AppShell] All plugins loaded with local storage');
             setPluginsLoaded(true);
             setPluginsLoading(false);
           }
@@ -112,30 +120,32 @@ export const AppShell: React.FC = () => {
         // Load plugins for web
         const routes = pluginManager.getAllRoutes();
 
-        // CRITICAL: Re-initialize theme service with storage if plugins were pre-loaded
-        const storage = pluginManager.getStorage();
-        const themeService = pluginManager.getService('core-theme/themeService');
-        console.log('[AppShell] Theme re-init check:', {
-          hasStorage: !!storage,
-          hasThemeService: !!themeService
-        });
-        if (storage && themeService) {
-          console.log('[AppShell] Re-initializing theme service with storage...');
-          await themeService.initialize(storage);
-        } else {
-          console.log('[AppShell] Skipping theme re-init - missing:', {
-            storage: !storage ? 'missing' : 'ok',
-            themeService: !themeService ? 'missing' : 'ok'
-          });
-        }
         if (routes.length === 0) {
+          // Fresh load - plugins not loaded yet
           console.log('[AppShell] Loading plugins...');
           setPluginsLoading(true);
           await pluginManager.loadAllPlugins();
           setPluginsLoaded(true);
           setPluginsLoading(false);
         } else {
-          console.log('[AppShell] Plugins already loaded');
+          // Plugins were pre-loaded on public page - need to reload ALL plugins with storage
+          console.log('[AppShell] Public-safe plugins already loaded - reloading ALL plugins for authenticated user...');
+
+          setPluginsLoading(true);
+
+          // Unload public-safe plugins (theme, UI)
+          const loadedPlugins = pluginManager.getLoadedPlugins();
+          console.log('[AppShell] Unloading public-safe plugins:', loadedPlugins.map(p => p.id));
+
+          for (const plugin of loadedPlugins.reverse()) {
+            await pluginManager.unloadPlugin(plugin.id);
+          }
+
+          // Load ALL plugins (including core-settings for storage)
+          console.log('[AppShell] Loading full plugin set with storage...');
+          await pluginManager.loadAllPlugins();
+
+          console.log('[AppShell] All plugins loaded with cloud storage');
           setPluginsLoaded(true);
           setPluginsLoading(false);
         }
@@ -164,6 +174,18 @@ export const AppShell: React.FC = () => {
       }
     }
   }, [location.pathname, routes, navigate, pluginsLoaded]);
+
+  // Show loading screen while plugins are loading (prevents theme flash)
+  if (pluginsLoading || !pluginsLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading ChayCards...</p>
+        </div>
+      </div>
+    );
+  }
 
     return (
     <div className="app-shell h-full flex flex-col bg-background text-foreground">

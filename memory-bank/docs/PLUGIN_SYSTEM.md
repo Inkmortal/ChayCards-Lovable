@@ -250,6 +250,428 @@ function loadPlugins(plugins: Plugin[]): void {
 }
 ```
 
+## Plugin Lifecycle & Event Coordination
+
+### Philosophy: Two Lifecycle Hooks for Clear Separation
+
+ChayCards provides **two lifecycle hooks** for clean plugin development:
+- ✅ `onLoad` - Register components/services (90% of plugins stop here)
+- ✅ `onPluginsReady` - Use other plugins' registrations (10% of plugins need this)
+- ✅ No manual event handling required
+- ✅ Clear separation prevents race conditions
+
+### Lifecycle Hooks
+
+**onLoad Hook:**
+```typescript
+onLoad?: (manager: PluginManager) => void | Promise<void>
+```
+
+**Called when:**
+- Plugin's dependencies have already loaded (per `requires:` array)
+- Components/services already registered by PluginManager
+- Manager singleton is fully initialized
+
+**Use for:**
+- Registering event listeners
+- Setting up plugin-internal state
+- Initializing services (but not using other plugins' data)
+
+**onPluginsReady Hook:**
+```typescript
+onPluginsReady?: (manager: PluginManager) => void | Promise<void>
+```
+
+**Called when:**
+- ALL plugins have completed their `onLoad` hooks
+- All components/services from all plugins are registered
+- All theme definitions, routes, etc. are available
+
+**Use for:**
+- Loading and applying data that uses other plugins' registrations
+- Consuming theme definitions, components from other plugins
+- Any operation that requires all plugins to be fully loaded
+
+### Plugin Loading Sequence
+
+The PluginManager follows this strict sequence:
+
+1. **Discovery** - Scan `/src/plugins/` for plugin modules
+2. **Dependency Sort** - Topological sort by `requires:` array
+3. **Registration** - For each plugin in dependency order:
+   - Register components with namespace (`pluginId/componentName`)
+   - Register services with namespace (`pluginId/serviceName`)
+   - Register routes and auto-generate navigation
+4. **onLoad Execution** - Call `onLoad()` in dependency order
+5. **Event Emission** - Emit `plugins:all-loaded` event
+6. **onPluginsReady Execution** - Call `onPluginsReady()` for each plugin
+7. **UI Ready** - React rendering begins
+
+**Key Timing:** `onPluginsReady()` is called AFTER all `onLoad()` methods complete and `plugins:all-loaded` event fires.
+
+### Race Condition Prevention: Use onPluginsReady
+
+**The Problem:**
+```typescript
+// ❌ BAD: Using other plugins' registrations in onLoad
+onLoad: async (manager) => {
+  const storage = manager.getStorage();
+  const savedTheme = await storage.get('userTheme');
+  const themeService = manager.getService('core-theme/themeService');
+
+  // FAILS: Theme definitions not registered yet!
+  await themeService.applyTheme(savedTheme);
+}
+```
+
+**The Solution:**
+```typescript
+// ✅ GOOD: Load data in onLoad, apply in onPluginsReady
+onLoad: async (manager) => {
+  const storage = manager.getStorage();
+  const themeService = manager.getService('core-theme/themeService');
+
+  // Load theme ID early (storage is available)
+  await themeService.initialize(storage);
+},
+
+onPluginsReady: async (manager) => {
+  const themeService = manager.getService('core-theme/themeService');
+
+  // Apply theme now - all theme plugins have registered
+  await themeService.applyStoredTheme();  // NOW it's safe!
+}
+```
+
+**Alternative (Manual Events):** You can still use events if needed for custom coordination:
+```typescript
+onLoad: async (manager) => {
+  const savedTheme = await storage.get('userTheme');
+
+  // Manual event handling
+  manager.getEventBus().once('plugins:all-loaded', () => {
+    themeService.applyTheme(savedTheme);
+  });
+}
+```
+
+### Simple Plugin (90% of use cases)
+
+Most plugins don't need events - they just register and go:
+
+```typescript
+export const SimplePlugin: Plugin = {
+  id: 'my-plugin',
+  name: 'My Simple Plugin',
+  version: '1.0.0',
+
+  components: {
+    'MyComponent': MyComponent
+  },
+
+  services: {
+    'myService': new MyService()
+  },
+
+  onLoad: (manager) => {
+    console.log('Plugin loaded!');
+    // That's it - components and services already registered
+  }
+}
+```
+
+### Complex Plugin (Uses other plugins' registrations)
+
+Plugins that consume other plugins' registrations use `onPluginsReady`:
+
+```typescript
+export const ThemeLoaderPlugin: Plugin = {
+  id: 'core-theme',
+  name: 'Theme Loader',
+  requires: ['core-settings'],  // Needs settings for storage
+
+  services: {
+    'themeService': new ThemeService()
+  },
+
+  onLoad: async (manager) => {
+    const themeService = manager.getService('core-theme/themeService');
+    const storage = manager.getStorage();
+
+    // Load theme ID from storage (safe - just reading data)
+    await themeService.initialize(storage);
+
+    // Register event listeners
+    manager.getEventBus().on('theme:change-request', async ({ themeId }) => {
+      await themeService.setTheme(themeId);
+    });
+  },
+
+  onPluginsReady: async (manager) => {
+    const themeService = manager.getService('core-theme/themeService');
+
+    // Apply theme NOW - all theme plugins have registered their definitions
+    await themeService.applyStoredTheme();
+
+    // Emit ready event
+    manager.getEventBus().emit('theme:system-ready', {
+      currentTheme: themeService.getCurrentTheme(),
+      availableThemes: themeService.getAvailableThemes()
+    });
+  }
+}
+```
+
+### Available Events
+
+**Core PluginManager Events:**
+- `plugins:all-loaded` - All `onLoad()` methods complete (most important!)
+- `component:registered` - New component added to registry
+- `service:registered` - New service added to registry
+- `plugin:loaded` - Individual plugin finished loading
+- `plugin:unloaded` - Plugin removed from registry
+
+**Custom Plugin Events (examples):**
+- `theme:changed` - User manually switched themes
+- `settings:updated` - Settings modified
+- `document:saved` - Document saved to storage
+- Create your own with `manager.getEventBus().emit('custom:event', data)`
+
+### Pattern: Provider and Consumer Plugins
+
+This is the most common pattern for avoiding race conditions:
+
+**Provider Plugin** (registers definitions first):
+```typescript
+// theme-gruvbox/index.ts
+export const ThemeGruvboxPlugin: Plugin = {
+  id: 'theme-gruvbox',
+  requires: ['core-theme'],  // Need ThemeService to register with
+
+  onLoad: (manager) => {
+    const themeService = manager.getService('core-theme/themeService');
+
+    // Simple registration - no coordination needed
+    themeService.registerTheme({
+      id: 'gruvbox-dark',
+      name: 'Gruvbox Dark',
+      variables: { /* ... */ }
+    });
+
+    themeService.registerTheme({
+      id: 'gruvbox-light',
+      name: 'Gruvbox Light',
+      variables: { /* ... */ }
+    });
+  }
+}
+```
+
+**Consumer Plugin** (uses registered definitions):
+```typescript
+// core-theme/index.ts
+export const CoreThemePlugin: Plugin = {
+  id: 'core-theme',
+
+  services: {
+    'themeService': new ThemeService()
+  },
+
+  onLoad: async (manager) => {
+    const themeService = manager.getService('core-theme/themeService');
+    const storage = manager.getStorage();
+
+    if (storage) {
+      // Load saved theme ID (data only, no application)
+      await themeService.initialize(storage);
+    }
+  },
+
+  onPluginsReady: async (manager) => {
+    const themeService = manager.getService('core-theme/themeService');
+
+    // Apply theme - theme-gruvbox already called registerTheme()
+    await themeService.applyStoredTheme();
+  }
+}
+```
+
+### When to Use onPluginsReady vs Events vs Dependencies
+
+**Use `onPluginsReady` for:**
+- ✅ Applying data that uses other plugins' registrations
+- ✅ Most timing coordination needs
+- ✅ Simpler than manual event handling
+
+**Use `requires: []` for:**
+- ✅ Plugin MUST exist to function
+- ✅ Hard dependency on another plugin's API
+- ✅ Load order is critical (dependency loads first)
+
+**Use events for:**
+- ✅ Soft dependencies (graceful degradation if missing)
+- ✅ Custom coordination beyond standard lifecycle
+- ✅ Triggering actions in other plugins (theme:changed, etc.)
+- ✅ Cross-plugin communication
+- ✅ Reacting to state changes
+
+**Example combining both:**
+```typescript
+export const AnalyticsPlugin: Plugin = {
+  id: 'analytics',
+  requires: ['core-documents'],  // MUST have documents API
+
+  onLoad: (manager) => {
+    const docService = manager.getService('core-documents/documentService');
+
+    // Wrap document save (dependency guaranteed by requires)
+    const originalSave = docService.save;
+    docService.save = async (doc) => {
+      const result = await originalSave(doc);
+      trackEvent('document.saved', { id: doc.id });
+      return result;
+    };
+
+    // Listen for events (soft dependency - works if plugin exists)
+    manager.getEventBus().on('document:viewed', (data) => {
+      trackEvent('document.viewed', data);
+    });
+  }
+}
+```
+
+### Best Practices
+
+#### 1. Register Immediately, Consume After Event
+
+```typescript
+onLoad: (manager) => {
+  // ✅ GOOD: Immediate registration
+  manager.setComponent('my-plugin/MyComponent', MyComponent);
+
+  // ✅ GOOD: Deferred consumption
+  manager.getEventBus().once('plugins:all-loaded', () => {
+    const otherComponent = manager.getComponent('other/Component');
+    this.enhanceComponent(otherComponent);
+  });
+
+  // ❌ BAD: Immediate consumption (might not exist!)
+  const otherComponent = manager.getComponent('other/Component');
+}
+```
+
+#### 2. Keep onLoad Fast
+
+- ❌ Don't fetch remote data
+- ❌ Don't do heavy computation
+- ❌ Don't block on slow operations
+- ✅ Defer expensive work to events or async callbacks
+
+```typescript
+// ❌ BAD
+onLoad: async (manager) => {
+  const userData = await fetch('/api/user').then(r => r.json());
+  this.processLargeDataset(userData);  // Blocks plugin loading!
+}
+
+// ✅ GOOD
+onLoad: (manager) => {
+  manager.getEventBus().once('plugins:all-loaded', async () => {
+    const userData = await fetch('/api/user').then(r => r.json());
+    this.processLargeDataset(userData);
+  });
+}
+```
+
+#### 3. Clean Up Event Listeners on Unload
+
+```typescript
+onLoad: (manager) => {
+  const handler = (data) => { /* ... */ };
+
+  manager.getEventBus().on('some:event', handler);
+
+  // Store handler reference for cleanup
+  this.handlers = { someEvent: handler };
+},
+
+onUnload: () => {
+  const manager = PluginManager.getInstance();
+  manager.getEventBus().off('some:event', this.handlers.someEvent);
+}
+```
+
+#### 4. Use Once for One-Time Setup
+
+```typescript
+// ✅ GOOD: Auto-cleanup with once()
+manager.getEventBus().once('plugins:all-loaded', () => {
+  this.initialize();
+});
+
+// ❌ BAD: Leaks memory if plugin reloads
+manager.getEventBus().on('plugins:all-loaded', () => {
+  this.initialize();  // Called every time, even after unload!
+});
+```
+
+### Common Patterns
+
+#### Theme System Pattern
+```typescript
+// 1. Core plugin provides service
+core-theme: {
+  services: { themeService },
+  onLoad: async (manager) => {
+    await themeService.loadSavedThemeId();
+    manager.getEventBus().once('plugins:all-loaded', () => {
+      themeService.applyStoredTheme();
+    });
+  }
+}
+
+// 2. Theme plugins register definitions
+theme-gruvbox: {
+  onLoad: (manager) => {
+    themeService.registerTheme({ id: 'gruvbox-dark', ... });
+  }
+}
+```
+
+#### Component Enhancement Pattern
+```typescript
+// Wrap existing component from another plugin
+onLoad: (manager) => {
+  manager.getEventBus().once('plugins:all-loaded', () => {
+    const Original = manager.getComponent('core/DocumentCard');
+
+    const Enhanced = (props) => (
+      <div>
+        <AITags doc={props.doc} />
+        <Original {...props} />
+      </div>
+    );
+
+    manager.setComponent('core/DocumentCard', Enhanced);
+  });
+}
+```
+
+#### Settings Migration Pattern
+```typescript
+// Migrate old settings format after all plugins loaded
+onLoad: async (manager) => {
+  const storage = manager.getStorage();
+
+  manager.getEventBus().once('plugins:all-loaded', async () => {
+    const oldSettings = await storage.get('legacy:settings');
+    if (oldSettings) {
+      await this.migrateToNewFormat(oldSettings);
+    }
+  });
+}
+```
+
 ## Dynamic Plugin Loading
 
 ### How Plugins Are Actually Imported

@@ -1,5 +1,39 @@
 # Active Context
 
+## 🚦 PRE-TASK CHECKLIST (Check EVERY Time Before Starting Work)
+
+**MANDATORY**: Review this checklist before every task. If you skip this, you're not following project standards.
+
+### Before Implementation
+- [ ] Is this a new feature/component/function? → **STOP** → Run `context-researcher` agent
+- [ ] Am I about to write >20 lines of code? → **STOP** → Run `context-researcher` agent
+- [ ] Is this a complex feature (>3 files, >100 lines)? → **STOP** → Run `planner` agent
+- [ ] Am I investigating architecture/patterns? → **STOP** → Run `analyze` agent
+
+### During Implementation
+- [ ] Did I encounter an error/bug? → **STOP** → Run `debug` or `root-cause-debugger` agent
+- [ ] Do I need to understand execution flow? → Consider running `tracer` agent
+- [ ] Do I need multi-step research? → Consider running `general-purpose` agent
+
+### After Implementation
+- [ ] Did I just write >20 lines of code? → **STOP** → Run `code-reviewer` agent
+- [ ] Did I just implement UI changes? → **STOP** → Run `frontend-qa-tester` agent
+- [ ] Did I just refactor code? → **STOP** → Run `code-cleanup-refactor` agent
+- [ ] Are there tests to run? → **STOP** → Run `test-runner-validator` agent
+
+### Before Committing
+- [ ] Am I about to commit changes? → **STOP** → Run `precommit` agent
+- [ ] Do changes involve auth/data/APIs? → **STOP** → Run `security-reviewer` agent
+- [ ] Ready to create commit? → **STOP** → Run `git-workflow-manager` agent
+
+### Project Management
+- [ ] Did I complete a task? → **STOP** → Run `backlog-manager` agent
+- [ ] Did I make significant changes? → **STOP** → Run `memory-bank-keeper` agent
+
+**If you skip these checks, you're violating project policy.**
+
+---
+
 ## Current Work Focus
 
 We are building the foundation architecture for ChayCards with a focus on:

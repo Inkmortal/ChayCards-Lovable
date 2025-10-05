@@ -103,7 +103,10 @@
       "Bash(tsx:*)",
       "Bash(/dev/null)",
       "mcp__zen__listmodels",
-      "Read(//mnt/c/Users/danhc/.claude/**)"
+      "Read(//mnt/c/Users/danhc/.claude/**)",
+      "Read(//mnt/c/Users/danhc/**)",
+      "WebFetch(domain:docs.ankiweb.net)",
+      "WebFetch(domain:eikowagenknecht.com)"
     ],
     "deny": []
   },

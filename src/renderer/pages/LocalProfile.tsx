@@ -8,10 +8,18 @@ import { useState, useEffect } from "react";
 import { PluginManager } from "@/shared/plugin-system";
 import { STORAGE_KEYS } from "@/shared/constants";
 
+// Define profile creation step type
+type ProfileCreationStep = 'select' | 'create' | 'storage-mode';
+
 const LocalProfile = () => {
   const navigate = useNavigate();
+  const pluginManager = PluginManager.getInstance();
+
+  // Get ThemeSelector from plugin
+  const ThemeSelector = pluginManager.getComponent('core-theme/ThemeSelector');
+
   const [profiles, setProfiles] = useState<any[]>([]);
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [currentStep, setCurrentStep] = useState<ProfileCreationStep>('select');
   const [profileName, setProfileName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -26,10 +34,7 @@ const LocalProfile = () => {
         try {
           const existingProfiles = await window.electronAPI.user.list();
           setProfiles(existingProfiles);
-          // If no profiles exist, show create form immediately
-          if (existingProfiles.length === 0) {
-            setShowCreateForm(true);
-          }
+          // Always stay on select screen, even if no profiles
         } catch (err) {
           console.error('[LocalProfile] Failed to load profiles:', err);
         }
@@ -93,7 +98,23 @@ const LocalProfile = () => {
         }
       }
 
-      // Create local user record
+      // Move to storage mode selection instead of creating immediately
+      setCurrentStep('storage-mode');
+      setIsLoading(false);
+
+    } catch (err: any) {
+      console.error('[LocalProfile] ERROR in handleCreateProfile:', err);
+      console.error('[LocalProfile] Error stack:', err.stack);
+      setError(err.message || 'Failed to validate profile. Please try again.');
+      setIsLoading(false);
+    }
+  };
+
+  const handleStorageModeSelect = async (storageMode: 'local' | 'sync' | 'cloud') => {
+    setIsLoading(true);
+
+    try {
+      // Create local user record with selected storage mode
       const userId = crypto.randomUUID(); // Generate UUID for local user
       const passwordHash = usePassword ? await hashPassword(password) : null;
 
@@ -102,12 +123,12 @@ const LocalProfile = () => {
         await window.electronAPI.user.create({
           id: userId,
           profileName,
-          storageMode: 'local',
+          storageMode,
           hasPassword: usePassword,
           passwordHash
         });
 
-        console.log('[LocalProfile] Created local user:', { userId, profileName });
+        console.log('[LocalProfile] Created local user:', { userId, profileName, storageMode });
 
         // Set last used profile and navigate - AppShell handles initialization
         localStorage.setItem(STORAGE_KEYS.LAST_PROFILE_ID, userId);
@@ -116,7 +137,7 @@ const LocalProfile = () => {
         throw new Error('Electron API not available');
       }
     } catch (err: any) {
-      console.error('[LocalProfile] ERROR caught in handleCreateProfile:', err);
+      console.error('[LocalProfile] ERROR in handleStorageModeSelect:', err);
       console.error('[LocalProfile] Error stack:', err.stack);
       setError(err.message || 'Failed to create profile. Please try again.');
       setIsLoading(false);
@@ -132,31 +153,17 @@ const LocalProfile = () => {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   };
 
-  const handleBack = () => {
-    navigate('/setup');
+  const handleBackToSelect = () => {
+    setCurrentStep('select');
+    setError(""); // Clear any errors
   };
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      {/* Header */}
+      {/* Header - No back button, profile selection is entry point */}
       <header className="border-b border-border px-6 py-4 bg-card/50 backdrop-blur-sm">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBack}
-              className="border-2 hover:translate-y-[-2px] transition-all duration-150"
-              style={{
-                boxShadow: 'var(--shadow-3d), inset 0 1px 0 hsl(var(--background))',
-                background: 'hsl(var(--background))',
-                borderColor: 'hsl(var(--border))'
-              }}
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </div>
+          <div className="w-16" /> {/* Spacer for balance */}
           <div className="flex items-center space-x-3">
             <div
               className="w-10 h-10 rounded-2xl flex items-center justify-center"
@@ -171,15 +178,18 @@ const LocalProfile = () => {
               ChayCards
             </h1>
           </div>
-          <div className="w-16" /> {/* Spacer for center alignment */}
+          <div className="flex items-center gap-2">
+            {/* Theme selector */}
+            {ThemeSelector && <ThemeSelector />}
+          </div>
         </div>
       </header>
 
-      {/* Profile Selection OR Creation Form */}
+      {/* Three-step flow: Select → Create → Storage Mode */}
       <section className="py-12 px-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
         <Card className="w-full max-w-md p-8 border-2 shadow-xl rounded-3xl bg-card">
-          {!showCreateForm && profiles.length > 0 ? (
-            // Profile Selection View
+          {currentStep === 'select' && (
+            // Step 1: Profile Selection View (always shown, even with no profiles)
             <>
               <div className="text-center mb-8">
                 <div
@@ -195,43 +205,45 @@ const LocalProfile = () => {
                   Select profile
                 </h2>
                 <p className="text-muted-foreground">
-                  Choose a profile to continue
+                  {profiles.length > 0 ? 'Choose a profile to continue' : 'Create your first profile to get started'}
                 </p>
               </div>
 
-              <div className="space-y-3 mb-6">
-                {profiles.map((profile) => (
-                  <Button
-                    key={profile.id}
-                    variant="outline"
-                    size="lg"
-                    onClick={() => handleSelectProfile(profile.id)}
-                    className="w-full h-16 text-left justify-start border-2 hover:translate-y-[-2px] transition-all duration-150"
-                    style={{
-                      boxShadow: 'var(--shadow-3d)',
-                      background: 'hsl(var(--background))',
-                      borderColor: 'hsl(var(--border))'
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-semibold text-foreground">{profile.profileName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {profile.storageMode === 'local' ? 'Local storage' : 'Cloud storage'}
+              {profiles.length > 0 && (
+                <div className="space-y-3 mb-6">
+                  {profiles.map((profile) => (
+                    <Button
+                      key={profile.id}
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleSelectProfile(profile.id)}
+                      className="w-full h-16 text-left justify-start border-2 hover:translate-y-[-2px] transition-all duration-150"
+                      style={{
+                        boxShadow: 'var(--shadow-3d)',
+                        background: 'hsl(var(--background))',
+                        borderColor: 'hsl(var(--border))'
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <User className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-semibold text-foreground">{profile.profileName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {profile.storageMode === 'local' ? 'Local storage' : profile.storageMode === 'cloud' ? 'Cloud storage' : 'Synced storage'}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Button>
-                ))}
-              </div>
+                    </Button>
+                  ))}
+                </div>
+              )}
 
               <Button
                 variant="outline"
                 size="lg"
-                onClick={() => setShowCreateForm(true)}
+                onClick={() => setCurrentStep('create')}
                 className="w-full h-12 border-2 hover:translate-y-[-2px] transition-all duration-150"
                 style={{
                   boxShadow: 'var(--shadow-3d)',
@@ -239,7 +251,7 @@ const LocalProfile = () => {
                   borderColor: 'hsl(var(--border))'
                 }}
               >
-                + Create new profile
+                + Add new profile
               </Button>
 
               {error && (
@@ -248,8 +260,10 @@ const LocalProfile = () => {
                 </div>
               )}
             </>
-          ) : (
-            // Profile Creation View
+          )}
+
+          {currentStep === 'create' && (
+            // Step 2: Profile Creation View
             <>
               <div className="text-center mb-8">
                 <div
@@ -262,10 +276,10 @@ const LocalProfile = () => {
                   <User className="w-8 h-8 text-white" />
                 </div>
                 <h2 className="text-3xl font-bold mb-2" style={{ color: 'hsl(var(--foreground))' }}>
-                  Create local profile
+                  Create profile
                 </h2>
                 <p className="text-muted-foreground">
-                  Set up your local ChayCards workspace
+                  Set up your ChayCards profile
                 </p>
               </div>
 
@@ -354,7 +368,7 @@ const LocalProfile = () => {
               </div>
             )}
 
-            {/* Create Profile Button */}
+            {/* Continue Button */}
             <Button
               size="lg"
               onClick={handleCreateProfile}
@@ -367,30 +381,121 @@ const LocalProfile = () => {
                 textShadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
               }}
             >
-              {isLoading ? 'Creating profile...' : 'Create profile'}
+              {isLoading ? 'Validating...' : 'Continue'}
             </Button>
 
-            {/* Info Note */}
-            <div className="p-4 bg-info/10 border border-info/20 rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                💡 Your data will be stored locally on this device. You can always enable cloud sync later in settings.
-              </p>
-            </div>
-
-            {/* Back button for create form when profiles exist */}
-            {profiles.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCreateForm(false)}
-                className="w-full mt-4"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to profiles
-              </Button>
-            )}
+            {/* Back button - always present, returns to profile selection */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBackToSelect}
+              className="w-full mt-2"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to profiles
+            </Button>
           </div>
           </>
+          )}
+
+          {currentStep === 'storage-mode' && (
+            // Step 3: Storage Mode Selection
+            <>
+              <div className="text-center mb-8">
+                <div
+                  className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4"
+                  style={{
+                    background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))',
+                    boxShadow: 'var(--shadow-3d)'
+                  }}
+                >
+                  <BookOpen className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-3xl font-bold mb-2" style={{ color: 'hsl(var(--foreground))' }}>
+                  Choose storage mode
+                </h2>
+                <p className="text-muted-foreground">
+                  How do you want to store your data?
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Local Storage Option */}
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => handleStorageModeSelect('local')}
+                  disabled={isLoading}
+                  className="w-full h-auto p-6 text-left justify-start border-2 hover:translate-y-[-2px] transition-all duration-150 flex-col items-start"
+                  style={{
+                    boxShadow: 'var(--shadow-3d)',
+                    background: 'hsl(var(--background))',
+                    borderColor: 'hsl(var(--border))'
+                  }}
+                >
+                  <div className="font-semibold text-foreground text-lg mb-2">Local Storage</div>
+                  <div className="text-sm text-muted-foreground">
+                    Store all data on this device only. Fast and private.
+                  </div>
+                </Button>
+
+                {/* Sync Storage Option */}
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => handleStorageModeSelect('sync')}
+                  disabled={isLoading}
+                  className="w-full h-auto p-6 text-left justify-start border-2 hover:translate-y-[-2px] transition-all duration-150 flex-col items-start"
+                  style={{
+                    boxShadow: 'var(--shadow-3d)',
+                    background: 'hsl(var(--background))',
+                    borderColor: 'hsl(var(--border))'
+                  }}
+                >
+                  <div className="font-semibold text-foreground text-lg mb-2">Synced Storage</div>
+                  <div className="text-sm text-muted-foreground">
+                    Store locally with cloud backup and sync across devices.
+                  </div>
+                </Button>
+
+                {/* Cloud Storage Option */}
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => handleStorageModeSelect('cloud')}
+                  disabled={isLoading}
+                  className="w-full h-auto p-6 text-left justify-start border-2 hover:translate-y-[-2px] transition-all duration-150 flex-col items-start"
+                  style={{
+                    boxShadow: 'var(--shadow-3d)',
+                    background: 'hsl(var(--background))',
+                    borderColor: 'hsl(var(--border))'
+                  }}
+                >
+                  <div className="font-semibold text-foreground text-lg mb-2">Cloud Storage</div>
+                  <div className="text-sm text-muted-foreground">
+                    Store all data in the cloud. Access from anywhere.
+                  </div>
+                </Button>
+
+                {error && (
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-sm text-destructive">{error}</p>
+                  </div>
+                )}
+
+                {/* Back button - returns to profile selection */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBackToSelect}
+                  disabled={isLoading}
+                  className="w-full"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to profiles
+                </Button>
+              </div>
+            </>
           )}
         </Card>
       </section>
