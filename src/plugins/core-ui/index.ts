@@ -34,6 +34,7 @@ import { Alert } from './components/Alert';
 import { Accordion } from './components/Accordion';
 import { Checkbox } from './components/Checkbox';
 import { RadioGroup } from './components/RadioGroup';
+import { Button } from './components/Button';
 
 export const CoreUIPlugin: Plugin = {
   id: 'core-ui',
@@ -49,6 +50,7 @@ export const CoreUIPlugin: Plugin = {
 
   // Export components for other plugins to use
   components: {
+    'Button': Button,
     'Card': Card,
     'PageHeader': PageHeader,
     'EmptyState': EmptyState,

@@ -9,6 +9,11 @@ import type { Theme, ThemeVariables } from '../core-theme/themes';
 export const catppuccinLatte: Theme = {
   id: 'catppuccin-latte',
   name: 'Catppuccin Latte',
+  category: 'light',
+  tags: ['pastel', 'warm', 'cozy'],
+  author: 'Catppuccin',
+  description: 'Soothing pastel theme for the light',
+  source: 'plugin',
   variables: {
     // Base System - Catppuccin Latte
     '--background': '220 23% 95%',    // Base #eff1f5
@@ -54,6 +59,11 @@ export const catppuccinFrappe: Theme = {
   id: 'catppuccin-frappe',
   name: 'Catppuccin Frappé',
   className: 'dark',
+  category: 'dark',
+  tags: ['pastel', 'warm', 'cozy'],
+  author: 'Catppuccin',
+  description: 'Soothing pastel theme for the dark',
+  source: 'plugin',
   variables: {
     // Base System - Catppuccin Frappé
     '--background': '229 19% 23%',    // Base #303446

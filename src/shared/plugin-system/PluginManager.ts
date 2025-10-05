@@ -244,9 +244,38 @@ export class PluginManager implements IPluginManager {
             console.warn(`Plugin at ${path} has no default export`);
           }
         } catch (error) {
-          console.error(`Failed to import plugin from ${path}:`, error);
+          console.error(`[PluginManager] ❌ CRITICAL: Failed to import plugin from ${path}`);
+          console.error(`[PluginManager] This plugin will be skipped and any plugins depending on it will fail.`);
+          console.error(`[PluginManager] Error details:`, error);
         }
       }
+
+      // Validate all required dependencies were successfully imported
+      const pluginIds = new Set(plugins.map(p => p.id));
+      const missingDeps: Array<{ plugin: string; missing: string[] }> = [];
+
+      for (const plugin of plugins) {
+        if (plugin.requires && plugin.requires.length > 0) {
+          const missing = plugin.requires.filter(depId => !pluginIds.has(depId));
+          if (missing.length > 0) {
+            missingDeps.push({ plugin: plugin.id, missing });
+          }
+        }
+      }
+
+      if (missingDeps.length > 0) {
+        console.error('[PluginManager] Dependency validation failed:');
+        missingDeps.forEach(({ plugin, missing }) => {
+          console.error(`  - ${plugin} requires: [${missing.join(', ')}]`);
+        });
+        throw new Error(
+          `Cannot load plugins due to missing dependencies. ` +
+          `${missingDeps.length} plugin(s) have unmet requirements. ` +
+          `Check console for import errors.`
+        );
+      }
+
+      console.log(`[PluginManager] Dependency validation passed for ${plugins.length} plugins`);
 
       // Sort plugins by dependency order and load them
       const sortedPlugins = this.sortPluginsByDependencies(plugins);

@@ -31,9 +31,7 @@ const useThemeService = (): ThemeService | undefined => {
 export const useAvailableThemes = (): Theme[] => {
   const themeService = useThemeService();
 
-  const [themes, setThemes] = useState<Theme[]>(
-    () => themeService?.getAvailableThemes() || []
-  );
+  const [themes, setThemes] = useState<Theme[]>([]);
 
   useEffect(() => {
     if (!themeService) return;
@@ -41,6 +39,7 @@ export const useAvailableThemes = (): Theme[] => {
     // onThemeListChange now calls setThemes immediately with current state
     // This solves the late-subscriber problem - component gets data even if
     // it mounts after theme plugins have already registered
+    // The callback handles the async getAvailableThemes() internally
     const unsubscribe = themeService.onThemeListChange(setThemes);
 
     return unsubscribe;

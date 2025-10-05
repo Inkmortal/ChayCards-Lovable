@@ -9,7 +9,7 @@ export const ThemeTokyoNightPlugin: Plugin = {
   publicSafe: true,
   requires: ['core-theme'],
 
-  onLoad: (manager) => {
+  onLoad: async (manager) => {
     const themeService = manager.getService('core-theme/themeService');
 
     if (!themeService) {
@@ -17,8 +17,8 @@ export const ThemeTokyoNightPlugin: Plugin = {
       return;
     }
 
-    themeService.registerTheme(tokyoNightStorm);
-    themeService.registerTheme(tokyoNightLight);
+    await themeService.registerTheme(tokyoNightStorm);
+    await themeService.registerTheme(tokyoNightLight);
     console.log('[ThemeTokyoNight] Registered 2 theme variants');
   }
 };

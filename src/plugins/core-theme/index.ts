@@ -6,6 +6,9 @@
 import type { Plugin } from '../../shared/plugin-system/types';
 import { ThemeService } from './services/ThemeService';
 import { ThemeSelector } from './components/ThemeSelector';
+import { ThemeModal } from './components/ThemeModal';
+import { ThemeCard } from './components/ThemeCard';
+import { ThemeBuilder } from './components/ThemeBuilder';
 
 export const CoreThemePlugin: Plugin = {
   id: 'core-theme',
@@ -21,7 +24,10 @@ export const CoreThemePlugin: Plugin = {
   requires: [],
 
   components: {
-    'ThemeSelector': ThemeSelector
+    'ThemeSelector': ThemeSelector,
+    'ThemeModal': ThemeModal,
+    'ThemeCard': ThemeCard,
+    'ThemeBuilder': ThemeBuilder
   },
 
   services: {

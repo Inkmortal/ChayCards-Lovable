@@ -37,12 +37,21 @@
 - Python backend support added to plugin architecture
 - Live2D AI Assistant plugin feasibility confirmed
 
-### ✅ Theme System Plugin
+### ✅ Theme System Plugin (COMPLETE - October 5, 2025)
 - 7 theme variants implemented: Catppuccin (Latte/Frappé), Dracula, Tokyo Night, Gruvbox, Nord, Rose Pine
 - CSS custom properties system with localStorage persistence
 - Theme selector dropdown integrated into homepage header
 - Event-driven theme changes with real-time updates
 - ThemeService with theme change listeners and notifications
+- **Pure Database Architecture (October 5, 2025)**:
+  - Eliminated all in-memory caches (Map/Set) - prevents memory leaks
+  - Single source of truth: `core-theme:all-themes` key in database
+  - All operations async with Promise returns
+  - React hooks handle async initialization (useState + useEffect)
+  - Client-side filtering with useMemo for UI responsiveness
+  - Source field (`'plugin' | 'custom'`) replaces ID prefix checking
+  - Hot reload duplicate prevention via DB checks
+  - Memory leak vulnerability eliminated
 
 ### ✅ Enhanced User Experience
 - Smart platform-aware routing (Desktop vs Web)
@@ -83,7 +92,7 @@
 - [x] CORS configuration for all environments
 - [x] Production-ready infrastructure (Cloudflare Tunnel)
 
-### ✅ Plugin System Implementation
+### ✅ Plugin System Implementation (COMPLETE - October 5, 2025)
 - [x] PluginManager singleton with automatic plugin discovery
 - [x] EventBus for plugin communication
 - [x] Theme system as first plugin validation
@@ -92,6 +101,7 @@
 - [x] Component namespacing system working
 - [x] AppShell with plugin routes (auto-redirect to first plugin)
 - [x] Plugin storage management (each plugin owns its namespace)
+- [x] Pure database storage pattern established (no caches, async operations)
 - [ ] usePlugin React hook - **READY TO IMPLEMENT**
 
 ### 🟢 Built-in Plugins (In Progress)
@@ -173,6 +183,7 @@ We are in the **Core App Implementation** phase:
 12. ✅ Fixed double redirect when accessing /app without auth (October 2, 2025)
 13. ✅ Fixed theme not working on public pages (dual storage strategy, October 2, 2025)
 14. ✅ Fixed login JSON parse error - backend server must run on Windows for Cloudflare tunnel access (October 2, 2025)
+15. ✅ Fixed theme system memory leaks - eliminated caches, implemented pure database storage (October 5, 2025)
 
 ## Evolution of Project Decisions
 
@@ -204,6 +215,11 @@ We are in the **Core App Implementation** phase:
 14. **Backend server environment matters** - Backend API must run on Windows (not WSL) when using Windows-based Cloudflare tunnel
 15. **Network namespace isolation** - WSL localhost ≠ Windows localhost - services in one can't reach the other
 16. **JSON parse errors often mean server down** - When API returns HTML 404 instead of JSON, check if backend server is running
+17. **Pure database storage prevents memory leaks** - Eliminate in-memory caches in singleton services (Map/Set persist between sessions)
+18. **Single source of truth principle** - Database is always correct; read, modify, write back (no cache invalidation logic)
+19. **Client-side filtering for performance** - Use useMemo in UI components instead of async service methods
+20. **Async service pattern** - All storage operations should return Promise, use useState + useEffect in React hooks
+21. **Hot reload duplicate prevention** - Check database for existing data before registering to prevent duplicates on HMR
 
 ## Next Milestones
 

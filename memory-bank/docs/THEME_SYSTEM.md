@@ -92,34 +92,71 @@ All themes use **authentic official colors** verified from their respective sour
 
 ## Theme Service API
 
-### Core Methods
+### Core Methods (Updated October 5, 2025 - Pure Database Architecture)
 ```typescript
 class ThemeService {
-  // Get available themes
-  getAvailableThemes(): Theme[]
+  // Get available themes (async - reads from database)
+  async getAvailableThemes(): Promise<Theme[]>
 
-  // Get current active theme
+  // Get current active theme (sync - returns current CSS theme)
   getCurrentTheme(): Theme
 
-  // Set new theme
-  setTheme(themeId: string): void
+  // Set new theme (async - saves to database)
+  async setTheme(themeId: string): Promise<void>
 
   // Subscribe to theme changes
   onThemeChange(callback: (theme: Theme) => void): () => void
 
-  // Get theme by ID
-  getThemeById(themeId: string): Theme | undefined
+  // Get theme by ID (async - reads from database)
+  async getThemeById(themeId: string): Promise<Theme | undefined>
 
-  // Check if theme is active
+  // Check if theme is active (sync - checks current theme)
   isThemeActive(themeId: string): boolean
+
+  // Register theme from plugin (async - writes to database)
+  async registerTheme(theme: Theme): Promise<void>
+
+  // Toggle favorite status (async - reads/writes database)
+  async toggleFavorite(themeId: string): Promise<void>
+
+  // Get favorite theme IDs (async - reads from database)
+  async getFavorites(): Promise<string[]>
+
+  // Create custom theme (async - writes to database)
+  async createCustomTheme(themeData: Omit<Theme, 'id' | 'source'>): Promise<Theme>
+
+  // Update custom theme (async - writes to database)
+  async updateCustomTheme(themeId: string, updates: Partial<Theme>): Promise<void>
+
+  // Delete custom theme (async - writes to database)
+  async deleteCustomTheme(themeId: string): Promise<void>
 }
 ```
 
+### Storage Architecture (October 5, 2025 Refactor)
+**CRITICAL**: Pure database storage with NO in-memory caches
+
+**Storage Keys**:
+- `core-theme:all-themes` - Single source of truth for all themes (plugin + custom)
+- `core-theme:favorites` - Array of favorite theme IDs
+- `core-theme:current-theme` - Active theme ID
+
+**Key Changes**:
+- ❌ **Removed**: `Map<string, Theme>` for themes (memory leak)
+- ❌ **Removed**: `Set<string>` for favorites (duplicate state)
+- ✅ **Added**: Database-only storage (single source of truth)
+- ✅ **Added**: `source: 'plugin' | 'custom'` field to Theme interface
+- ✅ **Pattern**: Read from DB → Modify in memory → Write to DB
+
 ### Automatic Features
 - **CSS Variable Application**: Automatically applies theme variables to `:root`
-- **LocalStorage Persistence**: Saves user's theme preference
+- **Dual Storage Strategy**:
+  - User storage (database) - primary, syncs across devices
+  - LocalStorage - fallback for public pages
 - **Event Notifications**: Emits theme change events for components to react
 - **Class Management**: Applies theme-specific CSS classes (e.g., `dark`)
+- **Hot Reload Safe**: Checks database before registering to prevent duplicates
+- **Memory Leak Prevention**: No persistent caches in singleton service
 
 ## Plugin Integration
 
@@ -259,6 +296,27 @@ manager.getEventBus().emit('theme:change-request', { themeId: 'dracula-dark' });
 
 ## Implementation History
 
+### October 5, 2025 - Pure Database Architecture Refactor
+- **Problem**: Memory leaks from persistent caches in singleton service
+  - `Map<string, Theme>` persisted between sessions, growing indefinitely
+  - `Set<string>` for favorites caused duplicate state (cache vs DB mismatch)
+  - Hot reload duplicated themes on every refresh
+- **Solution**: Pure database storage pattern
+  - Single source of truth: `core-theme:all-themes` key in database
+  - All methods now async (return Promise)
+  - Read from DB → Modify in memory → Write to DB pattern
+  - No persistent caches (only currentTheme for CSS application)
+- **React Integration**: Custom hooks handle async initialization
+  - `useAvailableThemes()`: useState([]) + useEffect subscription
+  - Service subscription immediately provides current state (solves late subscriber problem)
+  - Client-side filtering with useMemo (faster than async service calls)
+- **Key Benefits**:
+  - Memory leak eliminated
+  - Hot reload safe (duplicate prevention via DB checks)
+  - Consistent state across sessions
+  - Simpler mental model (DB is always correct)
+  - Client-side filtering for UI responsiveness
+
 ### September 29, 2025 - Universal Semantic Variables
 - **Research Phase**: Analyzed official theme sources and design system standards
 - **Standardization**: Reduced from 14+ inconsistent palette colors to 24 semantic variables
@@ -270,8 +328,10 @@ manager.getEventBus().emit('theme:change-request', { themeId: 'dracula-dark' });
 1. **Consistency**: All themes now use identical semantic variable structure
 2. **Authenticity**: Colors verified from official theme repositories
 3. **Extensibility**: Plugin architecture allows custom variables without breaking core system
-4. **Maintainability**: Single source of truth for theme definitions
+4. **Maintainability**: Single source of truth for theme definitions (database)
 5. **Developer Experience**: Clear semantic naming makes theming intuitive
+6. **Performance**: Client-side filtering eliminates async calls in UI components
+7. **Reliability**: No memory leaks, hot reload safe, predictable state
 
 ## Future Enhancements
 

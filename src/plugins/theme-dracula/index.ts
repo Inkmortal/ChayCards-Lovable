@@ -9,7 +9,7 @@ export const ThemeDraculaPlugin: Plugin = {
   publicSafe: true,
   requires: ['core-theme'],
 
-  onLoad: (manager) => {
+  onLoad: async (manager) => {
     const themeService = manager.getService('core-theme/themeService');
 
     if (!themeService) {
@@ -17,7 +17,7 @@ export const ThemeDraculaPlugin: Plugin = {
       return;
     }
 
-    themeService.registerTheme(draculaDark);
+    await themeService.registerTheme(draculaDark);
     console.log('[ThemeDracula] Registered Dracula Dark theme');
   }
 };

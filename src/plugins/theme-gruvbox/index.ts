@@ -9,7 +9,7 @@ export const ThemeGruvboxPlugin: Plugin = {
   publicSafe: true,
   requires: ['core-theme'],
 
-  onLoad: (manager) => {
+  onLoad: async (manager) => {
     const themeService = manager.getService('core-theme/themeService');
 
     if (!themeService) {
@@ -17,8 +17,8 @@ export const ThemeGruvboxPlugin: Plugin = {
       return;
     }
 
-    themeService.registerTheme(gruvboxDark);
-    themeService.registerTheme(gruvboxLight);
+    await themeService.registerTheme(gruvboxDark);
+    await themeService.registerTheme(gruvboxLight);
     console.log('[ThemeGruvbox] Registered 2 theme variants');
   }
 };

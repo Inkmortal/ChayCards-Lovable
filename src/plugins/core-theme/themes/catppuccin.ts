@@ -49,11 +49,23 @@ export interface Theme {
   name: string;
   className?: string; // CSS class to apply to root
   variables: ThemeVariables;
+  // Metadata for organization and discovery
+  category: 'light' | 'dark';
+  tags: string[]; // e.g., ['pastel', 'warm', 'high-contrast']
+  author?: string;
+  description?: string;
+  source: 'plugin' | 'custom'; // Explicit theme origin (replaces custom- prefix convention)
+  // Note: isFavorite stored separately in user preferences (core-theme:favorites)
 }
 
 export const catppuccinLatte: Theme = {
   id: 'catppuccin-latte',
   name: 'Catppuccin Latte',
+  category: 'light',
+  tags: ['pastel', 'warm', 'cozy'],
+  author: 'Catppuccin',
+  description: 'Soothing pastel theme for the light',
+  source: 'plugin',
   variables: {
     // Base System - Catppuccin Latte
     '--background': '220 23% 95%',    // Base #eff1f5
@@ -99,6 +111,11 @@ export const catppuccinFrappe: Theme = {
   id: 'catppuccin-frappe',
   name: 'Catppuccin Frappé',
   className: 'dark',
+  category: 'dark',
+  tags: ['pastel', 'warm', 'cozy'],
+  author: 'Catppuccin',
+  description: 'Soothing pastel theme for the dark',
+  source: 'plugin',
   variables: {
     // Base System - Catppuccin Frappé
     '--background': '229 19% 23%',    // Base #303446

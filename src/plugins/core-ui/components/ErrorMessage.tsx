@@ -68,7 +68,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
             <div className="flex items-center gap-2 mt-3">
               {onRetry && (
                 <Button
-                  variant="outline"
+                  variant="3d-primary"
                   size="sm"
                   onClick={onRetry}
                   className="h-8"
@@ -79,7 +79,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
 
               {onDismiss && (
                 <Button
-                  variant="ghost"
+                  variant="3d-outline"
                   size="sm"
                   onClick={onDismiss}
                   className="h-8"

@@ -1745,21 +1745,338 @@ flashcards.exportDeck(deckId: number, format: ExportFormat): Promise<Blob>
 - Background sync when online
 - Conflict resolution for shared decks
 
+## Community Marketplace (Future Feature)
+
+### Vision: User-Generated Content Library
+
+Build a community-driven deck marketplace to compete with Quizlet's 700M+ deck library. **Storage-based pricing model** - free users get limited community publishing, paid users get unlimited.
+
+### Core Principle: Charge for Server Resources, Not Features
+
+```
+Personal Decks (Local Storage):
+✅ Unlimited forever - Stored on user's device
+✅ Costs you nothing = Free for users
+
+Community Decks (Server Storage):
+⚠️ Limited for free - Costs server resources
+💰 Paid tiers for unlimited - Covers infrastructure
+```
+
+### Pricing Tiers
+
+```
+🆓 Free Tier (Default - 90% of users)
+┌─────────────────────────────────────┐
+│ Personal Decks:                     │
+│ ✅ Unlimited (local storage)        │
+│ ✅ All study modes                  │
+│ ✅ Full customization               │
+│                                     │
+│ Community Publishing:               │
+│ ✅ Up to 3 community decks          │
+│ ✅ 10MB per deck (images/audio)     │
+│ ✅ Full download/browse access      │
+│                                     │
+│ Perfect for: Casual sharers         │
+└─────────────────────────────────────┘
+
+💎 Creator Tier ($2.99/month or $24/year)
+┌─────────────────────────────────────┐
+│ Everything in Free, plus:           │
+│ ✅ Unlimited community decks        │
+│ ✅ 50MB per deck                    │
+│ ✅ Advanced analytics dashboard     │
+│ ✅ Priority deck placement          │
+│ ✅ Creator badge 🎨                 │
+│                                     │
+│ Perfect for: Active publishers      │
+└─────────────────────────────────────┘
+
+🚀 Pro Tier ($9.99/month or $79/year)
+┌─────────────────────────────────────┐
+│ Everything in Creator, plus:        │
+│ ✅ Sell decks (80% payout)          │
+│ ✅ 500MB per deck (video support)   │
+│ ✅ API access for integrations      │
+│ ✅ Priority support                 │
+│ ✅ White-label exports (PDF, etc.)  │
+│                                     │
+│ Perfect for: Professional educators │
+└─────────────────────────────────────┘
+
+🏆 Elite Creators (Auto-Granted)
+┌─────────────────────────────────────┐
+│ Pro Tier FREE (lifetime)            │
+│ Earned by achieving:                │
+│ • 100,000+ downloads                │
+│ • 1,000+ reviews                    │
+│ • 4.7+ average rating               │
+│                                     │
+│ Rewards top-quality creators        │
+└─────────────────────────────────────┘
+```
+
+### Community Tab UI
+
+The Community Marketplace is a separate tab in the flashcards application.
+
+```
+┌───────────────────────────────────────────────────────────┐
+│ Flashcards                                                │
+├───────────────────────────────────────────────────────────┤
+│ [Home] [My Decks] [Community] [Statistics]               │
+│                    ▲                                      │
+│                  Active                                   │
+└───────────────────────────────────────────────────────────┘
+```
+
+#### Community Home Screen
+
+```
+┌───────────────────────────────────────────────────────────┐
+│ Community Decks                    [🔍 Search] [+ Publish]│
+├───────────────────────────────────────────────────────────┤
+│                                                           │
+│ 🔥 Trending This Week                                     │
+│ ┌─────────────────────────────────────────────────────┐   │
+│ │ 🇪🇸 Spanish 1000 Most Common Words                  │   │
+│ │ by @LanguageMaster 📕 • 847K uses • ⭐ 4.9         │   │
+│ │ [Preview] [Add to My Decks]                          │   │
+│ │                                                      │   │
+│ │ 💻 JavaScript Interview Prep                         │   │
+│ │ by @CodeAcademy 📘 • 523K uses • ⭐ 4.8            │   │
+│ │ [Preview] [Add to My Decks]                          │   │
+│ │                                                      │   │
+│ │ 🧬 Anatomy & Physiology Complete                     │   │
+│ │ by @MedStudyPro 📕 • 412K uses • ⭐ 4.9            │   │
+│ │ [Preview] [Add to My Decks]                          │   │
+│ └─────────────────────────────────────────────────────┘   │
+│                                                           │
+│ 📚 Browse by Category                                     │
+│ ┌───────────┐ ┌───────────┐ ┌───────────┐               │
+│ │ Languages │ │  Science  │ │    Math   │               │
+│ │  🗣️ 2.4M  │ │  🔬 1.8M  │ │  ➗ 1.2M  │               │
+│ └───────────┘ └───────────┘ └───────────┘               │
+│                                                           │
+│ ⭐ Highest Rated • 🆕 New Releases • 👥 Most Used        │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Creator Badge System (Auto-Awarded)
+
+Quality emerges naturally through community reviews and usage stats.
+
+```
+🏅 Creator Badges (Earned Through Quality)
+
+📗 Emerging Creator
+• 100+ downloads • 10+ reviews • 4.0+ rating
+→ Badge on profile
+
+📘 Established Creator
+• 1,000+ downloads • 50+ reviews • 4.3+ rating
+→ Featured in "Popular This Week"
+
+📕 Top Creator
+• 10,000+ downloads • 200+ reviews • 4.5+ rating
+→ Priority search placement, featured spotlight
+
+📙 Elite Creator
+• 100,000+ downloads • 1,000+ reviews • 4.7+ rating
+→ Blue checkmark ✓, Pro tier free forever
+```
+
+### When Users Hit Limits
+
+```
+Free User Publishing 4th Deck:
+┌─────────────────────────────────────┐
+│ ⚠️ Community Deck Limit Reached     │
+├─────────────────────────────────────┤
+│ You've published 3/3 free decks.    │
+│                                     │
+│ To publish more:                    │
+│                                     │
+│ 💎 Upgrade to Creator ($2.99/mo)    │
+│ ✅ Unlimited community decks        │
+│ ✅ 50MB per deck                    │
+│ ✅ Advanced analytics               │
+│                                     │
+│ [Upgrade Now] [Maybe Later]         │
+│                                     │
+│ Or delete an existing deck:         │
+│ [Manage My Decks]                   │
+└─────────────────────────────────────┘
+```
+
+### Database Schema
+
+```sql
+-- Community decks
+CREATE TABLE community_decks (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  title TEXT,
+  description TEXT,
+  category TEXT,
+  tags TEXT, -- JSON array
+  download_count INTEGER DEFAULT 0,
+  average_rating DECIMAL(3,2),
+  review_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+
+-- User subscription tier
+CREATE TABLE user_subscriptions (
+  user_id INTEGER PRIMARY KEY,
+  tier TEXT DEFAULT 'free', -- 'free', 'creator', 'pro', 'elite'
+  subscribed_at TIMESTAMP,
+  expires_at TIMESTAMP,
+  auto_renew BOOLEAN DEFAULT TRUE
+);
+
+-- Storage quota tracking
+CREATE TABLE user_storage (
+  user_id INTEGER PRIMARY KEY,
+  community_deck_count INTEGER DEFAULT 0,
+  total_bytes_used BIGINT DEFAULT 0,
+  quota_deck_count INTEGER DEFAULT 3, -- Free: 3, Paid: 999999
+  quota_bytes_per_deck BIGINT DEFAULT 10485760, -- Free: 10MB, Creator: 50MB, Pro: 500MB
+  last_updated TIMESTAMP
+);
+
+-- Creator badges (auto-awarded)
+CREATE TABLE creator_badges (
+  user_id INTEGER,
+  badge_type TEXT, -- 'emerging', 'established', 'top', 'elite'
+  earned_at TIMESTAMP,
+  PRIMARY KEY (user_id, badge_type)
+);
+
+-- Reviews & ratings
+CREATE TABLE community_reviews (
+  id INTEGER PRIMARY KEY,
+  deck_id INTEGER,
+  user_id INTEGER,
+  rating INTEGER, -- 1-5 stars
+  review_text TEXT,
+  created_at TIMESTAMP,
+  UNIQUE(deck_id, user_id)
+);
+
+-- User downloads
+CREATE TABLE community_downloads (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  deck_id INTEGER,
+  downloaded_at TIMESTAMP,
+  UNIQUE(user_id, deck_id)
+);
+
+-- Deck purchases (for Pro tier deck sales)
+CREATE TABLE deck_purchases (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  deck_id INTEGER,
+  amount DECIMAL(10,2),
+  platform_fee DECIMAL(10,2), -- 20% fee
+  creator_payout DECIMAL(10,2), -- 80% to creator
+  purchased_at TIMESTAMP,
+  UNIQUE(user_id, deck_id)
+);
+```
+
+### API Endpoints
+
+```typescript
+// Browse community
+flashcards.community.browse(filters: BrowseFilters): Promise<CommunityDeck[]>
+flashcards.community.search(query: string, filters: SearchFilters): Promise<CommunityDeck[]>
+flashcards.community.getTrending(): Promise<CommunityDeck[]>
+flashcards.community.getTopRated(): Promise<CommunityDeck[]>
+
+// Deck operations
+flashcards.community.getDeck(deckId: number): Promise<CommunityDeckDetails>
+flashcards.community.addToMyDecks(deckId: number): Promise<void>
+flashcards.community.purchase(deckId: number, paymentInfo: PaymentInfo): Promise<void>
+
+// Publishing (respects tier limits)
+flashcards.community.publish(deck: LocalDeck, settings: PublishSettings): Promise<CommunityDeck>
+flashcards.community.update(deckId: number, updates: Partial<CommunityDeck>): Promise<void>
+flashcards.community.unpublish(deckId: number): Promise<void>
+
+// Reviews
+flashcards.community.submitReview(deckId: number, review: ReviewData): Promise<void>
+flashcards.community.reportDeck(deckId: number, reason: string): Promise<void>
+
+// Creator dashboard
+flashcards.community.getMyPublishedDecks(): Promise<PublishedDeck[]>
+flashcards.community.getDeckStats(deckId: number): Promise<DeckStats>
+```
+
+### Implementation Timeline
+
+```
+Phase 1 (Launch): Free & Open
+- Launch with everything free
+- No deck limits initially
+- Build user base organically
+
+Phase 2 (6-12 months): Introduce Tiers
+- Announce storage-based tiers
+- Grandfather existing users (keep their decks)
+- New users: 3 deck limit on free tier
+
+Phase 3 (12+ months): Optional Premium
+- Enable deck sales for Pro tier users
+- 80/20 revenue split (creator/platform)
+- Only if community actively requests it
+```
+
+### Why This Model Works
+
+```
+✅ Fair Resource Pricing
+- Free tier generous (3 decks = most users)
+- Pay only for server resources you use
+- Elite creators rewarded (free Pro tier)
+
+✅ No Feature Paywalls
+- All study features always free
+- Spaced repetition always free
+- Templates always free
+- Only server storage costs money
+
+✅ Sustainable Business
+- Covers infrastructure costs
+- Profit margin without ads
+- Revenue scales with usage
+
+✅ Clean Experience
+- No watermarks anywhere
+- No branding clutter
+- Pure content focus
+```
+
+---
+
 ## Future Enhancements
 
 ### Phase 2 Features
-- **Collaborative Decks**: Share and edit with others
-- **AI Card Generation**: Auto-create cards from documents
-- **Voice Recording**: Record pronunciations
-- **Handwriting Recognition**: Draw answers (math, chemistry)
-- **Community Marketplace**: Share/sell deck templates
+- **Collaborative Decks**: Share and edit with others in real-time
+- **AI Card Generation**: Auto-create cards from documents, PDFs, videos
+- **Voice Recording**: Record pronunciations for language learning
+- **Handwriting Recognition**: Draw answers for math, chemistry diagrams
+- **Community Marketplace**: ✅ **Designed** (see section above, implement when needed)
 
 ### Phase 3 Features
 - **Mobile Apps**: iOS/Android with native features
-- **Web Clipper**: Create cards from websites
-- **Integration APIs**: Connect with other learning tools
-- **Machine Learning**: Personalized algorithm tuning
-- **Gamification**: Achievements, streaks, challenges
+- **Web Clipper**: Create cards from websites (browser extension)
+- **Integration APIs**: Connect with other learning tools (Canvas, Moodle, etc.)
+- **Machine Learning**: Personalized algorithm tuning based on study patterns
+- **Advanced Gamification**: Achievements, global streaks, challenges, study tournaments
 
 ## Success Metrics
 

@@ -9,7 +9,7 @@ export const ThemeCatppuccinPlugin: Plugin = {
   publicSafe: true,
   requires: ['core-theme'],
 
-  onLoad: (manager) => {
+  onLoad: async (manager) => {
     const themeService = manager.getService('core-theme/themeService');
 
     if (!themeService) {
@@ -17,9 +17,9 @@ export const ThemeCatppuccinPlugin: Plugin = {
       return;
     }
 
-    // Register themes with ThemeService
-    themeService.registerTheme(catppuccinLatte);
-    themeService.registerTheme(catppuccinFrappe);
+    // Register themes with ThemeService (now async with storage check)
+    await themeService.registerTheme(catppuccinLatte);
+    await themeService.registerTheme(catppuccinFrappe);
 
     console.log('[ThemeCatppuccin] Registered 2 theme variants');
   }

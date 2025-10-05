@@ -23,7 +23,9 @@ const badgeVariants = cva(
   }
 );
 
-export interface BadgeProps extends VariantProps<typeof badgeVariants> {
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {
   children: React.ReactNode;
   className?: string;
 }
@@ -37,15 +39,17 @@ export interface BadgeProps extends VariantProps<typeof badgeVariants> {
  * <Badge variant="secondary">Draft</Badge>
  * <Badge variant="destructive">Archived</Badge>
  * <Badge variant="outline">Pending</Badge>
+ * <Badge variant="default" onClick={() => console.log('clicked')}>Clickable</Badge>
  * ```
  */
 export const Badge: React.FC<BadgeProps> = ({
   variant,
   children,
   className = "",
+  ...props
 }) => {
   return (
-    <ShadcnBadge variant={variant} className={className}>
+    <ShadcnBadge variant={variant} className={className} {...props}>
       {children}
     </ShadcnBadge>
   );

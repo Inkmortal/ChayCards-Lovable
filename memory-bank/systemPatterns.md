@@ -282,7 +282,9 @@ interface StorageAdapter {
 ### Plugin Storage Pattern
 Each plugin owns its own storage namespace:
 - **Core Settings**: `core-settings:app-settings`
-- **Theme Preference**: `core-theme:preference`
+- **Theme Preference**: `core-theme:preference` (deprecated) / `core-theme:current-theme` (current)
+- **All Themes**: `core-theme:all-themes` (single source of truth for all themes)
+- **Favorites**: `core-theme:favorites` (array of theme IDs)
 - **Demo Data**: `demo-plugin:notes`
 
 **Key Rules**:
@@ -290,6 +292,140 @@ Each plugin owns its own storage namespace:
 2. Never use localStorage directly (except pre-init fallback)
 3. Storage initialized AFTER core-settings, BEFORE other plugins
 4. Plugins receive storage via `manager.getStorage()`
+
+### Pure Database Storage Pattern (NO CACHES)
+**Problem**: In-memory caches (Map, Set) in singleton services persist between sessions, causing:
+- Memory leaks (cache never cleared)
+- Duplicate data on hot reload
+- State inconsistencies (cache vs DB mismatch)
+
+**Solution**: Pure database storage with single source of truth
+```typescript
+// ❌ BAD: Persistent cache in singleton service
+class ThemeService {
+  private themes = new Map<string, Theme>(); // Memory leak!
+  private favorites = new Set<string>(); // Duplicate state!
+
+  async registerTheme(theme: Theme) {
+    this.themes.set(theme.id, theme); // Only in memory
+    // No DB write = data lost on refresh
+  }
+
+  getAvailableThemes(): Theme[] {
+    return Array.from(this.themes.values()); // Stale cache
+  }
+}
+
+// ✅ GOOD: Pure database storage (stateless service)
+class ThemeService {
+  // No caches! Only transient state (currentTheme for CSS application)
+  private currentTheme: Theme = DEFAULT_THEME;
+  private storage: StorageAdapter | null = null;
+
+  async registerTheme(theme: Theme): Promise<void> {
+    // Read from DB
+    const existingThemes = await this.storage.get<Theme[]>('core-theme:all-themes') || [];
+
+    // Check for duplicates (prevents hot reload issues)
+    if (existingThemes.some(t => t.id === theme.id)) {
+      return; // Already registered
+    }
+
+    // Modify in memory
+    existingThemes.push(theme);
+
+    // Write back to DB (single source of truth)
+    await this.storage.set('core-theme:all-themes', existingThemes);
+  }
+
+  async getAvailableThemes(): Promise<Theme[]> {
+    // Always read from DB (no cache)
+    return await this.storage.get<Theme[]>('core-theme:all-themes') || [];
+  }
+
+  async toggleFavorite(themeId: string): Promise<void> {
+    // Read from DB
+    const favorites = await this.storage.get<string[]>('core-theme:favorites') || [];
+
+    // Modify in memory
+    const index = favorites.indexOf(themeId);
+    if (index !== -1) {
+      favorites.splice(index, 1);
+    } else {
+      favorites.push(themeId);
+    }
+
+    // Write back to DB
+    await this.storage.set('core-theme:favorites', favorites);
+  }
+}
+```
+
+**Pattern Benefits**:
+- No memory leaks (nothing persists between sessions except currentTheme for CSS)
+- Single source of truth (DB is always correct)
+- Hot reload safe (duplicate check prevents re-registration)
+- Consistent state across sessions
+- Simpler mental model (no cache invalidation logic)
+
+**React Integration**:
+```typescript
+// Custom hook handles async initialization
+export const useAvailableThemes = (): Theme[] => {
+  const [themes, setThemes] = useState<Theme[]>([]); // Start empty
+
+  useEffect(() => {
+    // Subscription immediately provides current state (from DB query)
+    const unsubscribe = themeService.onThemeListChange(setThemes);
+    return unsubscribe;
+  }, []);
+
+  return themes;
+};
+
+// Service subscription provides immediate state
+onThemeListChange(callback: (themes: Theme[]) => void): () => void {
+  // Immediately call callback with current DB state
+  this.getAvailableThemes().then(themes => callback(themes));
+
+  // Then notify on future changes
+  this.listeners.add(() => {
+    this.getAvailableThemes().then(themes => callback(themes));
+  });
+
+  return () => this.listeners.delete(callback);
+}
+```
+
+**Client-Side Filtering** (faster than async service calls):
+```typescript
+// UI component filters locally with useMemo
+const filteredThemes = useMemo(() => {
+  let themes = availableThemes; // From useAvailableThemes() hook
+
+  // Apply category filter
+  themes = themes.filter(t => t.category === categoryFilter);
+
+  // Apply search filter
+  if (searchQuery) {
+    const lowerQuery = searchQuery.toLowerCase();
+    themes = themes.filter(t =>
+      t.name.toLowerCase().includes(lowerQuery) ||
+      t.description?.toLowerCase().includes(lowerQuery)
+    );
+  }
+
+  return themes;
+}, [availableThemes, searchQuery, categoryFilter]);
+```
+
+**Key Principles**:
+1. **Database is truth**: All persistent data in DB, not memory
+2. **Read-Modify-Write**: Always read latest from DB before modifying
+3. **Async everything**: All storage operations return Promise
+4. **React hooks**: useState + useEffect for async initialization
+5. **Client-side filtering**: Use useMemo in components, not async service methods
+6. **Duplicate prevention**: Check DB before inserting (handles hot reload)
 
 ### Storage Lifecycle
 ```

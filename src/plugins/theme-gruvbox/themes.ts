@@ -10,6 +10,11 @@ export const gruvboxDark: Theme = {
   id: 'gruvbox-dark',
   name: 'Gruvbox Dark',
   className: 'dark',
+  category: 'dark',
+  tags: ['retro', 'earthy', 'warm', 'vintage'],
+  author: 'Gruvbox',
+  description: 'Retro groove theme with warm earth tones',
+  source: 'plugin',
   variables: {
     // Base System - Gruvbox Dark
     '--background': '36 6% 15%',      // dark0 #282828
@@ -54,6 +59,11 @@ export const gruvboxDark: Theme = {
 export const gruvboxLight: Theme = {
   id: 'gruvbox-light',
   name: 'Gruvbox Light',
+  category: 'light',
+  tags: ['retro', 'earthy', 'warm', 'vintage'],
+  author: 'Gruvbox',
+  description: 'Light companion to Gruvbox Dark',
+  source: 'plugin',
   variables: {
     // Base System - Gruvbox Light
     '--background': '36 67% 97%',     // light0 #fbf1c7

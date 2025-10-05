@@ -47,7 +47,7 @@ export interface DropdownMenuProps {
  *
  * @example
  * ```tsx
- * <DropdownMenu trigger={<Button variant="ghost">Actions</Button>}>
+ * <DropdownMenu trigger={<Button variant="3d-outline">Actions</Button>}>
  *   <DropdownMenuItem onClick={() => edit()}>
  *     <Edit className="mr-2 h-4 w-4" />
  *     Edit

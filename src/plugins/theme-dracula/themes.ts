@@ -10,6 +10,11 @@ export const draculaDark: Theme = {
   id: 'dracula-dark',
   name: 'Dracula',
   className: 'dark',
+  category: 'dark',
+  tags: ['vibrant', 'high-contrast', 'cool', 'purple'],
+  author: 'Dracula Theme',
+  description: 'Dark theme with vibrant purple accents',
+  source: 'plugin',
   variables: {
     // Base System - Dracula
     '--background': '230 15% 15%',    // Background #282A36

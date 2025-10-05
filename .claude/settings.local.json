@@ -106,7 +106,11 @@
       "Read(//mnt/c/Users/danhc/.claude/**)",
       "Read(//mnt/c/Users/danhc/**)",
       "WebFetch(domain:docs.ankiweb.net)",
-      "WebFetch(domain:eikowagenknecht.com)"
+      "WebFetch(domain:eikowagenknecht.com)",
+      "WebFetch(domain:bundlephobia.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(dos2unix:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   },

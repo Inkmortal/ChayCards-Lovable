@@ -10,6 +10,11 @@ export const tokyoNightStorm: Theme = {
   id: 'tokyo-night-storm',
   name: 'Tokyo Night Storm',
   className: 'dark',
+  category: 'dark',
+  tags: ['modern', 'balanced', 'blue', 'neon'],
+  author: 'Tokyo Night',
+  description: 'Dark blue theme inspired by Tokyo\'s neon nights',
+  source: 'plugin',
   variables: {
     // Base System - Tokyo Night Storm
     '--background': '222 16% 16%',    // Background #24283b
@@ -54,6 +59,11 @@ export const tokyoNightStorm: Theme = {
 export const tokyoNightLight: Theme = {
   id: 'tokyo-night-light',
   name: 'Tokyo Night Day',
+  category: 'light',
+  tags: ['modern', 'balanced', 'blue', 'clean'],
+  author: 'Tokyo Night',
+  description: 'Light companion to Tokyo Night Storm',
+  source: 'plugin',
   variables: {
     // Base System - Tokyo Night Light
     '--background': '230 20% 98%',    // Light background

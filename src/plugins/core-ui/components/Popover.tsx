@@ -27,7 +27,7 @@ export interface PopoverProps {
  *
  * @example
  * ```tsx
- * <Popover trigger={<Button variant="outline">More info</Button>}>
+ * <Popover trigger={<Button variant="3d-outline">More info</Button>}>
  *   <div className="space-y-2">
  *     <h4 className="font-medium">Quick Info</h4>
  *     <p className="text-sm text-muted-foreground">

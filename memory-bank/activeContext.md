@@ -50,10 +50,16 @@ We are building the foundation architecture for ChayCards with a focus on:
    - ~~SQLite local storage working in Electron~~ ✅ Complete
    - ~~Plugin storage initialization and lifecycle~~ ✅ Complete
    - ~~First-time user flow (setup screen)~~ ✅ Complete
-6. Game plugin design and architecture - **NEXT PRIORITY**
-7. Building the frontend with plugin architecture
+6. ~~**Theme System Pure Database Architecture**~~ ✅ **COMPLETE** (October 5, 2025)
+   - ~~Eliminated cache-based storage (Map/Set removed)~~ ✅ Complete
+   - ~~Pure database storage with single source of truth~~ ✅ Complete
+   - ~~Async service pattern for all operations~~ ✅ Complete
+   - ~~Client-side filtering for UI responsiveness~~ ✅ Complete
+   - ~~Memory leak vulnerability eliminated~~ ✅ Complete
+7. Game plugin design and architecture - **NEXT PRIORITY**
+8. Building the frontend with plugin architecture
 
-**Current Status**: Electron desktop app fully functional with SQLite persistence and proper user flow routing
+**Current Status**: Theme system refactored to pure database architecture with no memory leaks and proper async patterns
 
 - **Implementation Strategy**: "Vertical Slice First" - build minimal working system end-to-end
 - **First Plugin**: Theme system (core-theme) with 7 theme variants ✅ Complete
@@ -63,6 +69,56 @@ We are building the foundation architecture for ChayCards with a focus on:
 - **Deployment Strategy**: Local-first for desktop, cloud-first for web, future mobile support
 
 ## Recent Changes
+
+### Theme System Pure Database Refactor (October 5, 2025)
+- **Architecture Change**: Eliminated all in-memory caches for pure database storage
+  - **Removed**: `Map<string, Theme>` for themes registry (was memory leak vulnerability)
+  - **Removed**: `Set<string>` for favorites cache (caused duplicate state)
+  - **Added**: Single source of truth in database under `core-theme:all-themes` key
+  - **Why**: Caches persist between sessions in singleton services, causing memory leaks and state inconsistencies
+- **Pure Database Pattern**: All theme data stored and queried from database
+  - `core-theme:all-themes` - Single array containing all themes (plugin + custom)
+  - `core-theme:favorites` - Array of favorite theme IDs
+  - `core-theme:current-theme` - Active theme ID (uses STORAGE_KEYS constant)
+  - Every operation reads from DB, modifies in memory, writes back to DB
+  - No persistent caches between operations (stateless service pattern)
+- **Async Service Pattern**: All ThemeService methods now return Promise
+  - `registerTheme(theme)` - Checks DB for duplicates before adding (prevents re-registration on hot reload)
+  - `getAvailableThemes()` - Returns `Promise<Theme[]>` from DB query
+  - `getThemeById(id)` - Returns `Promise<Theme | undefined>` from DB query
+  - `getCustomThemes()` - Filters themes by `source: 'custom'` from DB
+  - `toggleFavorite(id)` - Reads favorites from DB, toggles, writes back
+- **React Async Integration**: Components handle async initialization properly
+  - `useAvailableThemes()` hook: `useState([])` + `useEffect` with service subscription
+  - `onThemeListChange()` callback immediately provides current state (solves late subscriber problem)
+  - Client-side filtering for search/category (no async service calls in UI)
+  - Theme previews update React state synchronously (applyTheme is sync)
+- **Source Field Addition**: Theme interface now includes `source: 'plugin' | 'custom'`
+  - Plugin themes: Registered by theme plugins during onLoad, source = 'plugin'
+  - Custom themes: Created by user in theme builder, source = 'custom'
+  - Replaces ID prefix checking (`theme.id.startsWith('custom-')`)
+  - Enables reliable filtering: `themes.filter(t => t.source === 'custom')`
+- **Client-Side Filtering Pattern**: UI components filter themes locally instead of service methods
+  - `ThemeModal.tsx`: Filters `availableThemes` array by search query and category
+  - `useMemo` for performance (only recomputes when themes/query/category change)
+  - Eliminates async service calls in render cycle (faster, simpler)
+  - Service provides raw data, UI handles presentation logic
+- **Files Changed**:
+  - `src/plugins/core-theme/services/ThemeService.ts` - Complete refactor to async DB operations
+  - `src/plugins/core-theme/hooks/useThemes.ts` - Fixed async state initialization
+  - `src/plugins/core-theme/components/ThemeModal.tsx` - Client-side filtering with useMemo
+  - `src/plugins/theme-catppuccin/themes.ts` - Added async/await to registerTheme calls
+  - `src/plugins/theme-dracula/themes.ts` - Added async/await to registerTheme calls
+  - `src/plugins/theme-gruvbox/themes.ts` - Added async/await to registerTheme calls
+  - `src/plugins/theme-tokyonight/themes.ts` - Added async/await to registerTheme calls
+  - `src/plugins/core-theme/index.ts` - Added async to onLoad for proper initialization
+- **Key Benefits**:
+  - Memory leak eliminated (no persistent caches in singleton)
+  - Single source of truth (database only)
+  - Consistent state across sessions
+  - Duplicate prevention on hot reload
+  - Simpler mental model (DB is always correct)
+  - Client-side filtering for UI responsiveness
 
 ### Backend API Server and Login Issue Resolution (October 2, 2025)
 - **Backend API Server Setup**: Added npm script to run Express server
@@ -385,3 +441,9 @@ We are building the foundation architecture for ChayCards with a focus on:
 32. **Auth Guard Placement**: Check authentication in AppShell BEFORE loading plugins, not after - prevents double redirects
 33. **Theme Universal Access**: Theme must work on ALL pages, so use localStorage for public pages and dual storage for app pages
 34. **Plugin Loading Timing**: Never load plugins in main.tsx for /app routes - let AppShell handle auth check first, then load plugins
+35. **Pure Database Storage**: Eliminate in-memory caches in singleton services - they persist between sessions causing memory leaks
+36. **Async Service Pattern**: All storage operations should return Promises - use useState([]) + useEffect in React hooks for async initialization
+37. **Client-Side Filtering**: Filter data in UI components with useMemo, not in async service methods - faster and simpler
+38. **Source Field Over ID Prefix**: Use explicit `source: 'plugin' | 'custom'` field instead of checking `id.startsWith('custom-')`
+39. **Single Source of Truth**: Database is always correct - read from DB, modify in memory, write back to DB (no persistent caches)
+40. **Hot Reload Duplicate Prevention**: Check DB for existing data before registering to prevent duplicates on hot reload
