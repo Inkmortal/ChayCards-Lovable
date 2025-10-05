@@ -271,6 +271,16 @@ export class PluginManager implements IPluginManager {
       console.log(`Loaded ${sortedPlugins.length} plugins successfully`);
       this.eventBus.emit('plugins:all-loaded', { count: sortedPlugins.length });
 
+      // Apply localStorage theme after all theme plugins have loaded
+      // (mirrors loadPublicSafePlugins behavior - see lines 313-318)
+      const themeService = this.getService('core-theme/themeService');
+      if (themeService) {
+        console.log('[PluginManager] Applying localStorage theme after all plugins loaded...');
+        await themeService.applyLocalStorageTheme();
+        console.log('[PluginManager] Available themes:', themeService.getAvailableThemes());
+        console.log('[PluginManager] Current theme:', themeService.getCurrentTheme());
+      }
+
     } catch (error) {
       console.error('Failed to load plugins:', error);
       throw error;
