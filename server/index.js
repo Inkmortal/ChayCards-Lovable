@@ -63,9 +63,23 @@ app.use(express.json());
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         username VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        enabled_plugins JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
+    `);
+
+    // Add enabled_plugins column if it doesn't exist (migration for existing tables)
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'enabled_plugins'
+        ) THEN
+          ALTER TABLE users ADD COLUMN enabled_plugins JSONB DEFAULT '[]'::jsonb;
+        END IF;
+      END $$;
     `);
 
     // Storage table (now with user_id foreign key)
@@ -359,7 +373,7 @@ app.delete('/api/storage', authenticateToken, async (req, res) => {
   }
 });
 
-// List all users (for demo/admin purposes)
+// List all users with their enabled plugins (for demo/admin purposes)
 // NOTE: In production, this should be restricted to admin users only
 app.get('/api/users', authenticateToken, async (req, res) => {
   try {
@@ -367,9 +381,9 @@ app.get('/api/users', authenticateToken, async (req, res) => {
       SELECT
         id,
         username,
+        enabled_plugins,
         created_at,
-        updated_at,
-        (SELECT COUNT(*) FROM storage WHERE user_id = users.id) as storage_key_count
+        updated_at
       FROM users
       ORDER BY created_at DESC
     `);
@@ -381,7 +395,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
       hasPassword: true, // All PostgreSQL users have passwords
       createdAt: Math.floor(new Date(user.created_at).getTime() / 1000), // Convert to Unix timestamp
       lastUsedAt: Math.floor(new Date(user.updated_at).getTime() / 1000), // Use updated_at as proxy
-      storageKeyCount: parseInt(user.storage_key_count)
+      enabledPlugins: user.enabled_plugins || [] // Array of plugin IDs from users table
     }));
 
     res.json({ users });
