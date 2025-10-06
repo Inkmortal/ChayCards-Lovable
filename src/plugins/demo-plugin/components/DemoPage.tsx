@@ -7,10 +7,14 @@ import { Card } from "@/renderer/components/ui/card";
 import { Button } from "@/renderer/components/ui/button";
 import { Input } from "@/renderer/components/ui/input";
 import { Label } from "@/renderer/components/ui/label";
+import { Badge } from "@/renderer/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/renderer/components/ui/table";
-import { Palette, Zap, Box, Code, Database, Trash2, Plus, HardDrive, Cloud } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/renderer/components/ui/collapsible";
+import { Palette, Zap, Box, Code, Database, Trash2, Plus, HardDrive, Cloud, Users, ChevronDown, Shield, Clock } from "lucide-react";
 import { PluginManager } from "../../../shared/plugin-system";
 import { useState, useEffect } from "react";
+import { isElectron } from "@/utils/platform";
+import { STORAGE_KEYS } from "@/shared/constants";
 
 export const DemoPage = () => {
   const pluginManager = PluginManager.getInstance();
@@ -38,6 +42,15 @@ export const DemoPage = () => {
   const [loadingStorage, setLoadingStorage] = useState(false);
   const [pluginFilter, setPluginFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // User Management state
+  const [users, setUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showUserTableView, setShowUserTableView] = useState(false);
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+
+  // Storage Admin state
+  const [expandedStorageKeys, setExpandedStorageKeys] = useState<Set<string>>(new Set());
 
   // Extract unique plugin namespaces from storage keys
   const getPluginNamespaces = () => {
@@ -111,6 +124,95 @@ export const DemoPage = () => {
   useEffect(() => {
     loadAllStorageData();
   }, []);
+
+  // Load users from Electron API or PostgreSQL API
+  const loadUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      if (isElectron()) {
+        // Real data from Electron SQLite
+        const userList = await window.electronAPI.user.list();
+        setUsers(userList);
+        console.log('[Demo] Loaded users from Electron:', userList);
+      } else {
+        // Real data from PostgreSQL API
+        // Extract base API URL (remove /storage suffix if present)
+        const storageUrl = import.meta.env.VITE_STORAGE_API_URL || 'https://api.chaycards.com/api/storage';
+        const baseApiUrl = storageUrl.replace(/\/storage$/, '');
+        const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+        if (!token) {
+          console.error('[Demo] No auth token found - cannot fetch users');
+          setUsers([]);
+          return;
+        }
+
+        console.log('[Demo] Fetching users from:', `${baseApiUrl}/users`);
+
+        const response = await fetch(`${baseApiUrl}/users`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[Demo] HTTP ${response.status} error fetching users:`, errorText);
+          throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        setUsers(data.users || []);
+        console.log('[Demo] Loaded users from PostgreSQL:', data.users);
+      }
+    } catch (error) {
+      console.error('[Demo] Failed to load users:', error);
+      setUsers([]);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Load users on mount (both Electron and Web)
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  // Toggle user card expansion
+  const toggleUserExpansion = (userId: string) => {
+    setExpandedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle storage key card expansion
+  const toggleStorageKeyExpansion = (key: string) => {
+    setExpandedStorageKeys(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  // Get storage keys for a specific user (Electron only - uses user_id from storage)
+  // Note: In Electron, storage adapter returns keys for current user only
+  // This is a demo approximation - we can't actually filter by user_id in storage
+  const getUserStorageKeys = (userId: string) => {
+    // Since we can only access current user's storage, return empty for other users
+    // In a real multi-user system, you'd query by user_id from storage table
+    return allStorageKeys; // Shows current user's keys as example
+  };
 
   // Subscribe to theme changes
   useEffect(() => {
@@ -466,34 +568,55 @@ export const DemoPage = () => {
               </Table>
             </div>
           ) : (
-            /* Card View - Filtered Storage Keys */
+            /* Card View - Collapsible Storage Keys */
             <div className="space-y-2">
               {filteredKeys.map((key) => {
                 const value = storageData[key];
                 const valueStr = JSON.stringify(value, null, 2);
                 const valueType = Array.isArray(value) ? 'Array' : typeof value === 'object' ? 'Object' : typeof value;
                 const byteSize = new Blob([valueStr]).size;
+                const isExpanded = expandedStorageKeys.has(key);
 
                 return (
-                  <div
+                  <Collapsible
                     key={key}
-                    className="p-3 rounded-lg border border-border bg-background/50 hover:border-primary/30 transition-colors"
+                    open={isExpanded}
+                    onOpenChange={() => toggleStorageKeyExpansion(key)}
                   >
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-foreground text-sm mb-1 font-mono truncate">{key}</h3>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                            {valueType}
-                          </span>
-                          <span className="text-xs text-muted-foreground">{byteSize} bytes</span>
+                    <div
+                      className={`rounded-lg border-2 transition-all ${
+                        isExpanded
+                          ? 'border-primary bg-primary/5 shadow-md'
+                          : 'border-border bg-background/50 hover:border-primary/50 hover:shadow-sm'
+                      }`}
+                    >
+                      <CollapsibleTrigger className="w-full p-3 text-left">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-foreground text-sm mb-1 font-mono truncate">{key}</h3>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                                {valueType}
+                              </span>
+                              <span className="text-xs text-muted-foreground">{byteSize} bytes</span>
+                            </div>
+                          </div>
+                          <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform flex-shrink-0 ${
+                            isExpanded ? 'rotate-180' : ''
+                          }`} />
                         </div>
-                      </div>
+                      </CollapsibleTrigger>
+
+                      <CollapsibleContent>
+                        <div className="px-3 pb-3 pt-2 border-t border-border/50">
+                          <p className="text-xs text-muted-foreground mb-2">Value (JSON):</p>
+                          <pre className="text-xs text-muted-foreground font-mono bg-muted/50 p-2 rounded overflow-x-auto">
+                            {valueStr}
+                          </pre>
+                        </div>
+                      </CollapsibleContent>
                     </div>
-                    <pre className="text-xs text-muted-foreground font-mono bg-muted/50 p-2 rounded overflow-x-auto">
-                      {valueStr}
-                    </pre>
-                  </div>
+                  </Collapsible>
                 );
               })}
             </div>
@@ -551,6 +674,314 @@ export const DemoPage = () => {
             Add Note
           </Button>
         </div>
+      </Card>
+
+      {/* User Management Demo */}
+      <Card className="p-6 border-2 rounded-2xl bg-card/50">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-xl bg-info/10 flex items-center justify-center">
+            <Users className="w-6 h-6 text-info" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-foreground">User Management</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-xs text-muted-foreground">
+                {isElectron() ? 'Local user profiles from SQLite database' : 'Cloud user profiles from PostgreSQL database'}
+              </p>
+            </div>
+          </div>
+          {users.length > 0 && (
+            <Button
+              onClick={() => setShowUserTableView(!showUserTableView)}
+              variant="outline"
+              size="sm"
+            >
+              {showUserTableView ? 'Card View' : 'Table View'}
+            </Button>
+          )}
+        </div>
+
+        {loadingUsers ? (
+          <div className="p-6 text-center text-muted-foreground">
+            <p className="text-sm">Loading users...</p>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="p-6 border border-dashed border-border rounded-lg text-center">
+            <p className="text-sm text-muted-foreground mb-2">No user profiles found</p>
+            <p className="text-xs text-muted-foreground">
+              Create a profile from the profile selection screen
+            </p>
+          </div>
+        ) : showUserTableView ? (
+          /* Table View - Users */
+          <div>
+            <div className="border border-border rounded-lg overflow-hidden mb-3">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="font-bold">Profile Name</TableHead>
+                    <TableHead className="font-bold">Storage Mode</TableHead>
+                    <TableHead className="font-bold">Protected</TableHead>
+                    <TableHead className="font-bold">Plugins</TableHead>
+                    <TableHead className="font-bold">Last Used</TableHead>
+                    <TableHead className="font-bold">Created</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id} className="hover:bg-muted/30">
+                      <TableCell className="font-medium">
+                        {user.profileName}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={user.storageMode === 'local' ? 'default' : 'secondary'}>
+                          {user.storageMode === 'local' ? (
+                            <><HardDrive className="w-3 h-3 mr-1 inline" />SQLite</>
+                          ) : (
+                            <><Cloud className="w-3 h-3 mr-1 inline" />Cloud</>
+                          )}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-lg" title={user.hasPassword ? 'Password protected' : 'No password'}>
+                          {user.hasPassword ? '🔒' : '🔓'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Badge variant="outline" className="text-xs">
+                            {(user.installedPlugins || []).length} installed
+                          </Badge>
+                          <Badge variant="default" className="text-xs bg-primary">
+                            {(user.enabledPlugins || []).length} active
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(user.lastUsedAt * 1000).toLocaleString()}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(user.createdAt * 1000).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Total: {users.length} user profile{users.length !== 1 ? 's' : ''}
+              </p>
+              <Button
+                onClick={loadUsers}
+                variant="outline"
+                size="sm"
+                disabled={loadingUsers}
+              >
+                {loadingUsers ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          /* Card View - Collapsible Users */
+          <div>
+            <div className="space-y-2 mb-3">
+              {users.map((user) => {
+                const isExpanded = expandedUsers.has(user.id);
+
+                return (
+                  <Collapsible
+                    key={user.id}
+                    open={isExpanded}
+                    onOpenChange={() => toggleUserExpansion(user.id)}
+                  >
+                    <div
+                      className={`rounded-lg border-2 transition-all ${
+                        isExpanded
+                          ? 'border-primary bg-primary/5 shadow-md'
+                          : 'border-border bg-background/50 hover:border-primary/50 hover:shadow-sm'
+                      }`}
+                    >
+                      <CollapsibleTrigger className="w-full p-4 text-left">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                              user.hasPassword ? 'bg-success/10' : 'bg-muted/30'
+                            }`}>
+                              <Shield className={`w-5 h-5 ${
+                                user.hasPassword ? 'text-success' : 'text-muted-foreground'
+                              }`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-foreground text-sm truncate">
+                                {user.profileName}
+                              </h3>
+                              <p className="text-xs text-muted-foreground">
+                                ID: {user.id.substring(0, 8)}...
+                              </p>
+                            </div>
+                            <Badge variant={user.storageMode === 'local' ? 'default' : 'secondary'}>
+                              {user.storageMode === 'local' ? 'SQLite' : 'Cloud'}
+                            </Badge>
+                            <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform ${
+                              isExpanded ? 'rotate-180' : ''
+                            }`} />
+                          </div>
+                        </div>
+                      </CollapsibleTrigger>
+
+                      <CollapsibleContent>
+                        <div className="px-4 pb-4 pt-2 space-y-3 border-t border-border/50">
+                          {/* Storage Mode */}
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-info/10 flex items-center justify-center flex-shrink-0">
+                              {user.storageMode === 'local' ? (
+                                <HardDrive className="w-4 h-4 text-info" />
+                              ) : (
+                                <Cloud className="w-4 h-4 text-info" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-foreground">Storage Mode</p>
+                              <p className="text-xs text-muted-foreground">
+                                {user.storageMode === 'local' ? 'Local SQLite database' : 'Cloud PostgreSQL database'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Password Protection */}
+                          <div className="flex items-start gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                              user.hasPassword ? 'bg-success/10' : 'bg-muted/30'
+                            }`}>
+                              <Shield className={`w-4 h-4 ${
+                                user.hasPassword ? 'text-success' : 'text-muted-foreground'
+                              }`} />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-foreground">Security</p>
+                              <p className="text-xs text-muted-foreground">
+                                {user.hasPassword ? 'Password protected' : 'No password set'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Last Used */}
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center flex-shrink-0">
+                              <Clock className="w-4 h-4 text-secondary" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-foreground">Last Used</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(user.lastUsedAt * 1000).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Created At */}
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-tertiary/10 flex items-center justify-center flex-shrink-0">
+                              <Clock className="w-4 h-4 text-tertiary" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-foreground">Created</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(user.createdAt * 1000).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Full ID */}
+                          <div className="pt-2 border-t border-border/50">
+                            <p className="text-xs text-muted-foreground mb-1">User ID</p>
+                            <code className="text-xs font-mono bg-muted/50 px-2 py-1 rounded block break-all">
+                              {user.id}
+                            </code>
+                          </div>
+
+                          {/* Plugin Configuration */}
+                          <div className="pt-2 border-t border-border/50">
+                            <div className="space-y-3">
+                              {/* Installed Plugins */}
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs font-medium text-foreground">Installed Plugins</p>
+                                  <Badge variant="outline" className="text-xs">
+                                    {(user.installedPlugins || []).length} owned
+                                  </Badge>
+                                </div>
+                                {(!user.installedPlugins || user.installedPlugins.length === 0) ? (
+                                  <p className="text-xs text-muted-foreground">No plugins installed</p>
+                                ) : (
+                                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                                    {user.installedPlugins.map((pluginId: string) => (
+                                      <div
+                                        key={pluginId}
+                                        className="p-2 rounded bg-muted/30 border border-border/50"
+                                      >
+                                        <code className="text-xs font-mono text-muted-foreground">
+                                          {pluginId}
+                                        </code>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Enabled Plugins */}
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs font-medium text-foreground">Enabled Plugins</p>
+                                  <Badge variant="default" className="text-xs bg-primary">
+                                    {(user.enabledPlugins || []).length} active
+                                  </Badge>
+                                </div>
+                                {(!user.enabledPlugins || user.enabledPlugins.length === 0) ? (
+                                  <p className="text-xs text-muted-foreground">No plugins enabled</p>
+                                ) : (
+                                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                                    {user.enabledPlugins.map((pluginId: string) => (
+                                      <div
+                                        key={pluginId}
+                                        className="p-2 rounded bg-primary/10 border border-primary/30"
+                                      >
+                                        <code className="text-xs font-mono text-foreground">
+                                          {pluginId}
+                                        </code>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Total: {users.length} user profile{users.length !== 1 ? 's' : ''}
+              </p>
+              <Button
+                onClick={loadUsers}
+                variant="outline"
+                size="sm"
+                disabled={loadingUsers}
+              >
+                {loadingUsers ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Plugin System Info */}

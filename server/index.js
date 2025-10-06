@@ -63,16 +63,24 @@ app.use(express.json());
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         username VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        installed_plugins JSONB DEFAULT '[]'::jsonb,
         enabled_plugins JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
 
-    // Add enabled_plugins column if it doesn't exist (migration for existing tables)
+    // Add installed_plugins and enabled_plugins columns if they don't exist (migration)
     await pool.query(`
       DO $$
       BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'installed_plugins'
+        ) THEN
+          ALTER TABLE users ADD COLUMN installed_plugins JSONB DEFAULT '[]'::jsonb;
+        END IF;
+
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
           WHERE table_name = 'users' AND column_name = 'enabled_plugins'
@@ -373,7 +381,7 @@ app.delete('/api/storage', authenticateToken, async (req, res) => {
   }
 });
 
-// List all users with their enabled plugins (for demo/admin purposes)
+// List all users with their plugin configuration (for demo/admin purposes)
 // NOTE: In production, this should be restricted to admin users only
 app.get('/api/users', authenticateToken, async (req, res) => {
   try {
@@ -381,6 +389,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
       SELECT
         id,
         username,
+        installed_plugins,
         enabled_plugins,
         created_at,
         updated_at
@@ -395,7 +404,8 @@ app.get('/api/users', authenticateToken, async (req, res) => {
       hasPassword: true, // All PostgreSQL users have passwords
       createdAt: Math.floor(new Date(user.created_at).getTime() / 1000), // Convert to Unix timestamp
       lastUsedAt: Math.floor(new Date(user.updated_at).getTime() / 1000), // Use updated_at as proxy
-      enabledPlugins: user.enabled_plugins || [] // Array of plugin IDs from users table
+      installedPlugins: user.installed_plugins || [], // All plugins user owns
+      enabledPlugins: user.enabled_plugins || [] // Active plugins (subset of installed)
     }));
 
     res.json({ users });
