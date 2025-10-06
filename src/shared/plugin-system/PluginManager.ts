@@ -9,12 +9,15 @@ import type {
   Route,
   NavigationItem,
   RegionComponent,
-  PluginManager as IPluginManager
+  PluginManager as IPluginManager,
+  UserPluginPreferences
 } from './types';
 import { EventBus } from './EventBus';
 import { getStorageManager } from '../storage/StorageManager';
 import { isPublicPage } from '@/utils/routeUtils';
 import type { StorageAdapter } from '../storage/StorageAdapter';
+import { CORE_PLUGINS, isCorePlugin, buildPluginStorageKey, STORAGE_KEYS } from '../constants';
+import { isWeb } from '@/utils/platform';
 
 export class PluginManager implements IPluginManager {
   private static instance: PluginManager;
@@ -123,14 +126,17 @@ export class PluginManager implements IPluginManager {
       throw new Error('SettingsService not found. core-settings plugin must load first.');
     }
 
-    const storageMode = settingsService.getStorageMode();
-
     // Check if we're on a public page - if so, skip storage initialization entirely
     // Public pages don't need user data (local or cloud)
     if (isPublicPage()) {
       console.log('[PluginManager] On public page - skipping storage initialization (no user data needed)');
       return;
     }
+
+    // Determine storage mode from platform (no user choice - automatic)
+    // Web → always cloud (PostgreSQL via API)
+    // Electron → always local (SQLite via IPC)
+    const storageMode = isWeb() ? 'cloud' : 'local';
 
     await this.storageManager.initialize(storageMode);
     this.storageInitialized = true;
@@ -146,6 +152,96 @@ export class PluginManager implements IPluginManager {
   // Check if storage is ready
   isStorageReady(): boolean {
     return this.storageInitialized;
+  }
+
+  /**
+   * Get user's plugin preferences from users table.
+   * Returns default (all discovered plugins enabled) if no preferences stored.
+   * Core plugins are ALWAYS enabled regardless of user preferences.
+   */
+  private async getUserPluginPreferences(discoveredPlugins: Plugin[]): Promise<UserPluginPreferences> {
+    // If storage not available (public page or not initialized), return all plugins enabled
+    if (!this.storageInitialized) {
+      return {
+        enabledPlugins: discoveredPlugins.map(p => p.id),
+        updatedAt: Date.now()
+      };
+    }
+
+    try {
+      if (isWeb()) {
+        // Web mode: Fetch from PostgreSQL users table via API
+        const storageUrl = import.meta.env.VITE_STORAGE_API_URL || 'https://api.chaycards.com/api/storage';
+        const baseApiUrl = storageUrl.replace(/\/storage$/, '');
+        const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+        if (!token) {
+          console.warn('[PluginManager] No auth token - returning all plugins enabled');
+          return {
+            enabledPlugins: discoveredPlugins.map(p => p.id),
+            updatedAt: Date.now()
+          };
+        }
+
+        const response = await fetch(`${baseApiUrl}/users/me/plugins`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            // User not found - return defaults
+            console.warn('[PluginManager] User not found in database - returning all plugins enabled');
+            return {
+              enabledPlugins: discoveredPlugins.map(p => p.id),
+              updatedAt: Date.now()
+            };
+          }
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('[PluginManager] Loaded plugin preferences from users table:', data);
+
+        return {
+          enabledPlugins: data.enabledPlugins || [],
+          updatedAt: Date.now()
+        };
+      } else {
+        // Electron mode: Fetch from SQLite users table
+        // TODO: Add window.electronAPI.user.getPluginPreferences()
+        // For now, return all plugins enabled
+        console.warn('[PluginManager] Electron plugin preferences not yet implemented - returning all plugins enabled');
+        return {
+          enabledPlugins: discoveredPlugins.map(p => p.id),
+          updatedAt: Date.now()
+        };
+      }
+    } catch (error) {
+      console.error('[PluginManager] Failed to load plugin preferences, using defaults:', error);
+      return {
+        enabledPlugins: discoveredPlugins.map(p => p.id),
+        updatedAt: Date.now()
+      };
+    }
+  }
+
+  /**
+   * Filter plugins based on user preferences.
+   * Core plugins are ALWAYS included regardless of preferences.
+   */
+  private filterByUserPreferences(plugins: Plugin[], preferences: UserPluginPreferences): Plugin[] {
+    return plugins.filter(plugin => {
+      // Core plugins ALWAYS load (cannot be disabled)
+      if (isCorePlugin(plugin.id)) {
+        return true;
+      }
+
+      // Optional plugins: check user preferences
+      return preferences.enabledPlugins.includes(plugin.id);
+    });
   }
 
   // Plugin loading with dependency resolution
@@ -234,12 +330,12 @@ export class PluginManager implements IPluginManager {
       }
 
       // Load all plugin modules
-      const plugins: Plugin[] = [];
+      const discoveredPlugins: Plugin[] = [];
       for (const [path, importFn] of Object.entries(pluginModules)) {
         try {
           const module = await importFn() as { default: Plugin };
           if (module.default) {
-            plugins.push(module.default);
+            discoveredPlugins.push(module.default);
           } else {
             console.warn(`Plugin at ${path} has no default export`);
           }
@@ -249,6 +345,18 @@ export class PluginManager implements IPluginManager {
           console.error(`[PluginManager] Error details:`, error);
         }
       }
+
+      console.log(`[PluginManager] Discovered ${discoveredPlugins.length} plugins:`, discoveredPlugins.map(p => p.id));
+
+      // Get user plugin preferences (storage-based filtering)
+      // Note: This is called BEFORE storage is initialized, so it will return all plugins enabled by default
+      // After storage initializes, subsequent calls will respect user preferences
+      const preferences = await this.getUserPluginPreferences(discoveredPlugins);
+      console.log(`[PluginManager] User plugin preferences:`, preferences);
+
+      // Filter plugins based on user preferences (core plugins ALWAYS included)
+      const plugins = this.filterByUserPreferences(discoveredPlugins, preferences);
+      console.log(`[PluginManager] Filtered to ${plugins.length} plugins (${CORE_PLUGINS.length} core + ${plugins.length - CORE_PLUGINS.length} optional):`, plugins.map(p => p.id));
 
       // Validate all required dependencies were successfully imported
       const pluginIds = new Set(plugins.map(p => p.id));

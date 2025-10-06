@@ -63,14 +63,6 @@ export const AppShell: React.FC = () => {
             console.log('[AppShell] Loading plugins...');
             setPluginsLoading(true);
             await pluginManager.loadAllPlugins();
-
-            // Mark setup as complete with storage mode from user profile
-            const settingsService = pluginManager.getService('core-settings/settingsService');
-            if (settingsService && !settingsService.isSetupComplete()) {
-              console.log('[AppShell] Completing setup with storage mode:', profile.storageMode);
-              await settingsService.completeSetup(profile.storageMode);
-            }
-
             setPluginsLoaded(true);
             setPluginsLoading(false);
           } else {
@@ -90,14 +82,6 @@ export const AppShell: React.FC = () => {
             // Load ALL plugins (including core-settings for storage)
             console.log('[AppShell] Loading full plugin set with storage...');
             await pluginManager.loadAllPlugins();
-
-            // Mark setup as complete with storage mode from user profile
-            const settingsService = pluginManager.getService('core-settings/settingsService');
-            if (settingsService && !settingsService.isSetupComplete()) {
-              console.log('[AppShell] Completing setup with storage mode:', profile.storageMode);
-              await settingsService.completeSetup(profile.storageMode);
-            }
-
             console.log('[AppShell] All plugins loaded with local storage');
             setPluginsLoaded(true);
             setPluginsLoading(false);

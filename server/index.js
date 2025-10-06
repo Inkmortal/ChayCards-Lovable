@@ -63,6 +63,7 @@ app.use(express.json());
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         username VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        storage_mode VARCHAR(10) DEFAULT 'cloud' CHECK (storage_mode IN ('local', 'sync', 'cloud')),
         installed_plugins JSONB DEFAULT '[]'::jsonb,
         enabled_plugins JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP DEFAULT NOW(),
@@ -70,10 +71,17 @@ app.use(express.json());
       )
     `);
 
-    // Add installed_plugins and enabled_plugins columns if they don't exist (migration)
+    // Add columns if they don't exist (migration for existing tables)
     await pool.query(`
       DO $$
       BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'storage_mode'
+        ) THEN
+          ALTER TABLE users ADD COLUMN storage_mode VARCHAR(10) DEFAULT 'cloud' CHECK (storage_mode IN ('local', 'sync', 'cloud'));
+        END IF;
+
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
           WHERE table_name = 'users' AND column_name = 'installed_plugins'
@@ -155,7 +163,7 @@ app.get('/api/health', async (req, res) => {
 // Auth: Register
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, storageMode } = req.body;
 
     // Trim whitespace and normalize username
     const trimmedUsername = username?.trim().toLowerCase();
@@ -170,6 +178,10 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
 
+    // Validate storage mode (optional, defaults to 'cloud')
+    const validStorageModes = ['local', 'sync', 'cloud'];
+    const finalStorageMode = storageMode && validStorageModes.includes(storageMode) ? storageMode : 'cloud';
+
     // Check if username exists
     const existing = await pool.query(
       'SELECT id FROM users WHERE username = $1',
@@ -183,12 +195,12 @@ app.post('/api/auth/register', async (req, res) => {
     // Hash password
     const passwordHash = await bcrypt.hash(trimmedPassword, 10);
 
-    // Create user
+    // Create user with storage_mode
     const result = await pool.query(
-      `INSERT INTO users (username, password_hash)
-       VALUES ($1, $2)
-       RETURNING id, username, created_at`,
-      [trimmedUsername, passwordHash]
+      `INSERT INTO users (username, password_hash, storage_mode)
+       VALUES ($1, $2, $3)
+       RETURNING id, username, storage_mode, created_at`,
+      [trimmedUsername, passwordHash, finalStorageMode]
     );
 
     const user = result.rows[0];
@@ -206,6 +218,7 @@ app.post('/api/auth/register', async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
+        storageMode: user.storage_mode,
         createdAt: user.created_at
       }
     });
@@ -231,7 +244,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     // Find user
     const result = await pool.query(
-      'SELECT id, username, password_hash, created_at FROM users WHERE username = $1',
+      'SELECT id, username, password_hash, storage_mode, created_at FROM users WHERE username = $1',
       [trimmedUsername]
     );
 
@@ -261,6 +274,7 @@ app.post('/api/auth/login', async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
+        storageMode: user.storage_mode,
         createdAt: user.created_at
       }
     });
@@ -381,6 +395,31 @@ app.delete('/api/storage', authenticateToken, async (req, res) => {
   }
 });
 
+// Get current user's plugin configuration
+app.get('/api/users/me/plugins', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      'SELECT installed_plugins, enabled_plugins FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+    res.json({
+      installedPlugins: user.installed_plugins || [],
+      enabledPlugins: user.enabled_plugins || []
+    });
+  } catch (error) {
+    console.error('Get user plugins error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // List all users with their plugin configuration (for demo/admin purposes)
 // NOTE: In production, this should be restricted to admin users only
 app.get('/api/users', authenticateToken, async (req, res) => {
@@ -389,6 +428,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
       SELECT
         id,
         username,
+        storage_mode,
         installed_plugins,
         enabled_plugins,
         created_at,
@@ -400,7 +440,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
     const users = result.rows.map(user => ({
       id: user.id,
       profileName: user.username, // Map to match Electron API structure
-      storageMode: 'cloud', // PostgreSQL users are always cloud
+      storageMode: user.storage_mode, // User's chosen storage mode (local/sync/cloud)
       hasPassword: true, // All PostgreSQL users have passwords
       createdAt: Math.floor(new Date(user.created_at).getTime() / 1000), // Convert to Unix timestamp
       lastUsedAt: Math.floor(new Date(user.updated_at).getTime() / 1000), // Use updated_at as proxy

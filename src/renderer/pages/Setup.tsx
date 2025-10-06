@@ -1,22 +1,30 @@
 import { Button } from "@/renderer/components/ui/button";
 import { Card } from "@/renderer/components/ui/card";
 import { BookOpen, Cloud, HardDrive, RefreshCw, Download, ArrowLeft, Check } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { PluginManager } from "@/shared/plugin-system";
 import { isElectron, isWeb } from "@/utils/platform";
+import { STORAGE_KEYS } from "@/shared/constants";
 
 const Setup = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+
+  // Get profile data from navigation state (when coming from LocalProfile)
+  const profileData = location.state as { profileName?: string; password?: string | null; usePassword?: boolean } | null;
 
   // Get ThemeSelector from plugin
   const manager = PluginManager.getInstance();
   const ThemeSelector = manager.getComponent('core-theme/ThemeSelector');
 
-  // Platform detection
-  const platform = searchParams.get('platform') || (isElectron() ? 'desktop' : 'web');
+  // Platform detection - if we have profile data, we're definitely on desktop
+  const platform = profileData
+    ? 'desktop'
+    : (searchParams.get('platform') || (isElectron() ? 'desktop' : 'web'));
 
   // Setup options based on platform
   const getSetupOptions = () => {
@@ -85,10 +93,46 @@ const Setup = () => {
     setSelectedOption(optionId);
   };
 
+  // Password hashing helper
+  const hashPassword = async (password: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hash));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
   const handleContinue = async () => {
     if (!selectedOption) return;
 
+    setIsCreatingProfile(true);
+
     try {
+      // If we have profile data, create the profile with selected storage mode
+      if (profileData && isElectron() && window.electronAPI) {
+        const storageMode = selectedOption as 'local' | 'sync' | 'cloud';
+        const userId = crypto.randomUUID();
+        const passwordHash = profileData.usePassword && profileData.password
+          ? await hashPassword(profileData.password)
+          : null;
+
+        await window.electronAPI.user.create({
+          id: userId,
+          profileName: profileData.profileName!,
+          storageMode,
+          hasPassword: profileData.usePassword || false,
+          passwordHash
+        });
+
+        console.log('[Setup] Created profile:', { userId, profileName: profileData.profileName, storageMode });
+
+        // Set as active profile and navigate to app
+        localStorage.setItem(STORAGE_KEYS.LAST_PROFILE_ID, userId);
+        navigate('/app');
+        return;
+      }
+
+      // Legacy flow for when no profile data (coming from initial setup)
       if (selectedOption === 'download') {
         // TODO: Trigger download
         console.log('Triggering download...');
@@ -106,46 +150,24 @@ const Setup = () => {
         return;
       }
 
-      // Handle desktop storage modes
-      if (selectedOption === 'local') {
-        // Local mode: Create local profile
+      // Handle desktop storage modes (redirect to profile creation)
+      if (selectedOption === 'local' || selectedOption === 'sync' || selectedOption === 'cloud') {
         navigate('/profile');
         return;
       }
 
-      if (selectedOption === 'sync' || selectedOption === 'cloud') {
-        // Sync/Cloud mode: Require cloud authentication
-        // TODO: Add logic to differentiate between new users (register) and existing users (login)
-        // For now, redirect to login
-        navigate('/login');
-        return;
-      }
-
-      // Fallback: Save settings and continue (shouldn't reach here with current options)
-      const pluginManager = PluginManager.getInstance();
-
-      // Initialize storage FIRST (ensures SettingsService has storage available)
-      console.log('[Setup] Initializing storage...');
-      await pluginManager.initializeStorage();
-      console.log('[Setup] Storage initialized');
-
-      // Mark setup as complete (now that storage is ready)
-      const settingsService = pluginManager.getService('core-settings/settingsService');
-      if (settingsService) {
-        const storageMode = selectedOption as 'local' | 'sync' | 'cloud';
-        await settingsService.completeSetup(storageMode);
-        console.log('[Setup] Setup complete with storage mode:', storageMode);
-        navigate('/app/demo');
-      } else {
-        console.error('SettingsService not available');
-      }
     } catch (error) {
-      console.error('Failed to save setup choice:', error);
+      console.error('[Setup] Failed to create profile:', error);
+      setIsCreatingProfile(false);
     }
   };
 
   const handleBack = () => {
-    navigate('/');
+    if (profileData) {
+      navigate('/profile');
+    } else {
+      navigate('/');
+    }
   };
 
   return (
@@ -272,7 +294,7 @@ const Setup = () => {
             <Button
               size="lg"
               onClick={handleContinue}
-              disabled={!selectedOption}
+              disabled={!selectedOption || isCreatingProfile}
               className="px-12 py-6 text-lg font-semibold rounded-2xl hover:translate-y-[-5px] active:translate-y-[-2px] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
               style={{
                 background: selectedOption
@@ -282,7 +304,7 @@ const Setup = () => {
                 boxShadow: selectedOption ? 'var(--shadow-3d-chunky)' : 'var(--shadow-md)'
               }}
             >
-              {selectedOption === 'download' ? 'Download ChayCards' : 'Continue'}
+              {isCreatingProfile ? 'Creating profile...' : (selectedOption === 'download' ? 'Download ChayCards' : 'Continue')}
             </Button>
           </div>
         </div>

@@ -9,7 +9,7 @@ import { PluginManager } from "@/shared/plugin-system";
 import { STORAGE_KEYS } from "@/shared/constants";
 
 // Define profile creation step type
-type ProfileCreationStep = 'select' | 'create' | 'storage-mode';
+type ProfileCreationStep = 'select' | 'create';
 
 const LocalProfile = () => {
   const navigate = useNavigate();
@@ -98,9 +98,14 @@ const LocalProfile = () => {
         }
       }
 
-      // Move to storage mode selection instead of creating immediately
-      setCurrentStep('storage-mode');
-      setIsLoading(false);
+      // Navigate to setup page with profile data for storage mode selection
+      navigate('/setup', {
+        state: {
+          profileName,
+          password: usePassword ? password : null,
+          usePassword
+        }
+      });
 
     } catch (err: any) {
       console.error('[LocalProfile] ERROR in handleCreateProfile:', err);
@@ -110,48 +115,6 @@ const LocalProfile = () => {
     }
   };
 
-  const handleStorageModeSelect = async (storageMode: 'local' | 'sync' | 'cloud') => {
-    setIsLoading(true);
-
-    try {
-      // Create local user record with selected storage mode
-      const userId = crypto.randomUUID(); // Generate UUID for local user
-      const passwordHash = usePassword ? await hashPassword(password) : null;
-
-      // Save user to SQLite via Electron IPC
-      if (window.electronAPI) {
-        await window.electronAPI.user.create({
-          id: userId,
-          profileName,
-          storageMode,
-          hasPassword: usePassword,
-          passwordHash
-        });
-
-        console.log('[LocalProfile] Created local user:', { userId, profileName, storageMode });
-
-        // Set last used profile and navigate - AppShell handles initialization
-        localStorage.setItem(STORAGE_KEYS.LAST_PROFILE_ID, userId);
-        navigate('/app');
-      } else {
-        throw new Error('Electron API not available');
-      }
-    } catch (err: any) {
-      console.error('[LocalProfile] ERROR in handleStorageModeSelect:', err);
-      console.error('[LocalProfile] Error stack:', err.stack);
-      setError(err.message || 'Failed to create profile. Please try again.');
-      setIsLoading(false);
-    }
-  };
-
-  // Simple password hashing (should be replaced with proper bcrypt in production)
-  const hashPassword = async (password: string): Promise<string> => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hash = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hash));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
 
   const handleBackToSelect = () => {
     setCurrentStep('select');
@@ -398,105 +361,6 @@ const LocalProfile = () => {
           </>
           )}
 
-          {currentStep === 'storage-mode' && (
-            // Step 3: Storage Mode Selection
-            <>
-              <div className="text-center mb-8">
-                <div
-                  className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4"
-                  style={{
-                    background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))',
-                    boxShadow: 'var(--shadow-3d)'
-                  }}
-                >
-                  <BookOpen className="w-8 h-8 text-white" />
-                </div>
-                <h2 className="text-3xl font-bold mb-2" style={{ color: 'hsl(var(--foreground))' }}>
-                  Choose storage mode
-                </h2>
-                <p className="text-muted-foreground">
-                  How do you want to store your data?
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                {/* Local Storage Option */}
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => handleStorageModeSelect('local')}
-                  disabled={isLoading}
-                  className="w-full h-auto p-6 text-left justify-start border-2 hover:translate-y-[-2px] transition-all duration-150 flex-col items-start"
-                  style={{
-                    boxShadow: 'var(--shadow-3d)',
-                    background: 'hsl(var(--background))',
-                    borderColor: 'hsl(var(--border))'
-                  }}
-                >
-                  <div className="font-semibold text-foreground text-lg mb-2">Local Storage</div>
-                  <div className="text-sm text-muted-foreground">
-                    Store all data on this device only. Fast and private.
-                  </div>
-                </Button>
-
-                {/* Sync Storage Option */}
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => handleStorageModeSelect('sync')}
-                  disabled={isLoading}
-                  className="w-full h-auto p-6 text-left justify-start border-2 hover:translate-y-[-2px] transition-all duration-150 flex-col items-start"
-                  style={{
-                    boxShadow: 'var(--shadow-3d)',
-                    background: 'hsl(var(--background))',
-                    borderColor: 'hsl(var(--border))'
-                  }}
-                >
-                  <div className="font-semibold text-foreground text-lg mb-2">Synced Storage</div>
-                  <div className="text-sm text-muted-foreground">
-                    Store locally with cloud backup and sync across devices.
-                  </div>
-                </Button>
-
-                {/* Cloud Storage Option */}
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => handleStorageModeSelect('cloud')}
-                  disabled={isLoading}
-                  className="w-full h-auto p-6 text-left justify-start border-2 hover:translate-y-[-2px] transition-all duration-150 flex-col items-start"
-                  style={{
-                    boxShadow: 'var(--shadow-3d)',
-                    background: 'hsl(var(--background))',
-                    borderColor: 'hsl(var(--border))'
-                  }}
-                >
-                  <div className="font-semibold text-foreground text-lg mb-2">Cloud Storage</div>
-                  <div className="text-sm text-muted-foreground">
-                    Store all data in the cloud. Access from anywhere.
-                  </div>
-                </Button>
-
-                {error && (
-                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                    <p className="text-sm text-destructive">{error}</p>
-                  </div>
-                )}
-
-                {/* Back button - returns to profile selection */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBackToSelect}
-                  disabled={isLoading}
-                  className="w-full"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to profiles
-                </Button>
-              </div>
-            </>
-          )}
         </Card>
       </section>
     </div>

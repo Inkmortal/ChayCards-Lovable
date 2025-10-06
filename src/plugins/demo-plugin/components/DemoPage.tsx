@@ -27,9 +27,8 @@ export const DemoPage = () => {
   // Accessing own service from demo-plugin
   const demoDataService = pluginManager.getService('demo-plugin/dataService');
 
-  // Get settings service to check storage mode
-  const settingsService = pluginManager.getService('core-settings/settingsService');
-  const storageMode = settingsService?.getStorageMode() || 'unknown';
+  // Determine storage mode from platform (Electron = local, Web = cloud)
+  const storageMode = isElectron() ? 'local' : 'cloud';
 
   const loadedPlugins = pluginManager.getLoadedPlugins();
   const [currentTheme, setCurrentTheme] = useState(themeService?.getCurrentTheme());

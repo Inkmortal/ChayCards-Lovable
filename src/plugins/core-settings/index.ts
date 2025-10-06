@@ -23,18 +23,16 @@ export const CoreSettingsPlugin: Plugin = {
   },
 
   onLoad: async (manager) => {
-    console.log('Core Settings Plugin loaded');
+    console.log('[core-settings] Plugin loaded');
 
     const settingsService = manager.getService('core-settings/settingsService');
 
-    // Log current settings
-    console.log('Current settings:', settingsService.getSettings());
-    console.log('Storage mode:', settingsService.getStorageMode());
+    // Log current app-wide settings
+    console.log('[core-settings] Current settings:', settingsService.getSettings());
 
     // Emit ready event
     manager.getEventBus().emit('settings:ready', {
-      storageMode: settingsService.getStorageMode(),
-      setupComplete: settingsService.isSetupComplete()
+      settings: settingsService.getSettings()
     });
   }
 };

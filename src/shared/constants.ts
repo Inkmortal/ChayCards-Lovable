@@ -88,6 +88,52 @@ export const PUBLIC_ROUTES = ['/', '/login', '/register', '/setup', '/profile'] 
 export const PLUGIN_API_VERSION = '1.0.0';
 export const PLUGIN_MANIFEST_VERSION = '1.0';
 
+/**
+ * Core plugins that must ALWAYS load for all users.
+ * These plugins provide essential functionality and cannot be disabled.
+ *
+ * System Plugins:
+ * - core-settings: Manages app settings and storage initialization
+ * - core-theme: Provides theming system and CSS variables
+ * - core-ui: Base UI components used by other plugins
+ *
+ * Theme Plugins (all themes available to all users):
+ * - theme-catppuccin: Catppuccin color schemes
+ * - theme-dracula: Dracula theme
+ * - theme-gruvbox: Gruvbox theme
+ * - theme-tokyonight: Tokyo Night theme
+ * - theme-chay: Custom Chay themes
+ *
+ * Development Plugins:
+ * - demo-plugin: Example plugin for development and testing
+ */
+export const CORE_PLUGINS = [
+  'core-settings',
+  'core-theme',
+  'core-ui',
+  'theme-catppuccin',
+  'theme-dracula',
+  'theme-gruvbox',
+  'theme-tokyonight',
+  'theme-chay',
+  'demo-plugin',
+] as const;
+
+/**
+ * Check if a plugin ID is a core plugin that cannot be disabled.
+ *
+ * @param pluginId - The plugin ID to check
+ * @returns true if the plugin is a core plugin, false otherwise
+ *
+ * @example
+ * isCorePlugin('core-settings'); // true
+ * isCorePlugin('theme-catppuccin'); // true
+ * isCorePlugin('demo-plugin'); // false
+ */
+export function isCorePlugin(pluginId: string): boolean {
+  return (CORE_PLUGINS as readonly string[]).includes(pluginId);
+}
+
 // Features flags (for future use)
 export const FEATURES = {
   CLOUD_SYNC: false,

@@ -1,26 +1,31 @@
 /**
- * SettingsService - Manages application settings and user preferences
+ * SettingsService - Manages app-wide settings and plugin settings registry
+ *
+ * Architecture:
+ * - App-wide settings: Stored in storage table under 'core-settings:app-settings'
+ * - Plugin settings: Each plugin stores its own settings under 'pluginId:settings'
+ * - Settings registry: Plugins register their schemas for settings UI
  *
  * Storage Strategy:
  * - Uses StorageAdapter (SQLite for Electron, PostgreSQL for cloud)
- * - Settings are stored under key: 'core-settings:app-settings'
- * - Falls back to localStorage ONLY during initial setup (before storage is initialized)
+ * - NO user account data (that's in users table)
+ * - NO plugin enablement (that's in users.enabled_plugins)
  */
 
-import type { UserSettings, StorageMode } from '../types';
+import type { AppSettings, PluginSettingsSchema } from '../types';
 import { getDefaultSettings } from '../types';
 import type { StorageAdapter } from '@/shared/storage';
-import { isElectron } from '@/utils/platform';
 import { STORAGE_KEYS } from '@/shared/constants';
 
 export class SettingsService {
-  private settings: UserSettings = getDefaultSettings();
-  private listeners: Set<(settings: UserSettings) => void> = new Set();
+  private settings: AppSettings = getDefaultSettings();
+  private listeners: Set<(settings: AppSettings) => void> = new Set();
   private storage: StorageAdapter | null = null;
-  private isElectron: boolean;
+
+  // Plugin settings registry (for settings UI page)
+  private pluginSchemas = new Map<string, PluginSettingsSchema>();
 
   constructor(storage?: StorageAdapter) {
-    this.isElectron = isElectron();
     this.storage = storage || null;
     this.loadSettings();
   }
@@ -35,30 +40,23 @@ export class SettingsService {
   }
 
   /**
-   * Get all settings
+   * Get all app-wide settings
    */
-  getSettings(): UserSettings {
+  getSettings(): AppSettings {
     return { ...this.settings };
   }
 
   /**
-   * Get storage mode choice
+   * Get a specific setting value
    */
-  getStorageMode(): StorageMode {
-    return this.settings.storageMode;
+  getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {
+    return this.settings[key];
   }
 
   /**
-   * Check if setup is complete
+   * Update app-wide settings
    */
-  isSetupComplete(): boolean {
-    return this.settings.setupComplete;
-  }
-
-  /**
-   * Update settings
-   */
-  async updateSettings(partial: Partial<UserSettings>): Promise<void> {
+  async updateSettings(partial: Partial<AppSettings>): Promise<void> {
     this.settings = {
       ...this.settings,
       ...partial,
@@ -70,25 +68,39 @@ export class SettingsService {
   }
 
   /**
-   * Complete setup with storage choice
-   */
-  async completeSetup(storageMode: StorageMode): Promise<void> {
-    await this.updateSettings({
-      storageMode,
-      setupComplete: true
-    });
-  }
-
-  /**
    * Subscribe to settings changes
    */
-  onSettingsChange(callback: (settings: UserSettings) => void): () => void {
+  onSettingsChange(callback: (settings: AppSettings) => void): () => void {
     this.listeners.add(callback);
 
     // Return unsubscribe function
     return () => {
       this.listeners.delete(callback);
     };
+  }
+
+  /**
+   * Register plugin settings schema (for settings UI)
+   * Plugins call this in their onLoad hook to register their settings
+   */
+  registerPluginSettings(schema: PluginSettingsSchema): void {
+    this.pluginSchemas.set(schema.pluginId, schema);
+    console.log(`[SettingsService] Registered settings schema for ${schema.pluginId}`);
+  }
+
+  /**
+   * Get all registered plugin settings schemas
+   * Used by settings page to render plugin settings sections
+   */
+  getPluginSchemas(): PluginSettingsSchema[] {
+    return Array.from(this.pluginSchemas.values());
+  }
+
+  /**
+   * Get a specific plugin's settings schema
+   */
+  getPluginSchema(pluginId: string): PluginSettingsSchema | undefined {
+    return this.pluginSchemas.get(pluginId);
   }
 
   /**

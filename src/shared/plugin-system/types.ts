@@ -74,6 +74,17 @@ export interface Migration {
   down?: (db: any) => Promise<void>;
 }
 
+/**
+ * User-specific plugin preferences for multi-tenant deployments.
+ * Stored in user storage at 'core-settings:enabled-plugins'
+ */
+export interface UserPluginPreferences {
+  /** Array of plugin IDs that are enabled for this user */
+  enabledPlugins: string[];
+  /** Timestamp of last update (for sync purposes) */
+  updatedAt: number;
+}
+
 // EventBus interface
 export interface EventBus {
   emit(event: string, data?: any): void;
