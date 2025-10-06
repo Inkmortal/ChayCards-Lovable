@@ -359,6 +359,38 @@ app.delete('/api/storage', authenticateToken, async (req, res) => {
   }
 });
 
+// List all users (for demo/admin purposes)
+// NOTE: In production, this should be restricted to admin users only
+app.get('/api/users', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        id,
+        username,
+        created_at,
+        updated_at,
+        (SELECT COUNT(*) FROM storage WHERE user_id = users.id) as storage_key_count
+      FROM users
+      ORDER BY created_at DESC
+    `);
+
+    const users = result.rows.map(user => ({
+      id: user.id,
+      profileName: user.username, // Map to match Electron API structure
+      storageMode: 'cloud', // PostgreSQL users are always cloud
+      hasPassword: true, // All PostgreSQL users have passwords
+      createdAt: Math.floor(new Date(user.created_at).getTime() / 1000), // Convert to Unix timestamp
+      lastUsedAt: Math.floor(new Date(user.updated_at).getTime() / 1000), // Use updated_at as proxy
+      storageKeyCount: parseInt(user.storage_key_count)
+    }));
+
+    res.json({ users });
+  } catch (error) {
+    console.error('List users error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Error handler
 app.use((error, req, res, next) => {
   console.error('Server error:', error);
@@ -379,6 +411,7 @@ app.listen(PORT, () => {
 
 API Endpoints:
   GET    /api/health          - Health check
+  GET    /api/users           - List all users (auth required)
   GET    /api/storage/:key    - Get value
   PUT    /api/storage/:key    - Set value
   DELETE /api/storage/:key    - Delete value
