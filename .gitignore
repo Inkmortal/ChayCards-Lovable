@@ -66,3 +66,34 @@ Thumbs.db
 /android/app/src/main/assets/capacitor.plugins.json
 /ios/App/App/capacitor.plugins.json
 .electron-rebuilt
+
+# Sensitive credentials and keys
+.cloudflared/
+*.pem
+*.key
+*.cert
+credentials.json
+secrets.json
+auth.json
+
+# Development artifacts and reference materials
+/image-ref/
+*.screenshot.png
+*.debug.png
+*.test.png
+
+# Temporary development scripts
+/scripts/clear-*.cjs
+/scripts/clear-*.sql
+/scripts/temp-*.js
+/scripts/temp-*.cjs
+
+# Local user data and preferences
+/user-data/
+*.user.json
+.claude/
+local-settings.json
+
+# Notion API tokens (if stored locally)
+.notion-token
+notion-credentials.json
