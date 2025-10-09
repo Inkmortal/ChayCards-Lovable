@@ -13,6 +13,20 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 
+// Default plugins for new users (sync with src/shared/constants.ts)
+const DEFAULT_PLUGINS = [
+  'core-settings',
+  'core-theme',
+  'core-ui',
+  'core-documents',
+  'theme-catppuccin',
+  'theme-dracula',
+  'theme-gruvbox',
+  'theme-tokyonight',
+  'theme-chay',
+  'demo-plugin',
+];
+
 // JWT secret (use environment variable in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -114,7 +128,28 @@ app.use(express.json());
       CREATE INDEX IF NOT EXISTS idx_storage_user_id ON storage(user_id)
     `);
 
-    console.log('✓ Database tables initialized (users, storage)');
+    // Files table (for binary file storage as entity properties)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS files (
+        storage_key TEXT NOT NULL,
+        field_name TEXT NOT NULL,
+        file_data BYTEA NOT NULL,
+        metadata JSONB,
+        user_id UUID NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (storage_key, field_name, user_id),
+        FOREIGN KEY (storage_key, user_id)
+          REFERENCES storage(key, user_id) ON DELETE CASCADE
+      )
+    `);
+
+    // Create index for faster user_id lookups on files
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_files_user_id ON files(user_id)
+    `);
+
+    console.log('✓ Database tables initialized (users, storage, files)');
   } catch (error) {
     console.error('✗ Database initialization failed:', error.message);
     process.exit(1);
@@ -122,7 +157,7 @@ app.use(express.json());
 })();
 
 // Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -130,12 +165,29 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ error: 'No token provided' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, async (err, user) => {
     if (err) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    req.user = user; // { id, username }
-    next();
+
+    // CRITICAL: Verify user exists in database (not just token validity)
+    // This prevents foreign key errors when users table is cleared but old tokens remain
+    try {
+      const result = await pool.query(
+        'SELECT id, username FROM users WHERE id = $1',
+        [user.id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(401).json({ error: 'User not found - please re-authenticate' });
+      }
+
+      req.user = user; // { id, username }
+      next();
+    } catch (dbError) {
+      console.error('Auth middleware DB error:', dbError);
+      return res.status(500).json({ error: 'Authentication failed' });
+    }
   });
 };
 
@@ -195,12 +247,12 @@ app.post('/api/auth/register', async (req, res) => {
     // Hash password
     const passwordHash = await bcrypt.hash(trimmedPassword, 10);
 
-    // Create user with storage_mode
+    // Create user with storage_mode and default enabled plugins
     const result = await pool.query(
-      `INSERT INTO users (username, password_hash, storage_mode)
-       VALUES ($1, $2, $3)
+      `INSERT INTO users (username, password_hash, storage_mode, installed_plugins, enabled_plugins)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id, username, storage_mode, created_at`,
-      [trimmedUsername, passwordHash, finalStorageMode]
+      [trimmedUsername, passwordHash, finalStorageMode, JSON.stringify(DEFAULT_PLUGINS), JSON.stringify(DEFAULT_PLUGINS)]
     );
 
     const user = result.rows[0];
@@ -297,7 +349,20 @@ app.get('/api/storage/:key', authenticateToken, async (req, res) => {
 
     // pg library automatically converts JSONB to JavaScript object
     const value = result.rows[0]?.value || null;
-    res.json({ value });
+
+    // Get attached files
+    const fileResult = await pool.query(
+      'SELECT field_name, file_data FROM files WHERE storage_key = $1 AND user_id = $2',
+      [key, userId]
+    );
+
+    const files = {};
+    for (const fileRow of fileResult.rows) {
+      // Convert BYTEA to base64 for JSON transport
+      files[fileRow.field_name] = fileRow.file_data.toString('base64');
+    }
+
+    res.json({ value, files });
   } catch (error) {
     console.error('GET error:', error);
     res.status(500).json({ error: error.message });
@@ -308,7 +373,7 @@ app.get('/api/storage/:key', authenticateToken, async (req, res) => {
 app.put('/api/storage/:key', authenticateToken, async (req, res) => {
   try {
     const key = decodeURIComponent(req.params.key);
-    const { value } = req.body;
+    const { value, files } = req.body;
     const userId = req.user.id;
 
     if (value === undefined) {
@@ -327,6 +392,32 @@ app.put('/api/storage/:key', authenticateToken, async (req, res) => {
          updated_at = NOW()`,
       [key, jsonbValue, userId]
     );
+
+    // Handle files if provided
+    if (files && typeof files === 'object') {
+      for (const [fieldName, fileData] of Object.entries(files)) {
+        if (fileData === null) {
+          // Delete file record
+          await pool.query(
+            'DELETE FROM files WHERE storage_key = $1 AND field_name = $2 AND user_id = $3',
+            [key, fieldName, userId]
+          );
+        } else if (typeof fileData === 'string') {
+          // Convert base64 to Buffer for BYTEA storage
+          const buffer = Buffer.from(fileData, 'base64');
+
+          // Store file data
+          await pool.query(
+            `INSERT INTO files (storage_key, field_name, file_data, user_id, updated_at)
+             VALUES ($1, $2, $3, $4, NOW())
+             ON CONFLICT (storage_key, field_name, user_id) DO UPDATE SET
+               file_data = $3,
+               updated_at = NOW()`,
+            [key, fieldName, buffer, userId]
+          );
+        }
+      }
+    }
 
     res.json({ success: true });
   } catch (error) {

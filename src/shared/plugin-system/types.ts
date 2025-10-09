@@ -118,6 +118,9 @@ export interface PluginManager {
   // Event bus access
   getEventBus(): EventBus;
 
+  // Storage access
+  getStorage(): any; // StorageAdapter | null
+
   // Plugin loading
   loadPlugin(plugin: Plugin): Promise<void>;
   loadAllPlugins(): Promise<void>;

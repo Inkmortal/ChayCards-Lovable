@@ -107,16 +107,34 @@ export const PLUGIN_MANIFEST_VERSION = '1.0';
  * Development Plugins:
  * - demo-plugin: Example plugin for development and testing
  */
+/**
+ * Core plugins that ALWAYS load and cannot be disabled.
+ * These are essential for the application to function.
+ */
 export const CORE_PLUGINS = [
   'core-settings',
   'core-theme',
   'core-ui',
+  'core-documents',  // Essential feature - can't use ChayCards without documents
   'theme-catppuccin',
   'theme-dracula',
   'theme-gruvbox',
   'theme-tokyonight',
   'theme-chay',
   'demo-plugin',
+] as const;
+
+/**
+ * Default plugins enabled for newly created users.
+ * This is a superset of CORE_PLUGINS and includes recommended optional plugins.
+ *
+ * Used by:
+ * - Server registration endpoint (PostgreSQL)
+ * - Electron profile creation (SQLite)
+ */
+export const DEFAULT_PLUGINS = [
+  ...CORE_PLUGINS,
+  // Add future optional plugins here that should be enabled by default
 ] as const;
 
 /**
@@ -127,8 +145,8 @@ export const CORE_PLUGINS = [
  *
  * @example
  * isCorePlugin('core-settings'); // true
- * isCorePlugin('theme-catppuccin'); // true
- * isCorePlugin('demo-plugin'); // false
+ * isCorePlugin('core-documents'); // true
+ * isCorePlugin('demo-plugin'); // true
  */
 export function isCorePlugin(pluginId: string): boolean {
   return (CORE_PLUGINS as readonly string[]).includes(pluginId);
