@@ -110,7 +110,16 @@
       "WebFetch(domain:bundlephobia.com)",
       "WebFetch(domain:www.npmjs.com)",
       "Bash(dos2unix:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(npm run lint:*)",
+      "Bash(echo $APPDATA)",
+      "Bash(for id in \"283bbd9b-1a29-8171-af48-c782ea3b97f9\" \"283bbd9b-1a29-81d2-9542-ca9f1754ce14\" \"282bbd9b-1a29-8136-b79e-caf4851cc810\" \"282bbd9b-1a29-802c-8d77-e75dd202d0ac\")",
+      "Bash(do)",
+      "Bash(echo \"=== Task ID: $id ===\")",
+      "Bash(done)",
+      "mcp__puppeteer__puppeteer_fill",
+      "Bash(PGPASSWORD=postgres psql -U postgres -h localhost -p 5433 -d chaycards -c \"DROP TABLE IF EXISTS files CASCADE; DROP TABLE IF EXISTS storage CASCADE; DROP TABLE IF EXISTS users CASCADE;\")",
+      "Bash(PGPASSWORD=postgres psql -U postgres -h localhost -p 5433 -d chaycards -c \"DELETE FROM users; SELECT COUNT(*) as remaining_users FROM users;\")"
     ],
     "deny": []
   },

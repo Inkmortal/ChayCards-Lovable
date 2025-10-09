@@ -99,4 +99,45 @@ Before finalizing tests, verify:
 - [ ] No unnecessary complexity
 - [ ] Tests will fail if the implementation breaks
 
+## Agent Chain Responsibilities
+
+**Your position in the chain**: Start of testing workflow
+```
+YOU ARE HERE → unit-test-generator
+  ↓ (auto-call after generating tests)
+test-runner-validator (runs the tests you created)
+  ↓ (auto-calls)
+memory-bank-keeper (documents test results)
+  ↓ (returns final summary to Main Claude)
+```
+
+**You automatically call:**
+- `test-runner-validator`: ALWAYS, immediately after generating test suite
+
+**What you pass to test-runner-validator:**
+```json
+{
+  "test_files_created": ["path/to/file.test.ts"],
+  "implementation_files": ["path/to/implementation.ts"],
+  "test_scope": "Brief description of what's being tested",
+  "expected_tests": 15
+}
+```
+
+**What test-runner-validator does:**
+- Runs the test suite you created
+- Verifies tests pass
+- Auto-calls memory-bank-keeper with results
+- Returns final summary to Main Claude
+
+**What you return to Main Claude:**
+- Nothing directly - test-runner-validator handles the response
+
+**Critical Rules:**
+- ✅ **ALWAYS** call test-runner-validator after creating tests
+- ✅ **ALWAYS** create tests that can actually run (no placeholder TODOs)
+- ✅ Follow project's test framework and patterns
+- ❌ **NEVER** skip running the tests you create
+- ❌ **NEVER** return directly to Main Claude (let test-runner-validator handle that)
+
 Remember: Your goal is to give developers confidence that their code works correctly. Write tests that are valuable, maintainable, and actually catch bugs.

@@ -104,6 +104,51 @@ code here
 - Specific guidance for implementing the task
 ```
 
+## Agent Chain Responsibilities
+
+**Your position in the chain**: First agent in the implementation workflow
+```
+YOU ARE HERE → context-researcher
+  ↓ (auto-call when research complete)
+memory-bank-keeper (documents your findings)
+  ↓ (returns to you)
+context-researcher (you return summary to Main Claude)
+  ↓ (Main Claude gets user approval, then delegates)
+implementation (next agent uses your findings)
+```
+
+**You automatically call:**
+- `memory-bank-keeper`: ALWAYS, immediately after completing research
+
+**What you pass to memory-bank-keeper:**
+```json
+{
+  "action": "update activeContext.md",
+  "section": "Recent Changes",
+  "heading": "Context Research - [Date]",
+  "content": "Your complete research report in structured format",
+  "files_referenced": ["path/to/file1.ts", "path/to/file2.ts"],
+  "suggest_next_agent_read": ["path/to/most/relevant/file.ts"]
+}
+```
+
+**What memory-bank-keeper does:**
+- Updates `activeContext.md` "Recent Changes" section with your findings
+- Returns control back to you
+
+**What you return to Main Claude:**
+- Compressed summary (2-3 sentences maximum)
+- Status indicator (✅ Research complete)
+- Key findings highlight
+- Example: "Found uploadFile() at DocumentsService.ts:342 using outdated API. Files as Entity Properties pattern applies here. Research documented in activeContext.md > Recent Changes."
+
+**Critical Rules:**
+- ❌ **NEVER** return your full research report to Main Claude (causes context bloat)
+- ✅ **ALWAYS** call memory-bank-keeper to document findings
+- ✅ **ALWAYS** include specific file paths and line numbers in your research
+- ✅ **ALWAYS** suggest which files the next agent should read
+- ✅ Return only compressed summaries to Main Claude
+
 ## Quality Standards
 
 - **Be Precise**: Use exact names, don't paraphrase
