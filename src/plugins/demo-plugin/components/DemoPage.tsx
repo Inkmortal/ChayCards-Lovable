@@ -101,7 +101,8 @@ export const DemoPage = () => {
         const storageKeys = await storage.list();
         for (const key of storageKeys) {
           keys.push(key);
-          const value = await storage.get(key);
+          const result = await storage.get(key);
+          const value = result?.data;
           data[key] = value;
         }
       }
@@ -231,9 +232,9 @@ export const DemoPage = () => {
     }
   }, [demoDataService]);
 
-  const handleThemeChange = () => {
+  const handleThemeChange = async () => {
     if (themeService) {
-      const themes = themeService.getAvailableThemes();
+      const themes = await themeService.getAvailableThemes();
       const currentIndex = themes.findIndex((t: any) => t.id === currentTheme?.id);
       const nextTheme = themes[(currentIndex + 1) % themes.length];
       themeService.setTheme(nextTheme.id);

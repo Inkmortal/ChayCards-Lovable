@@ -77,7 +77,7 @@ export const CoreThemePlugin: Plugin = {
       console.log('[CoreThemePlugin] Emitting theme:system-ready event');
       manager.getEventBus().emit('theme:system-ready', {
         currentTheme: themeService.getCurrentTheme(),
-        availableThemes: themeService.getAvailableThemes()
+        availableThemes: await themeService.getAvailableThemes()
       });
     }
   }

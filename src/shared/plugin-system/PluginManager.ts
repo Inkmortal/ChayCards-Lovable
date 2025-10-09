@@ -211,11 +211,29 @@ export class PluginManager implements IPluginManager {
         };
       } else {
         // Electron mode: Fetch from SQLite users table
-        // TODO: Add window.electronAPI.user.getPluginPreferences()
-        // For now, return all plugins enabled
-        console.warn('[PluginManager] Electron plugin preferences not yet implemented - returning all plugins enabled');
+        const lastProfileId = localStorage.getItem(STORAGE_KEYS.LAST_PROFILE_ID);
+
+        if (!lastProfileId) {
+          console.warn('[PluginManager] No active profile - returning all plugins enabled');
+          return {
+            enabledPlugins: discoveredPlugins.map(p => p.id),
+            updatedAt: Date.now()
+          };
+        }
+
+        const prefs = await window.electronAPI.user.getPluginPreferences(lastProfileId);
+
+        if (!prefs) {
+          console.warn('[PluginManager] Profile not found - returning all plugins enabled');
+          return {
+            enabledPlugins: discoveredPlugins.map(p => p.id),
+            updatedAt: Date.now()
+          };
+        }
+
+        console.log('[PluginManager] Loaded plugin preferences from SQLite:', prefs);
         return {
-          enabledPlugins: discoveredPlugins.map(p => p.id),
+          enabledPlugins: prefs.enabledPlugins || [],
           updatedAt: Date.now()
         };
       }
@@ -226,6 +244,27 @@ export class PluginManager implements IPluginManager {
         updatedAt: Date.now()
       };
     }
+  }
+
+  /**
+   * Reset plugin manager state (for public→authenticated transitions)
+   * Clears all loaded plugins, components, services, and routes
+   * Should be called when transitioning from public to authenticated pages
+   */
+  resetPlugins(): void {
+    console.log('[PluginManager] Resetting plugin state for authenticated context...');
+
+    // Clear all registries
+    this.loadedPlugins.clear();
+    this.components.clear();
+    this.services.clear();
+    this.routes.clear();
+    this.navigationItems = [];
+    this.regions.clear();
+
+    // Reset storage flag so it reinitializes
+    this.storageInitialized = false;
+    this.storageAdapter = null;
   }
 
   /**
@@ -301,8 +340,6 @@ export class PluginManager implements IPluginManager {
 
       // Mark as loaded
       this.loadedPlugins.set(plugin.id, plugin);
-
-      console.log(`Plugin ${plugin.id} loaded successfully`);
       this.eventBus.emit('plugin:loaded', { plugin });
 
     } catch (error) {
@@ -383,8 +420,6 @@ export class PluginManager implements IPluginManager {
         );
       }
 
-      console.log(`[PluginManager] Dependency validation passed for ${plugins.length} plugins`);
-
       // Sort plugins by dependency order and load them
       const sortedPlugins = this.sortPluginsByDependencies(plugins);
 
@@ -395,26 +430,31 @@ export class PluginManager implements IPluginManager {
 
         // Initialize storage after core-settings loads but before other plugins
         await this.initializeStorage();
-        console.log('Storage initialized after core-settings');
       }
 
       // Load remaining plugins
+      const failedPlugins: string[] = [];
       for (const plugin of sortedPlugins) {
         if (plugin.id !== 'core-settings') {
-          await this.loadPlugin(plugin);
+          try {
+            await this.loadPlugin(plugin);
+          } catch (error) {
+            console.error(`[PluginManager] Failed to load plugin ${plugin.id}:`, error);
+            failedPlugins.push(plugin.id);
+            // Continue loading other plugins instead of failing completely
+          }
         }
       }
 
-      console.log(`Loaded ${sortedPlugins.length} plugins successfully`);
+      const successCount = sortedPlugins.length - failedPlugins.length;
+      console.log(`Loaded ${successCount} plugins successfully${failedPlugins.length > 0 ? ` (${failedPlugins.length} failed: ${failedPlugins.join(', ')})` : ''}`);
       this.eventBus.emit('plugins:all-loaded', { count: sortedPlugins.length });
 
       // Call onPluginsReady hooks after all plugins loaded
-      console.log('[PluginManager] Calling onPluginsReady hooks...');
       for (const plugin of sortedPlugins) {
         if (plugin.onPluginsReady) {
           try {
             await plugin.onPluginsReady(this);
-            console.log(`[PluginManager] onPluginsReady called for ${plugin.id}`);
           } catch (error) {
             console.error(`[PluginManager] onPluginsReady failed for ${plugin.id}:`, error);
           }
@@ -422,13 +462,9 @@ export class PluginManager implements IPluginManager {
       }
 
       // Apply localStorage theme after all theme plugins have loaded
-      // (mirrors loadPublicSafePlugins behavior - see lines 313-318)
       const themeService = this.getService('core-theme/themeService');
       if (themeService) {
-        console.log('[PluginManager] Applying localStorage theme after all plugins loaded...');
         await themeService.applyLocalStorageTheme();
-        console.log('[PluginManager] Available themes:', themeService.getAvailableThemes());
-        console.log('[PluginManager] Current theme:', themeService.getCurrentTheme());
       }
 
     } catch (error) {
@@ -487,7 +523,7 @@ export class PluginManager implements IPluginManager {
       if (themeService) {
         console.log('[PluginManager] Applying localStorage theme after all plugins loaded...');
         await themeService.applyLocalStorageTheme();
-        console.log('[PluginManager] Available themes:', themeService.getAvailableThemes());
+        console.log('[PluginManager] Available themes:', await themeService.getAvailableThemes());
         console.log('[PluginManager] Current theme:', themeService.getCurrentTheme());
       }
 
@@ -564,6 +600,7 @@ export class PluginManager implements IPluginManager {
 
   // Unload a plugin (for testing or dynamic plugin management)
   async unloadPlugin(pluginId: string): Promise<void> {
+    console.trace(`[PluginManager] 🔥 UNLOAD CALLED FOR: ${pluginId}`);
     const plugin = this.loadedPlugins.get(pluginId);
     if (!plugin) {
       console.warn(`Plugin ${pluginId} is not loaded`);
@@ -607,7 +644,11 @@ export class PluginManager implements IPluginManager {
       this.regions.forEach((components, region) => {
         this.regions.set(
           region,
-          components.filter(comp => !comp.id.startsWith(`${pluginId}/`) && !comp.id.startsWith(pluginId))
+          components.filter(comp => {
+            // Check the component namespace (the actual registered component name)
+            const componentName = typeof comp.component === 'string' ? comp.component : comp.id;
+            return !componentName.startsWith(`${pluginId}/`);
+          })
         );
       });
 
