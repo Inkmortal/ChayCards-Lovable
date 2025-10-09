@@ -188,6 +188,125 @@ onPluginsReady: async (manager) => {
 
 **See full docs**: `/memory-bank/docs/PLUGIN_SYSTEM.md` (lines 521-967)
 
+## Working with Files
+
+### Current Pattern (Dual-Storage - Before Phase 1)
+
+When your plugin needs to store binary files (PDFs, images, documents), use the pattern from Documents plugin:
+
+```typescript
+// Example: Storing a file with metadata
+async function saveFile(file: File): Promise<{id: string, metadata: FileMetadata}> {
+  const fileId = crypto.randomUUID();
+
+  // 1. Create metadata object
+  const metadata = {
+    id: fileId,
+    filename: file.name,
+    size: file.size,
+    mimeType: file.type,
+    // Store the content key for later retrieval
+    fileStorageKey: buildPluginStorageKey('my-plugin', `files/${fileId}`),
+    createdAt: Date.now()
+  };
+
+  // 2. Save file content separately (binary data)
+  const arrayBuffer = await file.arrayBuffer();
+  await storage.set(metadata.fileStorageKey, new Uint8Array(arrayBuffer));
+
+  // 3. Save metadata to index
+  const allFiles = await storage.get<FileMetadata[]>('my-plugin:files') || [];
+  allFiles.push(metadata);
+  await storage.set('my-plugin:files', allFiles);
+
+  return { id: fileId, metadata };
+}
+
+// Example: Retrieving file content
+async function getFileContent(fileId: string): Promise<Uint8Array | null> {
+  // 1. Get metadata to find storage key
+  const allFiles = await storage.get<FileMetadata[]>('my-plugin:files') || [];
+  const file = allFiles.find(f => f.id === fileId);
+
+  if (!file) return null;
+
+  // 2. Fetch content using storage key
+  return await storage.get<Uint8Array>(file.fileStorageKey);
+}
+
+// Example: Deleting a file (MUST delete both metadata AND content)
+async function deleteFile(fileId: string): Promise<void> {
+  // 1. Find and remove from metadata index
+  const allFiles = await storage.get<FileMetadata[]>('my-plugin:files') || [];
+  const fileIndex = allFiles.findIndex(f => f.id === fileId);
+
+  if (fileIndex === -1) return;
+
+  const file = allFiles[fileIndex];
+
+  // 2. Delete file content
+  await storage.delete(file.fileStorageKey);
+
+  // 3. Remove from metadata index
+  allFiles.splice(fileIndex, 1);
+  await storage.set('my-plugin:files', allFiles);
+}
+```
+
+**Key Points**:
+- Metadata (JSON) stored at: `my-plugin:files` → `FileMetadata[]`
+- File content (binary) stored at: `my-plugin:files/{fileId}` → `Uint8Array`
+- Use `fileStorageKey` field to link metadata to content
+- **IMPORTANT**: Must manually delete both metadata AND content to avoid orphans
+
+### Future Pattern (Files as Entity Properties - After Phase 1)
+
+Once Phase 1 of FILE_STORAGE_SPEC.md is implemented, this becomes much simpler:
+
+```typescript
+// Future: Store file with metadata in single call
+async function saveFile_Future(file: File): Promise<{id: string, metadata: any}> {
+  const fileId = crypto.randomUUID();
+  const metadata = {
+    filename: file.name,
+    size: file.size,
+    mimeType: file.type,
+    createdAt: Date.now()
+  };
+
+  const content = new Uint8Array(await file.arrayBuffer());
+
+  // Single atomic operation - no manual linking!
+  await storage.set(`my-plugin:file:${fileId}`,
+    metadata,
+    { content }  // Files as properties
+  );
+
+  return { id: fileId, metadata };
+}
+
+// Future: Retrieve returns both metadata and files
+async function getFile_Future(fileId: string) {
+  const result = await storage.get(`my-plugin:file:${fileId}`);
+  // Returns: { data: metadata, files: { content: Uint8Array } }
+  return result;
+}
+
+// Future: Delete automatically cascades to files
+async function deleteFile_Future(fileId: string): Promise<void> {
+  await storage.delete(`my-plugin:file:${fileId}`);
+  // Done! File content automatically deleted (CASCADE DELETE)
+}
+```
+
+**Benefits of Future API**:
+- ✅ Single storage call (atomic)
+- ✅ Automatic CASCADE DELETE (no orphaned files)
+- ✅ No manual linking via `fileStorageKey`
+- ✅ Simpler code, fewer bugs
+
+**See**: `/memory-bank/docs/FILE_STORAGE_SPEC.md` for complete specification.
+
 ## Component Pattern
 ```typescript
 // components/MyList.tsx
