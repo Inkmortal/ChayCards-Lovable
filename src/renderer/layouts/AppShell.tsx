@@ -22,20 +22,17 @@ export const AppShell: React.FC = () => {
   // Get ThemeSelector from plugin
   const ThemeSelector = pluginManager.getComponent('core-theme/ThemeSelector');
 
-  // Auth guard - check for local profile (Electron) OR cloud auth token (Web)
+  // Auth guard and plugin loading - runs ONCE on mount
   useEffect(() => {
     const checkAuthAndLoadPlugins = async () => {
-      console.log('[AppShell] Platform detection:', {
-        isElectron: isElectron(),
-        userAgent: navigator.userAgent
-      });
-
+      // Electron: Check for active local profile
       if (isElectron() && window.electronAPI) {
-        // Electron: Check for active local profile
         const lastProfileId = localStorage.getItem(STORAGE_KEYS.LAST_PROFILE_ID);
 
         if (!lastProfileId) {
-          console.log('[AppShell] No profile selected, redirecting to profile picker');
+          // Load public-safe plugins before redirecting to profile selection
+          console.log('[AppShell] No profile - loading public plugins before redirect');
+          await pluginManager.loadPublicSafePlugins();
           navigate('/profile', { replace: true });
           return;
         }
@@ -43,51 +40,21 @@ export const AppShell: React.FC = () => {
         try {
           const profile = await window.electronAPI.user.get(lastProfileId);
           if (!profile) {
-            console.log('[AppShell] Profile not found, redirecting to profile picker');
             localStorage.removeItem(STORAGE_KEYS.LAST_PROFILE_ID);
+            // Load public-safe plugins before redirecting to profile selection
+            console.log('[AppShell] Profile not found - loading public plugins before redirect');
+            await pluginManager.loadPublicSafePlugins();
             navigate('/profile', { replace: true });
             return;
           }
 
-          console.log('[AppShell] Local profile authenticated:', profile.profileName);
-          console.log('[AppShell] Storage mode from profile:', profile.storageMode);
-
           // Update last used timestamp
           await window.electronAPI.user.setActive(lastProfileId);
-
-          // Load plugins (which initializes storage)
-          const routes = pluginManager.getAllRoutes();
-
-          if (routes.length === 0) {
-            // Fresh load - plugins not loaded yet
-            console.log('[AppShell] Loading plugins...');
-            setPluginsLoading(true);
-            await pluginManager.loadAllPlugins();
-            setPluginsLoaded(true);
-            setPluginsLoading(false);
-          } else {
-            // Plugins were pre-loaded (e.g., from Index page auto-login) - need to reload ALL plugins with storage
-            console.log('[AppShell] Public-safe plugins already loaded - reloading ALL plugins for authenticated user...');
-
-            setPluginsLoading(true);
-
-            // Unload public-safe plugins
-            const loadedPlugins = pluginManager.getLoadedPlugins();
-            console.log('[AppShell] Unloading public-safe plugins:', loadedPlugins.map(p => p.id));
-
-            for (const plugin of loadedPlugins.reverse()) {
-              await pluginManager.unloadPlugin(plugin.id);
-            }
-
-            // Load ALL plugins (including core-settings for storage)
-            console.log('[AppShell] Loading full plugin set with storage...');
-            await pluginManager.loadAllPlugins();
-            console.log('[AppShell] All plugins loaded with local storage');
-            setPluginsLoaded(true);
-            setPluginsLoading(false);
-          }
         } catch (error) {
           console.error('[AppShell] Failed to verify profile:', error);
+          // Load public-safe plugins before redirecting to profile selection
+          console.log('[AppShell] Profile error - loading public plugins before redirect');
+          await pluginManager.loadPublicSafePlugins();
           navigate('/profile', { replace: true });
           return;
         }
@@ -95,49 +62,39 @@ export const AppShell: React.FC = () => {
         // Web: Check for cloud auth token
         const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
         if (!token) {
-          console.log('[AppShell] No auth token found, redirecting to login');
+          // Load public-safe plugins before redirecting to login
+          // This ensures theme selector works on login page
+          console.log('[AppShell] No auth - loading public plugins before redirect');
+          await pluginManager.loadPublicSafePlugins();
           navigate('/login', { replace: true });
           return;
         }
-        console.log('[AppShell] Cloud user authenticated');
+      }
 
-        // Load plugins for web
-        const routes = pluginManager.getAllRoutes();
+      // Check if plugins were loaded on public page (without storage context)
+      // If so, reset them so they reload with proper authenticated storage
+      const hasLoadedPlugins = pluginManager.getLoadedPlugins().length > 0;
+      const hasStorage = pluginManager.getStorage() !== null;
 
-        if (routes.length === 0) {
-          // Fresh load - plugins not loaded yet
-          console.log('[AppShell] Loading plugins...');
-          setPluginsLoading(true);
-          await pluginManager.loadAllPlugins();
-          setPluginsLoaded(true);
-          setPluginsLoading(false);
-        } else {
-          // Plugins were pre-loaded on public page - need to reload ALL plugins with storage
-          console.log('[AppShell] Public-safe plugins already loaded - reloading ALL plugins for authenticated user...');
+      if (hasLoadedPlugins && !hasStorage) {
+        console.log('[AppShell] Plugins were loaded without storage - resetting for authenticated context');
+        pluginManager.resetPlugins();
+      }
 
-          setPluginsLoading(true);
-
-          // Unload public-safe plugins (theme, UI)
-          const loadedPlugins = pluginManager.getLoadedPlugins();
-          console.log('[AppShell] Unloading public-safe plugins:', loadedPlugins.map(p => p.id));
-
-          for (const plugin of loadedPlugins.reverse()) {
-            await pluginManager.unloadPlugin(plugin.id);
-          }
-
-          // Load ALL plugins (including core-settings for storage)
-          console.log('[AppShell] Loading full plugin set with storage...');
-          await pluginManager.loadAllPlugins();
-
-          console.log('[AppShell] All plugins loaded with cloud storage');
-          setPluginsLoaded(true);
-          setPluginsLoading(false);
-        }
+      // Load plugins with authenticated storage context
+      setPluginsLoading(true);
+      try {
+        await pluginManager.loadAllPlugins();
+        setPluginsLoaded(true);
+      } catch (error) {
+        console.error('[AppShell] Failed to load plugins:', error);
+      } finally {
+        setPluginsLoading(false);
       }
     };
 
     checkAuthAndLoadPlugins();
-  }, [navigate]);
+  }, []); // Empty dependency array - run ONCE on mount
 
   // Get plugin-driven content
   const navigation = pluginManager.getNavigationItems();
@@ -151,13 +108,14 @@ export const AppShell: React.FC = () => {
     if (!pluginsLoaded) return; // Wait for plugins to load first
 
     if (location.pathname === '/app' || location.pathname === '/app/') {
-      if (routes.length > 0) {
+      const availableRoutes = pluginManager.getAllRoutes();
+      if (availableRoutes.length > 0) {
         // Sort routes by order (if they have one) and navigate to first
-        const firstRoute = routes.sort((a, b) => (a.order || 999) - (b.order || 999))[0];
+        const firstRoute = availableRoutes.sort((a, b) => (a.order || 999) - (b.order || 999))[0];
         navigate(firstRoute.path, { replace: true });
       }
     }
-  }, [location.pathname, routes, navigate, pluginsLoaded]);
+  }, [location.pathname, navigate, pluginsLoaded]);
 
   // Show loading screen while plugins are loading (prevents theme flash)
   if (pluginsLoading || !pluginsLoaded) {
@@ -238,12 +196,6 @@ export const AppShell: React.FC = () => {
                         }`
                       }
                     >
-                      {item.icon && (
-                        <span className="w-4 h-4 flex items-center justify-center">
-                          {/* Icon rendering would need icon component system */}
-                          <div className="w-2 h-2 rounded-full bg-current opacity-60" />
-                        </span>
-                      )}
                       <span className="text-sm font-medium">{item.label}</span>
                     </NavLink>
                   ))

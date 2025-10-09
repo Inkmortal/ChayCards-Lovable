@@ -3,28 +3,14 @@ import App from './App.tsx'
 import './index.css'
 import { PluginManager } from './shared/plugin-system'
 import { isPublicPage } from './utils/routeUtils'
-import { STORAGE_KEYS } from './shared/constants'
-import { isElectron } from './utils/platform'
 
 async function startApp() {
   try {
     // Check if we're on a public page
     if (isPublicPage()) {
-      // Check authentication status (works for both Electron and web)
-      const hasAuth = isElectron()
-        ? !!localStorage.getItem(STORAGE_KEYS.LAST_PROFILE_ID)
-        : !!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-
-      if (hasAuth) {
-        // Authenticated user on public page (e.g., logged in but viewing landing page)
-        // Let React render and AppShell will handle full plugin loading with user storage
-        console.log('[main.tsx] Authenticated user on public page - AppShell will load full plugins');
-        createRoot(document.getElementById("root")!).render(<App />);
-        return;
-      }
-
-      // Anonymous user on public page - load minimal plugins with localStorage only
-      console.log('[main.tsx] Anonymous user on public page - loading public-safe plugins only');
+      // Public pages always load public-safe plugins for all users
+      // Pages handle their own auth redirects to /app
+      console.log('[main.tsx] Public page - loading public-safe plugins for all users');
 
       // Get plugin manager and load public-safe plugins (UI + themes)
       const pluginManager = PluginManager.getInstance();

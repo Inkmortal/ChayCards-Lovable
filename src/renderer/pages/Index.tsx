@@ -2,27 +2,10 @@ import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { HeroSection, FeaturesSection, LandingHeader, CTASection } from "@/renderer/components/landing";
 import { isElectron, isWeb } from "@/utils/platform";
-import { PluginManager } from "@/shared/plugin-system";
 
 const Index = () => {
   const navigate = useNavigate();
   const isMobile = window.innerWidth <= 768; // Simple mobile detection
-
-  // Ensure public-safe plugins are loaded for this page
-  useEffect(() => {
-    const ensurePluginsLoaded = async () => {
-      const pluginManager = PluginManager.getInstance();
-      const themeSelector = pluginManager.getComponent('core-theme/ThemeSelector');
-
-      // If ThemeSelector is missing, plugins were unloaded (e.g., navigating back from login)
-      if (!themeSelector) {
-        console.log('[Index] Plugins not loaded, loading public-safe plugins...');
-        await pluginManager.loadPublicSafePlugins();
-      }
-    };
-
-    ensurePluginsLoaded();
-  }, []); // Run once on mount
 
   // Check for existing profile and auto-login
   useEffect(() => {

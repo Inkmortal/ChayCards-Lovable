@@ -19,7 +19,9 @@ export class ThemeService {
   private themeListListeners: Set<() => void> = new Set();
   private storage: StorageAdapter | null = null;
   private pendingThemeId: string | null = null; // Deferred theme application
-  // Caches removed: All theme data now queried from storage (single source of truth)
+  // In-memory registry for public pages (when storage is null)
+  private themeRegistry: Map<string, Theme> = new Map([[DEFAULT_THEME.id, DEFAULT_THEME]]);
+  // Note: For authenticated pages, storage is still the single source of truth
 
   constructor() {
     // NOTE: No initialization needed here
@@ -60,9 +62,16 @@ export class ThemeService {
   async initialize(storage: StorageAdapter): Promise<void> {
     this.storage = storage;
 
+    // Clear in-memory registry - no longer needed now that we have storage
+    // This prevents any chance of accidentally using public page themes
+    console.log('[ThemeService] Clearing public page registry - transitioning to storage');
+    this.themeRegistry.clear();
+    this.themeRegistry.set(DEFAULT_THEME.id, DEFAULT_THEME); // Keep default theme
+
     try {
       // Load theme ID from user storage (cloud/local database)
-      const savedThemeId = await storage.get(STORAGE_KEYS.CORE_THEME);
+      const result = await storage.get(STORAGE_KEYS.CORE_THEME);
+      const savedThemeId = result?.data;
       if (savedThemeId) {
         this.pendingThemeId = savedThemeId;
         // Sync to localStorage as fallback
@@ -88,16 +97,17 @@ export class ThemeService {
    * Checks storage first to avoid overwriting existing themes
    */
   async registerTheme(theme: Theme): Promise<void> {
-    // No storage = public page, just set current theme (no persistence)
+    // No storage = public page, store in-memory registry
     if (!this.storage) {
-      if (this.currentTheme.id === DEFAULT_THEME.id) {
-        this.currentTheme = theme;
-      }
+      this.themeRegistry.set(theme.id, theme);
+      console.log(`[ThemeService] Registered theme ${theme.id} in memory (public page)`);
+      this.notifyThemeListListeners();
       return;
     }
 
     // Check if theme already exists in storage
-    const existingThemes = await this.storage.get<Theme[]>(ALL_THEMES_KEY) || [];
+    const existingResult = await this.storage.get<Theme[]>(ALL_THEMES_KEY);
+    const existingThemes = existingResult?.data || [];
     if (existingThemes.some(t => t.id === theme.id)) {
       console.log(`[ThemeService] Theme ${theme.id} already in storage - skipping registration`);
       return;
@@ -136,14 +146,18 @@ export class ThemeService {
   }
 
   /**
-   * Get all available themes (pure DB query)
+   * Get all available themes
+   * Returns from in-memory registry for public pages, from storage for authenticated pages
    */
   async getAvailableThemes(): Promise<Theme[]> {
     if (!this.storage) {
-      return [DEFAULT_THEME];
+      // Public page - return from in-memory registry
+      return Array.from(this.themeRegistry.values());
     }
 
-    const themes = await this.storage.get<Theme[]>(ALL_THEMES_KEY) || [];
+    // Authenticated page - query from storage
+    const result = await this.storage.get<Theme[]>(ALL_THEMES_KEY);
+    const themes = result?.data || [];
     return themes.length > 0 ? themes : [DEFAULT_THEME];
   }
 
@@ -294,14 +308,18 @@ export class ThemeService {
   }
 
   /**
-   * Get theme by ID (pure DB query)
+   * Get theme by ID
+   * Returns from in-memory registry for public pages, from storage for authenticated pages
    */
   async getThemeById(themeId: string): Promise<Theme | undefined> {
     if (!this.storage) {
-      return themeId === DEFAULT_THEME.id ? DEFAULT_THEME : undefined;
+      // Public page - return from in-memory registry
+      return this.themeRegistry.get(themeId);
     }
 
-    const themes = await this.storage.get<Theme[]>(ALL_THEMES_KEY) || [];
+    // Authenticated page - query from storage
+    const result = await this.storage.get<Theme[]>(ALL_THEMES_KEY);
+    const themes = result?.data || [];
     return themes.find(t => t.id === themeId);
   }
 
@@ -323,7 +341,8 @@ export class ThemeService {
     if (!this.storage) return;
 
     // Read current favorites from DB
-    const favorites = await this.storage.get<string[]>(FAVORITES_KEY) || [];
+    const favResult = await this.storage.get<string[]>(FAVORITES_KEY);
+    const favorites = favResult?.data || [];
 
     // Toggle in array
     const index = favorites.indexOf(themeId);
@@ -349,7 +368,8 @@ export class ThemeService {
    */
   async getFavorites(): Promise<string[]> {
     if (!this.storage) return [];
-    return await this.storage.get<string[]>(FAVORITES_KEY) || [];
+    const result = await this.storage.get<string[]>(FAVORITES_KEY);
+    return result?.data || [];
   }
 
   /**
@@ -357,7 +377,8 @@ export class ThemeService {
    */
   async isFavorite(themeId: string): Promise<boolean> {
     if (!this.storage) return false;
-    const favorites = await this.storage.get<string[]>(FAVORITES_KEY) || [];
+    const result = await this.storage.get<string[]>(FAVORITES_KEY);
+    const favorites = result?.data || [];
     return favorites.includes(themeId);
   }
 
@@ -376,7 +397,8 @@ export class ThemeService {
     }
 
     // Check for duplicate name (query DB)
-    const existingThemes = await this.storage.get<Theme[]>(ALL_THEMES_KEY) || [];
+    const existingResult = await this.storage.get<Theme[]>(ALL_THEMES_KEY);
+    const existingThemes = existingResult?.data || [];
     const duplicateName = existingThemes.find(
       t => t.name.toLowerCase() === themeData.name.toLowerCase()
     );
@@ -420,7 +442,8 @@ export class ThemeService {
     }
 
     // Get all themes from DB
-    const allThemes = await this.storage.get<Theme[]>(ALL_THEMES_KEY) || [];
+    const allThemesResult = await this.storage.get<Theme[]>(ALL_THEMES_KEY);
+    const allThemes = allThemesResult?.data || [];
     const existingIndex = allThemes.findIndex(t => t.id === themeId);
 
     if (existingIndex === -1) {
@@ -478,7 +501,8 @@ export class ThemeService {
     }
 
     // Get all themes from DB
-    const allThemes = await this.storage.get<Theme[]>(ALL_THEMES_KEY) || [];
+    const allThemesResult = await this.storage.get<Theme[]>(ALL_THEMES_KEY);
+    const allThemes = allThemesResult?.data || [];
     const themeExists = allThemes.some(t => t.id === themeId);
 
     if (!themeExists) {
@@ -495,7 +519,8 @@ export class ThemeService {
     await this.storage.set(ALL_THEMES_KEY, filtered);
 
     // Remove from favorites if present
-    const favorites = await this.storage.get<string[]>(FAVORITES_KEY) || [];
+    const favResult = await this.storage.get<string[]>(FAVORITES_KEY);
+    const favorites = favResult?.data || [];
     if (favorites.includes(themeId)) {
       const filteredFavorites = favorites.filter(id => id !== themeId);
       await this.storage.set(FAVORITES_KEY, filteredFavorites);
@@ -510,7 +535,8 @@ export class ThemeService {
    */
   async getCustomThemes(): Promise<Theme[]> {
     if (!this.storage) return [];
-    const allThemes = await this.storage.get<Theme[]>(ALL_THEMES_KEY) || [];
+    const result = await this.storage.get<Theme[]>(ALL_THEMES_KEY);
+    const allThemes = result?.data || [];
     return allThemes.filter(t => t.source === 'custom');
   }
 
@@ -530,7 +556,8 @@ export class ThemeService {
    */
   async getThemesByCategory(category: 'light' | 'dark'): Promise<Theme[]> {
     if (!this.storage) return [];
-    const allThemes = await this.storage.get<Theme[]>(ALL_THEMES_KEY) || [];
+    const result = await this.storage.get<Theme[]>(ALL_THEMES_KEY);
+    const allThemes = result?.data || [];
     return allThemes.filter(theme => theme.category === category);
   }
 
@@ -540,7 +567,8 @@ export class ThemeService {
   async searchThemes(query: string, tags?: string[]): Promise<Theme[]> {
     if (!this.storage) return [];
     const lowerQuery = query.toLowerCase();
-    const allThemes = await this.storage.get<Theme[]>(ALL_THEMES_KEY) || [];
+    const result = await this.storage.get<Theme[]>(ALL_THEMES_KEY);
+    const allThemes = result?.data || [];
 
     return allThemes.filter(theme => {
       // Match by name

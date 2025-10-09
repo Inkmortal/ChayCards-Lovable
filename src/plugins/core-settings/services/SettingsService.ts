@@ -110,7 +110,8 @@ export class SettingsService {
     try {
       if (this.storage) {
         // Load from StorageAdapter (SQLite/PostgreSQL)
-        const stored = await this.storage.get(STORAGE_KEYS.CORE_SETTINGS);
+        const result = await this.storage.get(STORAGE_KEYS.CORE_SETTINGS);
+        const stored = result?.data;
         if (stored) {
           this.settings = { ...getDefaultSettings(), ...stored };
           console.log('[SettingsService] Loaded settings from storage:', this.settings);

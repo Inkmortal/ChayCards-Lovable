@@ -38,7 +38,8 @@ export class DemoDataService {
     }
 
     try {
-      const notes = await this.storage.get<DemoNote[]>(this.storageKey);
+      const result = await this.storage.get<DemoNote[]>(this.storageKey);
+      const notes = result?.data;
       this.cachedNotes = notes || [];
     } catch (error) {
       console.error('Failed to load demo notes:', error);
