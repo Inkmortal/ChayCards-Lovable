@@ -19,21 +19,31 @@ export class SQLiteAdapter implements StorageAdapter {
     }
   }
 
-  async get<T = any>(key: string): Promise<T | null> {
+  async get<T = any>(key: string): Promise<{ data: T; files: Record<string, Uint8Array> } | null> {
     if (!this.isElectron) {
       throw new Error('SQLite not available - not running in Electron');
     }
 
-    const result = await window.electronAPI.storage.get(key);
-    return result as T;
+    try {
+      const result = await window.electronAPI.storage.get(key);
+      return result as { data: T; files: Record<string, Uint8Array> } | null;
+    } catch (error) {
+      console.error(`[SQLiteAdapter] Failed to get key "${key}":`, error);
+      return null; // Graceful degradation per contract
+    }
   }
 
-  async set<T = any>(key: string, value: T): Promise<void> {
+  async set<T = any>(key: string, value: T, files?: Record<string, Uint8Array | null>): Promise<void> {
     if (!this.isElectron) {
       throw new Error('SQLite not available - not running in Electron');
     }
 
-    await window.electronAPI.storage.set(key, value);
+    try {
+      await window.electronAPI.storage.set(key, value, files);
+    } catch (error) {
+      console.error(`[SQLiteAdapter] Failed to set key "${key}":`, error);
+      throw new Error(`Failed to save data for key "${key}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   async delete(key: string): Promise<void> {
@@ -41,7 +51,12 @@ export class SQLiteAdapter implements StorageAdapter {
       throw new Error('SQLite not available - not running in Electron');
     }
 
-    await window.electronAPI.storage.delete(key);
+    try {
+      await window.electronAPI.storage.delete(key);
+    } catch (error) {
+      console.error(`[SQLiteAdapter] Failed to delete key "${key}":`, error);
+      throw new Error(`Failed to delete data for key "${key}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   async list(prefix?: string): Promise<string[]> {
@@ -49,7 +64,12 @@ export class SQLiteAdapter implements StorageAdapter {
       throw new Error('SQLite not available - not running in Electron');
     }
 
-    return await window.electronAPI.storage.list(prefix || '');
+    try {
+      return await window.electronAPI.storage.list(prefix || '');
+    } catch (error) {
+      console.error('[SQLiteAdapter] Failed to list keys:', error);
+      return []; // Graceful degradation per contract
+    }
   }
 
   async has(key: string): Promise<boolean> {
@@ -57,7 +77,12 @@ export class SQLiteAdapter implements StorageAdapter {
       throw new Error('SQLite not available - not running in Electron');
     }
 
-    return await window.electronAPI.storage.has(key);
+    try {
+      return await window.electronAPI.storage.has(key);
+    } catch (error) {
+      console.error(`[SQLiteAdapter] Failed to check key "${key}":`, error);
+      return false; // Graceful degradation per contract
+    }
   }
 
   async clear(): Promise<void> {
@@ -65,7 +90,12 @@ export class SQLiteAdapter implements StorageAdapter {
       throw new Error('SQLite not available - not running in Electron');
     }
 
-    await window.electronAPI.storage.clear();
-    console.log('[SQLiteAdapter] Storage cleared');
+    try {
+      await window.electronAPI.storage.clear();
+      console.log('[SQLiteAdapter] Storage cleared');
+    } catch (error) {
+      console.error('[SQLiteAdapter] Failed to clear storage:', error);
+      throw new Error(`Failed to clear storage: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 }

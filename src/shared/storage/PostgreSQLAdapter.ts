@@ -62,7 +62,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     }
   }
 
-  async get<T = any>(key: string): Promise<T | null> {
+  async get<T = any>(key: string): Promise<{ data: T; files: Record<string, Uint8Array> } | null> {
     const url = `${this.apiUrl}/${encodeURIComponent(key)}`;
 
     try {
@@ -99,14 +99,35 @@ export class PostgreSQLAdapter implements StorageAdapter {
         // Get error details from response body
         const errorText = await response.text();
         console.error(`[PostgreSQLAdapter] HTTP ${response.status} error for key "${key}":`, errorText);
-        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+        // Return null per contract - read operations never throw
+        return null;
       }
 
-      const data = await response.json();
+      const responseData = await response.json();
       if (import.meta.env.DEV) {
-        console.log(`[PostgreSQLAdapter] Successfully got key "${key}":`, data);
+        console.log(`[PostgreSQLAdapter] Successfully got key "${key}":`, responseData);
       }
-      return data.value as T;
+
+      // Convert base64 files to Uint8Array
+      const files: Record<string, Uint8Array> = {};
+      if (responseData.files) {
+        for (const [fieldName, base64Data] of Object.entries(responseData.files)) {
+          if (typeof base64Data === 'string') {
+            // Convert base64 to Uint8Array
+            const binaryString = atob(base64Data);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            files[fieldName] = bytes;
+          }
+        }
+      }
+
+      return {
+        data: responseData.value as T,
+        files
+      };
     } catch (error) {
       console.error(`[PostgreSQLAdapter] Failed to get key "${key}":`, error);
       if (import.meta.env.DEV) {
@@ -116,17 +137,34 @@ export class PostgreSQLAdapter implements StorageAdapter {
     }
   }
 
-  async set<T = any>(key: string, value: T): Promise<void> {
+  async set<T = any>(key: string, value: T, files?: Record<string, Uint8Array | null>): Promise<void> {
     const url = `${this.apiUrl}/${encodeURIComponent(key)}`;
 
     try {
+      // Convert Uint8Array files to base64 for JSON transport
+      const filesForTransport: Record<string, string | null> = {};
+      if (files) {
+        for (const [fieldName, fileData] of Object.entries(files)) {
+          if (fileData === null) {
+            filesForTransport[fieldName] = null;
+          } else if (fileData instanceof Uint8Array) {
+            // Convert Uint8Array to base64
+            let binaryString = '';
+            for (let i = 0; i < fileData.length; i++) {
+              binaryString += String.fromCharCode(fileData[i]);
+            }
+            filesForTransport[fieldName] = btoa(binaryString);
+          }
+        }
+      }
+
       if (import.meta.env.DEV) {
-        console.log(`[PostgreSQLAdapter] PUT ${url}`, { value });
+        console.log(`[PostgreSQLAdapter] PUT ${url}`, { value, files: Object.keys(filesForTransport) });
       }
       const response = await fetch(url, {
         method: 'PUT',
         headers: this.getAuthHeaders(),
-        body: JSON.stringify({ value })
+        body: JSON.stringify({ value, files: Object.keys(filesForTransport).length > 0 ? filesForTransport : undefined })
       });
 
       if (import.meta.env.DEV) {
