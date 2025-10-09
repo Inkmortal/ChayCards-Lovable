@@ -1706,6 +1706,204 @@ CREATE TABLE reviews (
 );
 ```
 
+#### Storage Integration
+
+##### Current Pattern (Dual-Storage - Before Phase 1)
+
+When storing flashcard decks with optional media files, use the dual-storage pattern:
+
+```typescript
+// Example: Creating a deck with cards that have media
+async function createDeckWithMedia(deckData: DeckData, cards: CardData[]): Promise<string> {
+  const deckId = crypto.randomUUID();
+
+  // 1. Create deck metadata
+  const deck = {
+    id: deckId,
+    name: deckData.name,
+    description: deckData.description,
+    createdAt: Date.now()
+  };
+
+  // 2. Store deck in decks index
+  const allDecks = await storage.get<Deck[]>('core-flashcards:decks') || [];
+  allDecks.push(deck);
+  await storage.set('core-flashcards:decks', allDecks);
+
+  // 3. Process cards with media
+  const processedCards = await Promise.all(cards.map(async (card) => {
+    const cardId = crypto.randomUUID();
+    const processedCard = {
+      id: cardId,
+      deckId,
+      front: card.front,
+      back: card.back,
+      // Store media keys if files provided
+      imageStorageKey: card.imageFile
+        ? buildPluginStorageKey('core-flashcards', `media/${cardId}/image`)
+        : undefined,
+      audioStorageKey: card.audioFile
+        ? buildPluginStorageKey('core-flashcards', `media/${cardId}/audio`)
+        : undefined
+    };
+
+    // 4. Store media files separately (binary data)
+    if (card.imageFile) {
+      const imageData = new Uint8Array(await card.imageFile.arrayBuffer());
+      await storage.set(processedCard.imageStorageKey!, imageData);
+    }
+    if (card.audioFile) {
+      const audioData = new Uint8Array(await card.audioFile.arrayBuffer());
+      await storage.set(processedCard.audioStorageKey!, audioData);
+    }
+
+    return processedCard;
+  }));
+
+  // 5. Store cards for this deck
+  await storage.set(`core-flashcards:cards:${deckId}`, processedCards);
+
+  return deckId;
+}
+
+// Example: Retrieving a card with media
+async function getCardWithMedia(deckId: string, cardId: string): Promise<CardWithMedia | null> {
+  // 1. Get all cards for deck
+  const cards = await storage.get<Card[]>(`core-flashcards:cards:${deckId}`) || [];
+  const card = cards.find(c => c.id === cardId);
+
+  if (!card) return null;
+
+  // 2. Fetch media files if they exist
+  const imageData = card.imageStorageKey
+    ? await storage.get<Uint8Array>(card.imageStorageKey)
+    : null;
+
+  const audioData = card.audioStorageKey
+    ? await storage.get<Uint8Array>(card.audioStorageKey)
+    : null;
+
+  return {
+    ...card,
+    imageData,
+    audioData
+  };
+}
+
+// Example: Deleting a card (MUST delete media AND metadata)
+async function deleteCard(deckId: string, cardId: string): Promise<void> {
+  // 1. Get cards list to find the card
+  const cards = await storage.get<Card[]>(`core-flashcards:cards:${deckId}`) || [];
+  const cardIndex = cards.findIndex(c => c.id === cardId);
+
+  if (cardIndex === -1) return;
+
+  const card = cards[cardIndex];
+
+  // 2. Delete media files first
+  if (card.imageStorageKey) {
+    await storage.delete(card.imageStorageKey);
+  }
+  if (card.audioStorageKey) {
+    await storage.delete(card.audioStorageKey);
+  }
+
+  // 3. Remove from cards array
+  cards.splice(cardIndex, 1);
+  await storage.set(`core-flashcards:cards:${deckId}`, cards);
+}
+```
+
+**Key Points**:
+- Deck metadata stored at: `core-flashcards:decks` → `Deck[]`
+- Cards for deck stored at: `core-flashcards:cards:{deckId}` → `Card[]`
+- Media files (binary) stored at: `core-flashcards:media/{cardId}/{type}` → `Uint8Array`
+- Use `imageStorageKey` and `audioStorageKey` fields to link metadata to content
+- **IMPORTANT**: Must manually delete both media files AND card metadata to avoid orphans
+
+##### Future Pattern (Files as Entity Properties - After Phase 1)
+
+Once Phase 1 of FILE_STORAGE_SPEC.md is implemented, this becomes much simpler:
+
+```typescript
+// Future: Create deck with cards and media in single atomic operation
+async function createDeckWithMedia_Future(deckData: DeckData, cards: CardData[]): Promise<string> {
+  const deckId = crypto.randomUUID();
+
+  // Process cards with media
+  const cardsWithFiles = await Promise.all(cards.map(async (card) => {
+    const cardId = crypto.randomUUID();
+
+    // Metadata for the card
+    const cardMetadata = {
+      id: cardId,
+      deckId,
+      front: card.front,
+      back: card.back
+    };
+
+    // Files to attach (if provided)
+    const files: Record<string, Uint8Array> = {};
+    if (card.imageFile) {
+      files.image = new Uint8Array(await card.imageFile.arrayBuffer());
+    }
+    if (card.audioFile) {
+      files.audio = new Uint8Array(await card.audioFile.arrayBuffer());
+    }
+
+    // Store card with files attached
+    await storage.set(
+      `core-flashcards:card:${cardId}`,
+      cardMetadata,
+      files  // Files as properties!
+    );
+
+    return cardId;
+  }));
+
+  // Store deck metadata
+  const deck = {
+    name: deckData.name,
+    description: deckData.description,
+    cardIds: cardsWithFiles,
+    createdAt: Date.now()
+  };
+
+  await storage.set(`core-flashcards:deck:${deckId}`, deck);
+
+  return deckId;
+}
+
+// Future: Retrieve card with media in single call
+async function getCardWithMedia_Future(cardId: string): Promise<CardWithMedia | null> {
+  const result = await storage.get(`core-flashcards:card:${cardId}`);
+
+  if (!result) return null;
+
+  // Returns: { data: cardMetadata, files: { image: Uint8Array, audio: Uint8Array } }
+  return {
+    ...result.data,
+    imageData: result.files.image,
+    audioData: result.files.audio
+  };
+}
+
+// Future: Delete card (media automatically cascades)
+async function deleteCard_Future(cardId: string): Promise<void> {
+  await storage.delete(`core-flashcards:card:${cardId}`);
+  // Done! Image and audio files automatically deleted via CASCADE DELETE
+}
+```
+
+**Benefits of Future API**:
+- ✅ Single atomic operation (deck/card + media together)
+- ✅ Automatic CASCADE DELETE (no orphaned media files)
+- ✅ No manual linking via storage keys
+- ✅ Simpler code, fewer bugs
+- ✅ Media files are properties of cards, not separate entities
+
+**See**: `/memory-bank/docs/FILE_STORAGE_SPEC.md` for complete specification.
+
 #### API Endpoints (IPC)
 ```typescript
 // Card operations

@@ -60,6 +60,15 @@ flowchart TD
    - Known issues
    - Evolution of project decisions
 
+7. `coreInstructions.md` **(PERMANENT - Never Modified)**
+   - Agent orchestration rules
+   - PRE-TASK CHECKLIST for Main Claude
+   - Auto-chaining workflows
+   - Agent communication protocols
+   - Zen MCP positioning (fallback only)
+   - **ONLY update when**: Adding new agents, changing core orchestration rules
+   - **NEVER update for**: Current work, progress, patterns, temporary workflow adjustments
+
 ### Additional Context
 Create additional files/folders within memory-bank/ when they help organize:
 - Complex feature documentation

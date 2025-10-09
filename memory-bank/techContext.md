@@ -130,9 +130,15 @@ npm run dev:electron # Electron + Web
 ```bash
 npm run dev          # Start Vite dev server (port 8080)
 npm run dev:electron # Start Electron with Vite
+npm run electron:win # Run Electron from Windows (see dual env setup)
 npm run server       # Start backend API server (port 7243, Windows only)
-npm run notion-pm:server # Start Notion PM sync server (port 3001)
+npm run notion-pm:server    # Start Notion PM sync server (port 3001)
+npm run notion-pm:sync      # One-time sync from Notion database
 npm run build        # Build for production
+npm run build:dev    # Build in development mode
+npm run build:electron # Build Electron app with electron-builder
+npm run build:mobile # Build for Capacitor (iOS/Android)
+npm run lint         # Run ESLint
 npm run preview      # Preview production build
 ```
 
@@ -192,3 +198,112 @@ Users choose storage mode during setup:
 - **Local**: SQLite in Electron (offline-first)
 - **Sync**: SQLite + cloud sync (planned)
 - **Cloud**: PostgreSQL via `https://api.chaycards.com`
+
+### File Storage Architecture
+
+**Files as Entity Properties**: Unified storage system where files attach to entities
+
+#### Core Concept
+Files are NOT independent entities - they are **properties attached to data entities**:
+```typescript
+// Store entity with optional binary files
+await storage.set('documents:doc-123',
+  { title: 'Q4 Report', tags: ['finance'] },
+  { pdf: pdfData, thumbnail: thumbnailData }
+);
+
+// Retrieve entity with files
+const result = await storage.get('documents:doc-123');
+// Returns: { data: { title, tags }, files: { pdf: Uint8Array, thumbnail: Uint8Array } }
+
+// Delete entity (files cascade automatically)
+await storage.delete('documents:doc-123');
+```
+
+#### Unified API (Phase 1 - To Be Implemented)
+- `set(key, data, files?)` - Store entity with optional binary files
+- `get(key)` - Returns `{ data, files }` or `null`
+- `delete(key)` - Cascades to delete attached files (database enforced)
+- `list(prefix?)`, `has(key)`, `clear()` - Unchanged
+
+**Key Benefits**:
+- ✅ No orphaned files (CASCADE DELETE enforced by database FK)
+- ✅ Atomic operations (entity + files in single transaction)
+- ✅ Simpler plugin code (no manual file tracking)
+- ✅ User scoping automatic (composite keys prevent cross-user access)
+
+#### Database Schema
+
+**SQLite (Electron)**:
+```sql
+-- Entity storage (existing)
+CREATE TABLE storage (
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,  -- JSON data
+  user_id TEXT NOT NULL,
+  PRIMARY KEY (key, user_id)
+);
+
+-- File storage (new, with CASCADE DELETE)
+CREATE TABLE files (
+  storage_key TEXT NOT NULL,     -- FK to storage.key
+  field_name TEXT NOT NULL,      -- Arbitrary: pdf, thumbnail, avatar
+  hash TEXT NOT NULL,            -- SHA-256 for deduplication
+  metadata JSONB,                -- {mimeType, fileName, size}
+  user_id TEXT NOT NULL,
+  PRIMARY KEY (storage_key, field_name, user_id),
+  FOREIGN KEY (storage_key, user_id)
+    REFERENCES storage(key, user_id) ON DELETE CASCADE
+);
+```
+
+**PostgreSQL (Cloud)**:
+```sql
+-- Entity storage (existing)
+CREATE TABLE storage (
+  key TEXT NOT NULL,
+  value JSONB NOT NULL,
+  user_id UUID NOT NULL,
+  PRIMARY KEY (key, user_id)
+);
+
+-- File storage (new, with CASCADE DELETE)
+CREATE TABLE files (
+  storage_key TEXT NOT NULL,
+  field_name TEXT NOT NULL,
+  file_data BYTEA NOT NULL,     -- Binary data inline
+  metadata JSONB,
+  user_id UUID NOT NULL,
+  PRIMARY KEY (storage_key, field_name, user_id),
+  FOREIGN KEY (storage_key, user_id)
+    REFERENCES storage(key, user_id) ON DELETE CASCADE
+);
+```
+
+#### Local Strategy (Electron)
+- Files in `{userData}/files/` with SHA-256 hash filenames
+- Metadata in SQLite `files` table
+- Content-based deduplication (same file uploaded twice = one copy on disk)
+- **No size limits** (constrained only by disk space)
+- Example: `C:\Users\{user}\AppData\Roaming\ChayCards\files\a3f8d9e2b1c4.jpg`
+
+#### Cloud Strategy (PostgreSQL)
+- Files stored in BYTEA column (Phase 1)
+- **Payment plan quotas**: Free (10MB/100MB), Pro (500MB/10GB), Enterprise (unlimited)
+- Testable locally via Docker PostgreSQL
+- **Future (Phase 3)**: Migrate BYTEA → S3 (CloudFlare R2, Backblaze B2)
+
+#### Testing Locally
+```bash
+# PostgreSQL cloud flow
+docker-compose up postgres  # localhost:5433
+npm run server              # API on localhost:7243
+npm run dev                 # Vite on localhost:8080
+
+# Electron local flow
+npm run dev                 # WSL: Vite dev server
+npm run electron:win        # Windows: Electron app
+# Files: %APPDATA%\ChayCards\files\
+```
+
+**Complete specification**: `/memory-bank/docs/FILE_STORAGE_SPEC.md`

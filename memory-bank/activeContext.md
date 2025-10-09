@@ -1,65 +1,83 @@
 # Active Context
 
-## 🚦 PRE-TASK CHECKLIST (Check EVERY Time Before Starting Work)
-
-**MANDATORY**: Review this checklist before every task. If you skip this, you're not following project standards.
-
-### Before Implementation
-- [ ] Is this a new feature/component/function? → **STOP** → Run `context-researcher` agent
-- [ ] Am I about to write >20 lines of code? → **STOP** → Run `context-researcher` agent
-- [ ] Is this a complex feature (>3 files, >100 lines)? → **STOP** → Run `planner` agent
-- [ ] Am I investigating architecture/patterns? → **STOP** → Run `analyze` agent
-
-### During Implementation
-- [ ] Did I encounter an error/bug? → **STOP** → Run `debug` or `root-cause-debugger` agent
-- [ ] Do I need to understand execution flow? → Consider running `tracer` agent
-- [ ] Do I need multi-step research? → Consider running `general-purpose` agent
-
-### After Implementation
-- [ ] Did I just write >20 lines of code? → **STOP** → Run `code-reviewer` agent
-- [ ] Did I just implement UI changes? → **STOP** → Run `frontend-qa-tester` agent
-- [ ] Did I just refactor code? → **STOP** → Run `code-cleanup-refactor` agent
-- [ ] Are there tests to run? → **STOP** → Run `test-runner-validator` agent
-
-### Before Committing
-- [ ] Am I about to commit changes? → **STOP** → Run `precommit` agent
-- [ ] Do changes involve auth/data/APIs? → **STOP** → Run `security-reviewer` agent
-- [ ] Ready to create commit? → **STOP** → Run `git-workflow-manager` agent
-
-### Project Management
-- [ ] Did I complete a task? → **STOP** → Run `backlog-manager` agent
-- [ ] Did I make significant changes? → **STOP** → Run `memory-bank-keeper` agent
-
-**If you skip these checks, you're violating project policy.**
-
----
-
 ## Current Work Focus
 
-We are building the foundation architecture for ChayCards with a focus on:
+### ✅ Foundation Infrastructure (COMPLETE - October 6, 2025)
 1. ~~Setting up dual-platform support (Electron + Web)~~ ✅ Complete
 2. ~~Multi-platform architecture analysis~~ ✅ Complete
 3. ~~Capacitor mobile integration~~ ✅ Complete
-4. ~~Plugin system infrastructure + User Experience~~ ✅ **COMPLETE**
-   - ~~Minimal PluginManager implementation~~ ✅ Complete
-   - ~~Theme system as first plugin~~ ✅ Complete (7 themes implemented)
-   - ~~Smart platform-aware user flow~~ ✅ Complete
-   - ~~Enhanced component system with Duolingo aesthetic~~ ✅ Complete
-5. ~~**Electron SQLite Development Setup**~~ ✅ **COMPLETE** (September 30, 2025)
+4. ~~**Plugin System Infrastructure**~~ ✅ **COMPLETE** (October 6, 2025)
+   - ~~PluginManager with dependency resolution~~ ✅ Complete (687 lines)
+   - ~~Component/service namespacing~~ ✅ Complete
+   - ~~Event bus for plugin communication~~ ✅ Complete
+   - ~~Region system (header, sidebar, main, footer)~~ ✅ Complete
+   - ~~Auto-navigation generation~~ ✅ Complete
+   - ~~`publicSafe` metadata for anonymous users~~ ✅ Complete
+   - ~~User plugin preferences (enabled_plugins)~~ ✅ Complete
+   - ~~HMR support for development~~ ✅ Complete
+5. ~~**Theme System with Pure Database Architecture**~~ ✅ **COMPLETE** (October 5, 2025)
+   - ~~7 theme plugins (Catppuccin, Dracula, Gruvbox, etc.)~~ ✅ Complete
+   - ~~Pure database storage (no memory leaks)~~ ✅ Complete
+   - ~~Async service pattern~~ ✅ Complete
+   - ~~Custom theme builder with live preview~~ ✅ Complete
+   - ~~Favorites management~~ ✅ Complete
+6. ~~**Core UI Plugin**~~ ✅ **COMPLETE** (October 6, 2025)
+   - ~~32 shared components~~ ✅ Complete
+   - ~~Layout, forms, data display, feedback~~ ✅ Complete
+   - ~~All using semantic theme variables~~ ✅ Complete
+7. ~~**Storage Infrastructure**~~ ✅ **COMPLETE** (October 1, 2025)
+   - ~~SQLiteAdapter for Electron~~ ✅ Complete
+   - ~~PostgreSQLAdapter via Cloudflare Tunnel~~ ✅ Complete
+   - ~~Pure database patterns established~~ ✅ Complete
+   - ~~Plugin storage namespacing~~ ✅ Complete
+8. ~~**Electron SQLite Development Setup**~~ ✅ **COMPLETE** (September 30, 2025)
    - ~~Windows one-click launcher with auto-rebuild~~ ✅ Complete
-   - ~~SQLite local storage working in Electron~~ ✅ Complete
-   - ~~Plugin storage initialization and lifecycle~~ ✅ Complete
-   - ~~First-time user flow (setup screen)~~ ✅ Complete
-6. ~~**Theme System Pure Database Architecture**~~ ✅ **COMPLETE** (October 5, 2025)
-   - ~~Eliminated cache-based storage (Map/Set removed)~~ ✅ Complete
-   - ~~Pure database storage with single source of truth~~ ✅ Complete
-   - ~~Async service pattern for all operations~~ ✅ Complete
-   - ~~Client-side filtering for UI responsiveness~~ ✅ Complete
-   - ~~Memory leak vulnerability eliminated~~ ✅ Complete
-7. Game plugin design and architecture - **NEXT PRIORITY**
-8. Building the frontend with plugin architecture
+   - ~~Local profile management~~ ✅ Complete
+   - ~~IPC storage communication~~ ✅ Complete
 
-**Current Status**: Theme system refactored to pure database architecture with no memory leaks and proper async patterns
+### 🎯 Current Phase: Feature Plugins
+1. **File Storage Implementation - Phase 1** 🔴 **IMPLEMENTATION PLAN READY** (October 7, 2025)
+   - **Status**: Complete implementation plan created with all 12 files identified
+   - **Problem**: Current storage only handles JSON - binary files get corrupted
+   - **Solution**: Files stored AS PROPERTIES of entities, not as separate storage
+   - **Key Innovation**: Database foreign keys prevent orphaned files (CASCADE DELETE)
+   - **Architecture**:
+     - Unified API: `set(key, data, files)` and `get(key)` returns `{ data, files }`
+     - Files attach to entities in single atomic operation
+     - Delete entity → files cascade automatically (database enforced)
+     - User scoping via composite keys `(storage_key, field_name, user_id)`
+   - **Platform Strategy**:
+     - Electron: Files in userData/files/ with SHA-256 deduplication + SQLite metadata
+     - Cloud: PostgreSQL BYTEA (Phase 1), migrate to S3 (Phase 3)
+     - Local: Unlimited (disk space limit), Cloud: Payment plan quotas
+   - **Implementation Scope** (12 files total):
+     - Core Storage (7 files): StorageAdapter interface, SQLite/PostgreSQL adapters, IPC handlers, server endpoints
+     - Plugins (5 files): DocumentsService, SettingsService, ThemeService, DemoDataService, DemoPage
+     - All `storage.get()` calls updated to use `result?.data` pattern
+     - No backward compatibility - clean slate approach
+   - **See**: `/memory-bank/docs/FILE_STORAGE_SPEC.md` for complete specification
+2. **Documents Plugin Phase 1** ✅ **COMPLETE** (October 6, 2025)
+   - Core service architecture with dual-storage abstraction (772 lines)
+   - Observer pattern with React hooks for state management
+   - FileHandler registry for plugin extensibility
+   - Folder hierarchy with validation and circular reference prevention
+   - All critical fixes applied (initialization state, folder validation, type definitions)
+   - TypeScript compiles with zero errors
+   - ⚠️ **Awaiting file storage**: Can't store actual files yet (binary data corrupts)
+3. **Game Plugin Design & Architecture** - Planning required
+   - Task-to-game-time conversion mechanics
+   - Godot server integration strategy
+   - Plugin interface design
+4. **Tasks Plugin** (core-tasks) - Ready to implement
+   - Task list management
+   - Priority/category system
+   - Game integration hooks
+5. **Knowledge Plugin** (core-knowledge) - Ready to implement
+   - Flashcard generation from documents
+   - Spaced repetition system
+   - Progress tracking
+
+**Current Status**: Foundation infrastructure 100% complete - all plugin systems, storage patterns, and core components operational. Ready to build feature plugins using established patterns.
 
 - **Implementation Strategy**: "Vertical Slice First" - build minimal working system end-to-end
 - **First Plugin**: Theme system (core-theme) with 7 theme variants ✅ Complete
@@ -69,6 +87,176 @@ We are building the foundation architecture for ChayCards with a focus on:
 - **Deployment Strategy**: Local-first for desktop, cloud-first for web, future mobile support
 
 ## Recent Changes
+
+### Async/Await Pattern in React Event Handlers (October 8, 2025)
+- **Bug Discovery**: Theme cycling button in demo plugin silently failing
+  - **Root Cause**: Event handler called `themeService.getAvailableThemes()` without `await`
+  - **Symptom**: Received `Promise<Theme[]>` instead of `Theme[]`, causing `.findIndex()` to fail
+  - **Location**: `src/plugins/demo-plugin/components/DemoPage.tsx` line 237
+- **Pattern Fix**: Make event handler async and await service calls
+  ```typescript
+  // ❌ WRONG: Synchronous handler calling async method
+  const handleThemeChange = () => {
+    const themes = themeService.getAvailableThemes(); // Returns Promise!
+    // ...
+  };
+
+  // ✅ CORRECT: Async handler with await
+  const handleThemeChange = async () => {
+    const themes = await themeService.getAvailableThemes(); // Returns Theme[]
+    // ...
+  };
+  ```
+- **Key Learning**: **Any service method that accesses storage is async**
+  - React event handlers CAN be async - just add `async` keyword
+  - Always check service method signatures for `Promise<T>` return type
+  - React handles async event handlers gracefully
+- **Documentation Updated**:
+  - Added "Async Service Methods in React Handlers Pattern" to systemPatterns.md
+  - Documented common async methods: `getAvailableThemes()`, `loadSettings()`, `getDocuments()`, etc.
+  - Clear examples of wrong vs correct usage
+  - Pattern benefits: clear errors, no race conditions, consistent across all storage services
+- **Files Changed**:
+  - `src/plugins/demo-plugin/components/DemoPage.tsx` - Fixed handleThemeChange to be async
+  - `memory-bank/systemPatterns.md` - Added async/await pattern documentation
+
+### Files as Entity Properties Architecture (October 7, 2025)
+- **Critical Discovery**: Binary file storage completely missing from current implementation
+  - DocumentsService attempts to store Uint8Array via `storage.set()` which uses JSON.stringify()
+  - Binary data corrupts: `Uint8Array([255, 216, 255])` becomes `{"0":255,"1":216,"2":255}`
+  - Files cannot be properly stored or retrieved - Documents Plugin non-functional
+- **Design Evolution**: Files as Properties of Entities (not separate storage)
+  - **Problem with Separate APIs**: Orphaned files when entities deleted
+    ```typescript
+    await storage.set('doc-123', { title: 'Report' });
+    await storage.setFile('file-xyz', pdfData); // Separate storage
+    await storage.delete('doc-123'); // BUG: file-xyz orphaned!
+    ```
+  - **Solution**: Files attach to entities with CASCADE DELETE
+    ```typescript
+    await storage.set('doc-123', { title: 'Report' }, { pdf: pdfData });
+    await storage.delete('doc-123'); // ✅ PDF automatically deleted
+    ```
+  - **User Insight**: "we can't trust plugins to handle orphaned ids" - led to database FK solution
+- **Unified API Design**:
+  - `set(key, data, files?)` - Store entity with optional binary files
+  - `get(key)` - Returns `{ data, files }` with all attached files
+  - `delete(key)` - Cascades to delete all attached files (database enforced)
+  - Field names are arbitrary (pdf, thumbnail, avatar, etc.) - plugin's choice
+- **Database Architecture**:
+  - **SQLite**: `files` table with FK to `storage(key, user_id)` ON DELETE CASCADE
+  - **PostgreSQL**: Same structure with JSONB metadata and BYTEA file data
+  - Composite PK: `(storage_key, field_name, user_id)` prevents cross-user access
+  - SHA-256 deduplication in Electron (content-based addressing)
+- **Key Benefits**:
+  - ✅ No orphaned files (database FK enforces lifecycle)
+  - ✅ Atomic operations (entity + files stored/deleted together)
+  - ✅ Simpler plugin code (no manual file tracking)
+  - ✅ User scoping automatic (composite keys)
+  - ✅ Testing without UI (simple Uint8Array in browser console)
+- **Documentation Complete**:
+  - FILE_STORAGE_SPEC.md: 630 lines with comprehensive examples and patterns
+  - Database schemas for SQLite and PostgreSQL
+  - Usage examples for Documents Plugin
+  - Testing instructions for Electron and cloud
+  - Implementation phases with 11 concrete tasks
+- **Next Step**: Implement Phase 1 (extend StorageAdapter, add files table, update IPC/API)
+
+### Files as Entity Properties - Phase 1 Implementation Plan Created (October 7, 2025)
+- **Complete Implementation Roadmap**: All 12 files requiring modification identified
+  - **Core Storage System (7 files)**:
+    1. `StorageAdapter.ts` - Interface signatures (`get` returns `{ data, files }`, `set` accepts optional `files`)
+    2. `SQLiteAdapter.ts` - Implementation with new return format
+    3. `PostgreSQLAdapter.ts` - Implementation with base64 encoding for JSON transport
+    4. `electron/database.cjs` - Add `files` table with CASCADE DELETE foreign key
+    5. `electron/ipc/storageHandlers.cjs` - Update get/set handlers with SHA-256 file deduplication
+    6. `electron/preload.cjs` - Update set signature to pass files parameter
+    7. `server/index.js` - Add `files` table + update GET/PUT endpoints for BYTEA storage
+  - **Plugin Updates (5 files)** - All `storage.get()` calls must change to `result?.data` pattern:
+    1. `DocumentsService.ts` - Migrate to Files as Properties API, remove `fileStorageKey` field
+    2. `SettingsService.ts` - Update 1 `storage.get()` call
+    3. `ThemeService.ts` - Update ~14 `storage.get()` calls
+    4. `DemoDataService.ts` - Update 1 `storage.get()` call
+    5. `DemoPage.tsx` - Update 1 `storage.get()` call
+- **Breaking Change Strategy**: No backward compatibility
+  - Clean slate approach - all existing data can be cleared
+  - No migration code - fresh start with new API
+  - All plugin code updated simultaneously
+- **Implementation Order**:
+  1. Database schemas (SQLite + PostgreSQL files tables)
+  2. IPC handlers (Electron file storage with SHA-256 deduplication)
+  3. Server endpoints (PostgreSQL BYTEA storage with base64 transport)
+  4. Storage adapters (update get/set methods)
+  5. Interface (make breaking change official)
+  6. All plugin services (update storage.get() calls)
+  7. Testing (both Electron and Cloud platforms)
+- **Key Technical Decisions**:
+  - **Electron**: Files stored in `{userData}/files/{sha256-hash}` with metadata in SQLite
+  - **Cloud**: Files stored as BYTEA in PostgreSQL `files` table
+  - **Transport**: Base64 encoding for JSON over HTTP/REST
+  - **Deduplication**: SHA-256 content-based addressing (Electron only)
+  - **Cascade Delete**: Database foreign key constraints enforce lifecycle
+- **Testing Requirements**:
+  - Upload document in Electron, verify hash-based file storage
+  - Upload document in Cloud, verify BYTEA storage in PostgreSQL
+  - Delete entity, verify CASCADE DELETE removes file rows
+  - All plugins (Settings, Theme, Demo) load data correctly after migration
+  - No `storage.get()` calls returning undefined
+
+### Documents Plugin Phase 1 Implementation (October 6, 2025)
+- **Complete Service Architecture**: Built DocumentsService with dual-storage abstraction
+  - **File Management**: Full CRUD operations for files with File Storage + JSON Storage APIs
+  - **Folder Hierarchy**: Tree structure with parent-child relationships
+  - **FileHandler Registry**: Priority-based handler system for plugin extensibility
+  - **Observer Pattern**: State change notifications with immediate state provision
+  - **React Hooks**: Complete hook library for reactive state management
+  - **Initialization State Tracking**: Prevents race conditions during plugin loading
+  - **Folder Name Validation**: Comprehensive validation preventing unsafe characters, path traversal
+  - **Type Safety**: Fixed PluginManager interface with getStorage() method
+- **Files Created** (1,977 lines total):
+  - `src/plugins/core-documents/types.ts` (271 lines) - Complete type definitions
+  - `src/plugins/core-documents/services/DocumentsService.ts` (772 lines) - Core service with all fixes
+  - `src/plugins/core-documents/hooks/useDocuments.ts` (225 lines) - React hooks with initialization checks
+  - `src/plugins/core-documents/components/FileBrowser.tsx` (71 lines) - Placeholder component
+  - `src/plugins/core-documents/index.ts` (138 lines) - Plugin manifest
+- **Files Modified**:
+  - `src/shared/plugin-system/types.ts` - Added getStorage() method to PluginManager interface
+- **Key Patterns Established**:
+  - **Dual-Storage Abstraction**: Single methods handle both File Storage and JSON Storage internally
+  - **Stateful Observer + Custom Hook**: Service tracks listeners, hooks consume state reactively
+  - **Service Layer**: Plugins call service methods, service manages both storage APIs
+  - **FileHandler Extensibility**: Other plugins can register handlers for specific file types
+  - **Windows-like Folder Validation**: Unique names per parent (case-insensitive), path safety
+- **Code Review Fixes Applied**:
+  - Added `initialized` flag with `isInitialized()` method to prevent race conditions
+  - Added `validateFolderName()` with comprehensive safety checks
+  - Updated hooks to check initialization state before returning service
+  - Fixed TypeScript compilation (zero errors)
+- **Ready for Phase 2**: UI components with Grid/List views, drag-and-drop, advanced search
+
+### Plugin System Enhancements (October 6, 2025)
+- **User Plugin Preferences**: Implemented per-user plugin filtering system
+  - **enabled_plugins** vs **installed_plugins** distinction (commit eb295eb)
+    - `installed_plugins` - Plugins discovered by system via glob import
+    - `enabled_plugins` - Plugins user has explicitly enabled (stored in users table)
+    - Core plugins ALWAYS enabled regardless of preferences
+  - **Storage Mode Selection**: Users table now includes `storageMode` field
+    - Each user can have different storage preference (local/cloud/sync)
+    - Stored alongside plugin preferences in PostgreSQL/SQLite
+  - **API Endpoint**: `GET /api/users/me/plugins` returns user's enabled plugins
+  - **PluginManager Integration**: `getUserPluginPreferences()` filters by user choice
+    - Queries database before loading plugins
+    - Respects core plugin requirement (cannot be disabled)
+    - Falls back to all-enabled if no preferences found
+- **Files Changed**:
+  - `src/shared/plugin-system/PluginManager.ts` - Added user preferences logic (lines 162-244)
+  - `server/index.js` - Added `/api/users/me/plugins` endpoint
+  - Database schema - Added `enabled_plugins` column to users table
+- **Key Benefits**:
+  - Multi-tenant plugin filtering (different users, different plugins)
+  - Granular control over plugin ecosystem
+  - Core system stability (core plugins always load)
+  - Scalable for plugin marketplace
 
 ### Theme System Pure Database Refactor (October 5, 2025)
 - **Architecture Change**: Eliminated all in-memory caches for pure database storage
@@ -323,40 +511,51 @@ We are building the foundation architecture for ChayCards with a focus on:
 ## Next Steps
 
 ### Immediate (High Priority)
-1. **Core App Implementation**
-   - AppShell with plugin regions
-   - Main app routes (/app, /documents, /tasks)
-   - Plugin-driven navigation system
-2. **Storage Backend Selection**
-   - Implement setup page logic to save user's data model choice
-   - Initialize appropriate storage adapter based on choice
-   - PostgreSQL setup for cloud/sync options
-3. **Game Plugin Architecture**
-   - Design game client interface
-   - Task-to-game-time mechanics
-   - Godot server integration planning
+1. **Game Plugin Design & Architecture** 🎯 **NEXT PRIORITY**
+   - Design game client interface (hooks, events, data flow)
+   - Task-to-game-time conversion mechanics
+   - Godot server integration strategy (HTTP/WebSocket)
+   - Plugin metadata format for game features
+
+2. **Documents Plugin** (core-documents)
+   - Document list view with grid/list toggle
+   - CRUD operations (create, read, update, delete)
+   - Markdown editor integration
+   - Use core-ui components (PageHeader, Card, EmptyState)
+   - Storage: `core-documents:all-documents` with pure DB pattern
+
+3. **Tasks Plugin** (core-tasks)
+   - Task list management
+   - Priority/category/status system
+   - Game integration hooks (task completion → game time)
+   - Uses core-ui DataTable component
 
 ### Short Term
-1. **Core UI Plugin**
-   - Build upon theme system foundation
-   - Enhanced component library with theme integration
-   - Plugin-registered shadcn components
-2. **Demo Plugin Enhancement**
-   - Expand demo plugin to showcase storage persistence
-   - Add more interactive examples
-   - Document plugin development patterns
-3. **PostgreSQL Cloud Backend**
-   - Set up PostgreSQL database for web/sync modes
-   - Create API layer for cloud storage
-   - Implement sync logic between local and cloud
+1. **Knowledge Plugin** (core-knowledge)
+   - Flashcard generation from documents
+   - Spaced repetition algorithm
+   - Progress tracking and statistics
+   - Review session interface
+
+2. **Plugin Marketplace Foundation**
+   - Plugin discovery interface
+   - Installation/uninstallment flow
+   - Plugin metadata standards
+   - Version compatibility checking
+
+3. **Testing Infrastructure**
+   - Unit tests for PluginManager
+   - Integration tests for storage adapters
+   - E2E tests for plugin loading
+   - Theme system test coverage
 
 ### Medium Term
-1. Build core.documents plugin
-2. Create core.tasks plugin (integrate with game)
-3. Implement core.knowledge plugin
-4. Backend API structure
-5. Plugin marketplace
-6. Testing infrastructure
+1. AI Assistant Plugin (Live2D integration)
+2. MCP Tools Plugin (tool calling integration)
+3. Code Sandbox Plugin (Docker execution)
+4. Plugin SDK documentation
+5. Developer tools plugin
+6. Cloud sync implementation
 
 ## Active Decisions and Considerations
 
@@ -447,3 +646,10 @@ We are building the foundation architecture for ChayCards with a focus on:
 38. **Source Field Over ID Prefix**: Use explicit `source: 'plugin' | 'custom'` field instead of checking `id.startsWith('custom-')`
 39. **Single Source of Truth**: Database is always correct - read from DB, modify in memory, write back to DB (no persistent caches)
 40. **Hot Reload Duplicate Prevention**: Check DB for existing data before registering to prevent duplicates on hot reload
+41. **User Plugin Preferences**: Store enabled_plugins list in users table, not in generic storage - enables multi-tenant filtering
+42. **Core Plugin Protection**: ALWAYS include core plugins in filter results regardless of user preferences - system stability requirement
+43. **Plugin Discovery vs Enablement**: Separate discovered plugins (glob import) from enabled plugins (user choice) for proper filtering
+44. **Storage Mode Per User**: Allow each user to choose their storage mode (local/cloud/sync) - stored in users table, not app settings
+45. **API Endpoint Pattern**: Use `/api/users/me/*` pattern for user-specific data queries (follows REST conventions)
+46. **publicSafe Metadata**: Mark plugins that don't need user storage with `publicSafe: true` - enables anonymous user experience
+47. **Async Event Handlers**: React event handlers can be async - service methods that access storage return `Promise<T>` and must be awaited

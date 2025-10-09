@@ -1,5 +1,6 @@
 # CLAUDE.md
 @memory-bank-instructions.md
+@memory-bank/coreInstructions.md
 @notion.md
 @puppeteer.md
 
@@ -87,6 +88,11 @@ See `src/utils/platform.ts:src/utils/platform.ts` for full JSDoc documentation.
 
 **CRITICAL**: The following agent usage is **MANDATORY** and **NON-NEGOTIABLE**. Violating these rules means you are not following project standards. DO NOT ask for permission - these are requirements, not suggestions.
 
+**IMPORTANT**: Agents auto-chain - Main Claude only starts the first agent, then waits for final summary.
+- See `@memory-bank/coreInstructions.md` for complete agent workflow chains
+- Main Claude delegates → First agent executes → Agents auto-call next agents → Final summary returns
+- This prevents context bloat (600 tokens vs 5000+ without orchestration)
+
 ### ⛔ STOP AND USE AGENTS - Required Trigger Words
 
 When you see these phrases in user requests, **STOP IMMEDIATELY** and use the specified agent:
@@ -111,27 +117,42 @@ When you see these phrases in user requests, **STOP IMMEDIATELY** and use the sp
 - "push", "PR", "pull request"
 - User says task is complete
 
-### 🚨 Mandatory Agent Workflows (Must Follow)
+### 🚨 Mandatory Agent Workflows (Auto-Chaining)
 
-#### Workflow 1: Implementing New Features
-```
-USER REQUEST → STOP → context-researcher → Write Code → code-reviewer → DONE
-```
-**Never skip context-researcher**. If you write code without researching existing patterns, you're violating project policy.
+**How auto-chaining works:**
+1. Main Claude delegates to first agent
+2. Agents auto-call next agents in chain (Main Claude NOT involved)
+3. Final agent returns compressed summary (2-3 sentences) to Main Claude
+4. Main Claude reports to user
 
-#### Workflow 2: Fixing Bugs
+See `@memory-bank/coreInstructions.md` for complete workflow details.
+
+#### Workflow 1: Implementing New Features (AUTO-CHAINS)
 ```
-BUG REPORT → STOP → debug → Identify Root Cause → Fix → code-reviewer → DONE
+Main Claude → context-researcher (auto-calls) → memory-bank-keeper → Returns summary
+Main Claude gets user approval
+Main Claude → implementation (auto-calls) → code-reviewer → test-runner-validator → memory-bank-keeper → Returns summary
+```
+**Never skip context-researcher**. Agents handle the rest automatically.
+
+#### Workflow 2: Fixing Bugs (AUTO-CHAINS)
+```
+Main Claude → root-cause-debugger (auto-calls) → memory-bank-keeper → Returns summary
+Main Claude gets user approval
+Main Claude → implementation (auto-calls) → test-runner-validator → code-reviewer → memory-bank-keeper → Returns summary
 ```
 
-#### Workflow 3: Committing Changes
+#### Workflow 3: Committing Changes (AUTO-CHAINS)
 ```
-READY TO COMMIT → STOP → precommit → git-workflow-manager → DONE
+Main Claude → security-reviewer (optional) → Returns summary
+Main Claude → git-workflow-manager (auto-calls) → backlog-manager → memory-bank-keeper → Returns summary
 ```
 
-#### Workflow 4: Completing Tasks
+#### Workflow 4: Refactoring (AUTO-CHAINS)
 ```
-TASK DONE → STOP → code-reviewer → test-runner-validator → memory-bank-keeper → DONE
+Main Claude → context-researcher (auto-calls) → memory-bank-keeper → Returns summary
+Main Claude gets user approval
+Main Claude → implementation (auto-calls) → code-cleanup-refactor → code-reviewer → memory-bank-keeper → Returns summary
 ```
 
 ### When to Use Agents (Detailed)
@@ -213,3 +234,4 @@ TASK DONE → STOP → code-reviewer → test-runner-validator → memory-bank-k
 3. **Use After Implementation**: Code review and testing ensure quality
 4. **Chain Agents**: Use multiple agents in sequence (research → implement → review → test)
 5. **Parallel Execution**: Run independent agents in parallel when possible (e.g., multiple file searches)
+- I will restart vite, you should never restart vite. always use frontend qa agent when testing frontend

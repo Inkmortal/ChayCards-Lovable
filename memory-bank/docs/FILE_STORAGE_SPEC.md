@@ -1,205 +1,156 @@
-# File Storage Architecture Specification
+# File Storage Specification
 
 ## Overview
 
-ChayCards uses a **dual-API storage system** that provides clear separation between structured data (JSON) and binary files. This design eliminates confusion for plugin developers by making storage intent explicit.
+ChayCards provides a **unified storage system** where files are stored **as properties of entities**, not as separate storage items. This eliminates the orphan file problem and provides referential integrity through database foreign keys.
 
-### Design Philosophy
+### Core Principle: Files as Entity Properties
 
-**Two Storage Types, Two APIs:**
-- **JSON Storage** (`get/set`) - For settings, metadata, small structured data
-- **File Storage** (`getFile/setFile`) - For binary files, documents, images, videos
+**Files are NOT independent entities** - they are PROPERTIES attached to data entities. When you store an entity, you can optionally attach binary files. When you delete the entity, all attached files are automatically deleted (CASCADE DELETE).
 
-**No hidden magic.** Plugin developers know exactly where their data lives.
+```typescript
+// Store entity WITH files in single operation
+await storage.set('documents:doc-123',
+  { title: 'Q4 Report', tags: ['finance'] },
+  { pdf: pdfData, thumbnail: thumbnailData }
+);
+
+// Retrieve entity WITH files
+const doc = await storage.get('documents:doc-123');
+// Returns: { data: { title, tags }, files: { pdf: Uint8Array, thumbnail: Uint8Array } }
+
+// Delete entity (cascades to files automatically)
+await storage.delete('documents:doc-123');
+```
+
+**Benefits:**
+- ✅ No orphaned files (database enforced)
+- ✅ Atomic operations (entity + files stored/deleted together)
+- ✅ User scoping automatic (composite keys prevent cross-user access)
+- ✅ Simple API (no separate file management)
+- ✅ Referential integrity (FK constraints enforce relationship)
 
 ---
 
-## Storage APIs
-
-### JSON Storage (Existing - Keep As-Is)
-
-For structured data, settings, and metadata.
+## API Signature
 
 ```typescript
 interface StorageAdapter {
-  // Get JSON data
-  get<T = any>(key: string): Promise<T | null>;
+  // Store entity with optional files
+  set(key: string, data: any, files?: Record<string, Uint8Array | null>): Promise<void>;
 
-  // Set JSON data
-  set<T = any>(key: string, value: T): Promise<void>;
+  // Retrieve entity with files
+  get<T = any>(key: string): Promise<{ data: T; files: Record<string, Uint8Array> } | null>;
 
-  // Delete data
+  // Delete entity (cascades to files)
   delete(key: string): Promise<void>;
 
-  // List keys with optional prefix
+  // List entity keys
   list(prefix?: string): Promise<string[]>;
 
-  // Check if key exists
+  // Check if entity exists
   has(key: string): Promise<boolean>;
 
-  // Clear all data (use with caution!)
+  // Clear all entities for current user
   clear(): Promise<void>;
 }
 ```
 
-**Rules:**
-- ✅ Any JSON-serializable data (objects, arrays, primitives)
-- ✅ Stored in database (SQLite or PostgreSQL)
-- ✅ Fast, transactional, queryable
-- ⚠️ Size limits: Warn at 100KB, error at 1MB
-- 🎯 Use cases: Settings, task lists, metadata, small arrays
+**Key Changes from Old API:**
+- `set()` now accepts optional `files` parameter (Record of field names to binary data)
+- `get()` now returns `{ data, files }` instead of just data
+- `delete()` automatically cascades to delete attached files
+- No separate `setFile/getFile/deleteFile` methods
 
-**Example:**
+---
+
+## Usage Examples
+
+### Store Entity with Files
+
 ```typescript
+import { PluginManager } from '@/shared/plugin-system';
+
 const storage = PluginManager.getInstance().getStorage();
 
-// Save settings
-await storage.set('my-plugin:settings', {
-  theme: 'dark',
-  notifications: true
-});
+// Read files
+const pdfData = new Uint8Array(await pdfFile.arrayBuffer());
+const thumbnailData = new Uint8Array(await thumbnailFile.arrayBuffer());
 
-// Load settings
-const settings = await storage.get<Settings>('my-plugin:settings');
+// Store entity + files in single atomic operation
+await storage.set('documents:doc-123',
+  {
+    title: 'Q4 Financial Report',
+    tags: ['finance', 'quarterly'],
+    createdAt: Date.now()
+  },
+  {
+    pdf: pdfData,        // Field name is arbitrary
+    thumbnail: thumbnailData
+  }
+);
+```
+
+### Retrieve Entity with Files
+
+```typescript
+const result = await storage.get('documents:doc-123');
+
+if (result) {
+  const { data, files } = result;
+
+  console.log(data.title); // 'Q4 Financial Report'
+  console.log(data.tags);  // ['finance', 'quarterly']
+
+  // Access attached files
+  const pdfBlob = new Blob([files.pdf], { type: 'application/pdf' });
+  const thumbnailBlob = new Blob([files.thumbnail], { type: 'image/png' });
+}
+```
+
+### Update Entity or Files
+
+```typescript
+// Update data only (files unchanged)
+await storage.set('documents:doc-123',
+  { title: 'Q4 Report (Revised)', tags: ['finance'] }
+);
+
+// Update files only (data unchanged)
+const result = await storage.get('documents:doc-123');
+await storage.set('documents:doc-123',
+  result.data,
+  { thumbnail: newThumbnailData } // Replace thumbnail, keep pdf
+);
+
+// Update both data and files
+await storage.set('documents:doc-123',
+  { title: 'New Title' },
+  { pdf: newPdfData }
+);
+
+// Remove specific file (set to null)
+await storage.set('documents:doc-123',
+  result.data,
+  { thumbnail: null } // Removes thumbnail, keeps pdf
+);
+```
+
+### Delete Entity (Cascades to Files)
+
+```typescript
+// Delete entity - all attached files automatically deleted
+await storage.delete('documents:doc-123');
 ```
 
 ---
 
-### File Storage (New - Explicit API)
+## Database Schema
 
-For binary files, documents, images, videos, and user uploads.
+### SQLite (Electron Local Storage)
 
-```typescript
-interface StorageAdapter {
-  // Store binary file
-  setFile(key: string, data: Uint8Array, metadata?: FileMetadata): Promise<void>;
-
-  // Retrieve binary file
-  getFile(key: string): Promise<FileData | null>;
-
-  // Delete file
-  deleteFile(key: string): Promise<void>;
-
-  // List files with optional prefix
-  listFiles(prefix?: string): Promise<FileInfo[]>;
-
-  // Get file metadata without downloading
-  getFileMetadata(key: string): Promise<FileMetadata | null>;
-}
-
-interface FileMetadata {
-  mimeType?: string;    // e.g., 'image/jpeg', 'application/pdf'
-  fileName?: string;    // Original filename
-  size?: number;        // File size in bytes
-  pluginId?: string;    // For quota tracking
-}
-
-interface FileData {
-  data: Uint8Array;     // Binary file content
-  metadata: FileMetadata;
-}
-
-interface FileInfo {
-  key: string;          // Storage key
-  size: number;         // File size in bytes
-  mimeType?: string;    // MIME type
-  fileName?: string;    // Original filename
-  createdAt: number;    // Unix timestamp
-}
-```
-
-**Rules:**
-- ✅ Binary data only (Uint8Array, Buffer, Blob)
-- ✅ Always stored in filesystem (Electron) or database BYTEA (PostgreSQL)
-- ✅ No arbitrary size limits (scales with storage)
-- ✅ Quota limits per plugin (configurable)
-- ⚠️ MIME type validation enforced
-- 🎯 Use cases: Images, PDFs, videos, audio, user uploads
-
-**Example:**
-```typescript
-const storage = PluginManager.getInstance().getStorage();
-
-// Store a file
-const fileData = await file.arrayBuffer();
-await storage.setFile('my-plugin:files/avatar', new Uint8Array(fileData), {
-  mimeType: 'image/jpeg',
-  fileName: 'avatar.jpg',
-  pluginId: 'my-plugin'
-});
-
-// Retrieve a file
-const fileData = await storage.getFile('my-plugin:files/avatar');
-if (fileData) {
-  const blob = new Blob([fileData.data], { type: fileData.metadata.mimeType });
-  // Use blob for display, download, etc.
-}
-
-// List all files for plugin
-const files = await storage.listFiles('my-plugin:files/');
-console.log(`Found ${files.length} files`);
-```
-
----
-
-## Storage Key Namespacing
-
-**CRITICAL:** All plugins MUST namespace their storage keys using `buildPluginStorageKey()`.
-
-### Pattern
-```
-plugin-id:key-name
-```
-
-### Helper Function
-```typescript
-import { buildPluginStorageKey } from '@/shared/constants';
-
-// JSON data keys
-const settingsKey = buildPluginStorageKey('my-plugin', 'settings');
-// Returns: 'my-plugin:settings'
-
-// File keys
-const fileKey = buildPluginStorageKey('my-plugin', `files/${fileId}`);
-// Returns: 'my-plugin:files/abc123'
-```
-
-### Examples
-```typescript
-// Settings
-'core-settings:app-settings'
-'my-plugin:user-preferences'
-
-// Files
-'core-documents:files/abc123'
-'my-plugin:files/avatar.jpg'
-'gallery-plugin:images/photo-001'
-```
-
-### Benefits
-1. **Prevents collisions** - Each plugin's keys are isolated
-2. **Enables queries** - `storage.list('my-plugin:')` returns all plugin keys
-3. **Self-documenting** - Keys show which plugin owns them
-4. **Quota tracking** - Can sum file sizes per plugin
-
----
-
-## Implementation Details
-
-### Electron (Local Storage)
-
-**File Storage Location:**
-```
-{userData}/
-  └── files/
-      ├── {hash-1}.jpg        # Content-addressed storage
-      ├── {hash-2}.pdf
-      └── {hash-3}.mp4
-```
-
-**Database Schema (SQLite):**
 ```sql
--- Existing JSON storage table
+-- Entity storage (existing table)
 CREATE TABLE storage (
   key TEXT NOT NULL,
   value TEXT NOT NULL,           -- JSON.stringify'd data
@@ -209,172 +160,82 @@ CREATE TABLE storage (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- New file storage table
+-- File storage (new table)
 CREATE TABLE files (
+  storage_key TEXT NOT NULL,     -- FK to storage.key
+  field_name TEXT NOT NULL,      -- Arbitrary label (pdf, thumbnail, etc.)
+  hash TEXT NOT NULL,            -- SHA-256 hash for deduplication
+  metadata JSONB,                -- {mimeType, fileName, size}
+  user_id TEXT NOT NULL,         -- FK to users.id
+  created_at INTEGER,
+  updated_at INTEGER,
+  PRIMARY KEY (storage_key, field_name, user_id),
+  FOREIGN KEY (storage_key, user_id)
+    REFERENCES storage(key, user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_files_user_id ON files(user_id);
+CREATE INDEX idx_files_hash ON files(hash); -- For deduplication
+```
+
+**File Storage Location:**
+```
+{userData}/files/
+  ├── a3f8d9e2b1c4...jpg  # SHA-256 hash as filename
+  ├── 7b2c1a9f4e6d...pdf
+  └── e4c9b8f3a2d1...png
+```
+
+**Deduplication Strategy:**
+- Files stored by SHA-256 hash (content-based addressing)
+- If same file uploaded twice, only one copy on disk
+- `files` table tracks which entities reference which hashes
+
+### PostgreSQL (Cloud Storage)
+
+```sql
+-- Entity storage (existing table)
+CREATE TABLE storage (
   key TEXT NOT NULL,
-  file_path TEXT NOT NULL,       -- Path to file in userData/files/
-  file_name TEXT,                -- Original filename
-  mime_type TEXT,
-  file_size INTEGER NOT NULL,
-  plugin_id TEXT,                -- For quota tracking
-  user_id TEXT NOT NULL,
-  created_at INTEGER DEFAULT (strftime('%s', 'now')),
-  updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+  value JSONB NOT NULL,          -- Native JSONB support
+  user_id UUID NOT NULL,
+  updated_at TIMESTAMP DEFAULT NOW(),
   PRIMARY KEY (key, user_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_files_user_id ON files(user_id);
-CREATE INDEX idx_files_plugin_id ON files(plugin_id);
-```
-
-**File Storage Strategy:**
-- Files stored using content-based hashing (SHA-256)
-- Automatic deduplication via hash-based filenames
-- Metadata stored in database, content on filesystem
-- User-scoped via `user_id` foreign key
-
-**IPC Handlers:**
-```javascript
-// electron/ipc/fileHandlers.cjs
-
-ipcMain.handle('storage:setFile', async (event, key, data, metadata) => {
-  // 1. Get current user
-  const currentUser = db.prepare('SELECT id FROM users LIMIT 1').get();
-
-  // 2. Hash file content
-  const hash = crypto.createHash('sha256').update(data).digest('hex');
-  const fileName = `${hash}${path.extname(metadata.fileName || '')}`;
-
-  // 3. Write file to disk
-  const filePath = path.join(filesDir, fileName);
-  await fs.writeFile(filePath, data);
-
-  // 4. Store metadata in database
-  db.prepare(`
-    INSERT INTO files (key, file_path, file_name, mime_type, file_size, plugin_id, user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(key, user_id) DO UPDATE SET
-      file_path = excluded.file_path,
-      file_name = excluded.file_name,
-      mime_type = excluded.mime_type,
-      file_size = excluded.file_size,
-      updated_at = strftime('%s', 'now')
-  `).run(key, filePath, metadata.fileName, metadata.mimeType, data.length, metadata.pluginId, currentUser.id);
-});
-
-ipcMain.handle('storage:getFile', async (event, key) => {
-  // 1. Get metadata from database
-  const row = db.prepare(`
-    SELECT file_path, file_name, mime_type, file_size
-    FROM files WHERE key = ? AND user_id = ?
-  `).get(key, currentUser.id);
-
-  if (!row) return null;
-
-  // 2. Read file from disk
-  const data = await fs.readFile(row.file_path);
-
-  return {
-    data: Array.from(data),
-    metadata: {
-      fileName: row.file_name,
-      mimeType: row.mime_type,
-      size: row.file_size
-    }
-  };
-});
-```
-
----
-
-### Cloud Storage (PostgreSQL)
-
-**Database Schema:**
-```sql
--- Existing JSON storage table
-CREATE TABLE storage (
-  key TEXT NOT NULL,
-  value JSONB NOT NULL,          -- Native JSONB support
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  updated_at TIMESTAMP DEFAULT NOW(),
-  PRIMARY KEY (key, user_id)
-);
-
--- New file storage table
+-- File storage (new table)
 CREATE TABLE files (
-  key TEXT NOT NULL,
+  storage_key TEXT NOT NULL,     -- FK to storage.key
+  field_name TEXT NOT NULL,      -- Arbitrary label (pdf, thumbnail, etc.)
   file_data BYTEA NOT NULL,      -- Binary data stored directly
-  file_name TEXT,
-  mime_type TEXT,
-  file_size INTEGER NOT NULL,
-  plugin_id TEXT,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  metadata JSONB,                -- {mimeType, fileName, size}
+  user_id UUID NOT NULL,         -- FK to users.id
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
-  PRIMARY KEY (key, user_id)
+  PRIMARY KEY (storage_key, field_name, user_id),
+  FOREIGN KEY (storage_key, user_id)
+    REFERENCES storage(key, user_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_files_user_id ON files(user_id);
-CREATE INDEX idx_files_plugin_id ON files(plugin_id);
 ```
 
-**File Storage Strategy:**
-- Small/medium files stored as BYTEA in PostgreSQL
-- Future: Large files (>10MB) migrated to R2/S3 object storage
-- User-scoped via `user_id` foreign key
-- MIME type validation enforced
-
-**REST API Endpoints:**
-```javascript
-// server/index.js
-
-// Upload file
-app.put('/api/storage/file/:key', authenticateToken, upload.single('file'), async (req, res) => {
-  const key = decodeURIComponent(req.params.key);
-  const userId = req.user.id;
-  const file = req.file;
-
-  await pool.query(
-    `INSERT INTO files (key, file_data, file_name, mime_type, file_size, plugin_id, user_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT (key, user_id) DO UPDATE SET
-       file_data = $2, file_name = $3, mime_type = $4, file_size = $5, updated_at = NOW()`,
-    [key, file.buffer, file.originalname, file.mimetype, file.size, req.body.pluginId, userId]
-  );
-
-  res.json({ success: true });
-});
-
-// Download file
-app.get('/api/storage/file/:key', authenticateToken, async (req, res) => {
-  const result = await pool.query(
-    'SELECT file_data, file_name, mime_type FROM files WHERE key = $1 AND user_id = $2',
-    [key, userId]
-  );
-
-  if (result.rows.length === 0) {
-    return res.status(404).json({ error: 'File not found' });
-  }
-
-  const row = result.rows[0];
-  res.set('Content-Type', row.mime_type);
-  res.set('Content-Disposition', `attachment; filename="${row.file_name}"`);
-  res.send(row.file_data);
-});
-```
+**Storage Strategy:**
+- Files stored as BYTEA in PostgreSQL (Phase 1)
+- Future: Migrate to S3-compatible storage for scalability (Phase 3)
 
 ---
 
-## Security & Validation
+## Security
 
 ### User Scoping (Automatic)
 
-**All storage operations are automatically scoped to the current user:**
+All storage operations automatically scope to the current user via composite keys `(key, user_id)`:
 
 **Electron:**
 ```javascript
-// Always queries current user
+// Current user automatically selected
 const currentUser = db.prepare('SELECT id FROM users LIMIT 1').get();
 
 // All queries include user_id
@@ -382,9 +243,9 @@ db.prepare('SELECT value FROM storage WHERE key = ? AND user_id = ?')
   .get(key, currentUser.id);
 ```
 
-**Cloud:**
+**Cloud (PostgreSQL):**
 ```javascript
-// JWT middleware extracts user from token
+// JWT middleware extracts user ID from token
 const authenticateToken = (req, res, next) => {
   const token = req.headers['authorization']?.split(' ')[1];
   jwt.verify(token, JWT_SECRET, (err, user) => {
@@ -395,293 +256,306 @@ const authenticateToken = (req, res, next) => {
 
 // All queries include user_id from JWT
 await pool.query(
-  'SELECT value FROM storage WHERE key = $1 AND user_id = $2',
+  'SELECT value, user_id FROM storage WHERE key = $1 AND user_id = $2',
   [key, req.user.id]
 );
 ```
 
-**Result:** Users can only access their own data. Cross-user access is impossible.
+**Result:** Users can ONLY access their own data. Cross-user access is impossible even if they know the key.
 
-### File Upload Validation
+---
 
-**MIME Type Whitelist:**
+## Why This Design?
+
+### Problem with Separate File Storage
+
+**Old approach (separate APIs):**
 ```typescript
-const ALLOWED_MIME_TYPES = [
-  // Images
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/svg+xml',
+// Store entity
+await storage.set('documents:doc-123', { title: 'Report' });
 
-  // Documents
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+// Store file separately
+await storage.setFile('files:xyz', pdfData);
 
-  // Audio
-  'audio/mpeg',
-  'audio/wav',
-  'audio/ogg',
-
-  // Video
-  'video/mp4',
-  'video/webm',
-
-  // Archives
-  'application/zip',
-  'application/x-tar',
-];
-
-function validateMimeType(mimeType: string): boolean {
-  return ALLOWED_MIME_TYPES.includes(mimeType);
-}
+// Delete entity
+await storage.delete('documents:doc-123');
+// BUG: files:xyz is now orphaned!
 ```
 
-**File Size Limits:**
+**Issues:**
+- ❌ Orphaned files (no automatic cleanup)
+- ❌ Manual lifecycle management (plugins must track file keys)
+- ❌ Race conditions (entity deleted before file, or vice versa)
+- ❌ Complex code (plugins need explicit cleanup logic)
+
+### Solution: Files as Entity Properties
+
+**New approach (unified API):**
 ```typescript
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB per file
-const MAX_PLUGIN_QUOTA = 500 * 1024 * 1024; // 500 MB per plugin
+// Store entity + files together
+await storage.set('documents:doc-123',
+  { title: 'Report' },
+  { pdf: pdfData }
+);
 
-async function validateFileSize(size: number, pluginId: string): Promise<void> {
-  // Check individual file size
-  if (size > MAX_FILE_SIZE) {
-    throw new Error('File exceeds maximum size of 50 MB');
-  }
-
-  // Check plugin quota
-  const currentUsage = await getPluginStorageUsage(pluginId);
-  if (currentUsage + size > MAX_PLUGIN_QUOTA) {
-    throw new Error('Plugin storage quota exceeded (500 MB limit)');
-  }
-}
-
-async function getPluginStorageUsage(pluginId: string): Promise<number> {
-  const result = db.prepare(
-    'SELECT SUM(file_size) as total FROM files WHERE plugin_id = ? AND user_id = ?'
-  ).get(pluginId, currentUser.id);
-
-  return result?.total || 0;
-}
+// Delete entity (cascades to files)
+await storage.delete('documents:doc-123');
+// ✅ File automatically deleted (database enforced)
 ```
 
-**Filename Sanitization:**
-```typescript
-function sanitizeFileName(fileName: string): string {
-  // Remove path traversal attempts
-  const basename = path.basename(fileName);
+**Benefits:**
+- ✅ No orphans (CASCADE DELETE enforced by database)
+- ✅ Atomic operations (entity + files stored/deleted together)
+- ✅ Simpler plugin code (no manual file tracking)
+- ✅ Referential integrity (FK constraints)
 
-  // Remove dangerous characters
-  return basename.replace(/[^a-zA-Z0-9._-]/g, '_');
-}
+---
+
+## Implementation Phases
+
+### Phase 1: Core Implementation - NOT YET IMPLEMENTED
+
+**Goal:** Implement Files as Entity Properties in storage adapters
+
+**Status:** ❌ Planned
+
+**Tasks:**
+1. ⬜ Extend `StorageAdapter` interface with files parameter
+2. ⬜ Add `files` table to SQLite schema with FK to `storage(key, user_id)`
+3. ⬜ Add `files` table to PostgreSQL schema with FK to `storage(key, user_id)`
+4. ⬜ Update `storage:set` IPC handler to accept files parameter
+5. ⬜ Update `storage:get` IPC handler to return `{ data, files }`
+6. ⬜ Update `storage:delete` IPC handler to cascade delete files
+7. ⬜ Update `PUT /api/storage/:key` endpoint to accept files
+8. ⬜ Update `GET /api/storage/:key` endpoint to return `{ data, files }`
+9. ⬜ Update `DELETE /api/storage/:key` endpoint to cascade delete files
+10. ⬜ Implement file methods in `SQLiteAdapter`
+11. ⬜ Implement file methods in `PostgreSQLAdapter`
+
+**Deliverables:**
+- Files stored WITH entities in single atomic operation
+- Database FK prevents orphans (CASCADE DELETE)
+- User scoping via composite keys prevents cross-user access
+- Works in both Electron (filesystem + SQLite) and web (PostgreSQL BYTEA)
+
+### Phase 2: Payment Plan Quotas - FUTURE
+
+**Goal:** Add cloud payment plans with configurable quotas
+
+**Tasks:**
+1. Add `payment_plan` column to users table
+2. Implement payment plan-based quota enforcement
+3. Add storage usage tracking per user
+4. Create storage usage dashboard
+5. Add upgrade prompts when limits reached
+
+**Deliverables:**
+- Free plan: 10 MB per file, 100 MB total
+- Pro plan: 500 MB per file, 10 GB total
+- Enterprise plan: Unlimited
+- Local (Electron): Always unlimited (disk space is the limit)
+
+### Phase 3: S3 Migration - FUTURE
+
+**Goal:** Migrate PostgreSQL BYTEA → S3-compatible storage
+
+**Why:**
+- PostgreSQL BYTEA works but has limitations at scale
+- Database bloat with large files
+- Expensive backups
+- S3/R2 is cheaper for file storage
+
+**Migration Strategy:**
+1. Add `s3_key` and `s3_bucket` columns to `files` table
+2. Configure S3-compatible endpoint (CloudFlare R2, Backblaze B2, Wasabi)
+3. Update server upload endpoint to store in S3 instead of BYTEA
+4. Update download endpoint to fetch from S3
+5. Migrate existing BYTEA files to S3 (one-time script)
+6. Drop `file_data` BYTEA column after migration
+
+**Client Impact:** ZERO - StorageAdapter interface unchanged, server implementation only
+
+---
+
+## Testing
+
+### Testing Without Documents UI
+
+Since the Documents plugin UI isn't ready yet, test directly via browser console:
+
+**Test 1: Store entity with file**
+```javascript
+const storage = PluginManager.getInstance().getStorage();
+
+// Create simple test data
+const testData = { title: 'Test Document', tags: ['test'] };
+const testFile = new Uint8Array([1, 2, 3, 4, 5]); // Simple binary data
+
+// Store
+await storage.set('test:doc-1', testData, { file1: testFile });
+console.log('Stored successfully');
+```
+
+**Test 2: Retrieve entity with file**
+```javascript
+const result = await storage.get('test:doc-1');
+console.log('Data:', result.data);
+console.log('Files:', result.files);
+console.log('File matches:',
+  JSON.stringify(Array.from(result.files.file1)) === JSON.stringify([1,2,3,4,5])
+);
+```
+
+**Test 3: Delete entity (verify cascade)**
+```javascript
+await storage.delete('test:doc-1');
+const result = await storage.get('test:doc-1');
+console.log('After delete:', result); // Should be null
+```
+
+### Local Testing (Electron)
+
+**Run Electron app:**
+```bash
+# WSL: Start Vite dev server
+npm run dev
+
+# Windows: Start Electron
+npm run electron:win
+```
+
+**Verify file storage:**
+```bash
+# Check files directory
+dir %APPDATA%\ChayCards\files
+
+# Check files table
+sqlite3 %APPDATA%\ChayCards\storage.db "SELECT * FROM files;"
+```
+
+### Cloud Testing (PostgreSQL)
+
+**Start local PostgreSQL:**
+```bash
+docker-compose up postgres
+# PostgreSQL on localhost:5433
+```
+
+**Start API server:**
+```bash
+npm run server
+# Server on http://localhost:7243
+```
+
+**Verify:**
+```bash
+# Connect to PostgreSQL
+docker exec -it chaycards-postgres psql -U postgres -d chaycards
+
+# Check files table
+SELECT storage_key, field_name, length(file_data) as bytes, metadata
+FROM files
+WHERE user_id = (SELECT id FROM users WHERE username = 'your-username');
 ```
 
 ---
 
 ## Plugin Developer Guide
 
-### Basic File Storage
+### Basic Usage
 
 ```typescript
 import { PluginManager } from '@/shared/plugin-system';
 import { buildPluginStorageKey } from '@/shared/constants';
 
-class MyFileService {
-  private storage = PluginManager.getInstance().getStorage();
-  private readonly PLUGIN_ID = 'my-plugin';
-
-  async saveUserAvatar(file: File): Promise<void> {
-    // 1. Read file data
-    const arrayBuffer = await file.arrayBuffer();
-    const data = new Uint8Array(arrayBuffer);
-
-    // 2. Build storage key
-    const key = buildPluginStorageKey(this.PLUGIN_ID, 'avatar');
-
-    // 3. Store file
-    await this.storage.setFile(key, data, {
-      mimeType: file.type,
-      fileName: file.name,
-      pluginId: this.PLUGIN_ID
-    });
-  }
-
-  async getUserAvatar(): Promise<Blob | null> {
-    const key = buildPluginStorageKey(this.PLUGIN_ID, 'avatar');
-    const fileData = await this.storage.getFile(key);
-
-    if (!fileData) return null;
-
-    return new Blob([fileData.data], {
-      type: fileData.metadata.mimeType
-    });
-  }
-}
-```
-
-### Documents Plugin Example
-
-```typescript
 class DocumentService {
   private storage = PluginManager.getInstance().getStorage();
-  private readonly PLUGIN_ID = 'core-documents';
+  private readonly PLUGIN_ID = 'documents-plugin';
 
   async saveDocument(title: string, file: File): Promise<string> {
     const docId = crypto.randomUUID();
+    const key = buildPluginStorageKey(this.PLUGIN_ID, docId);
 
-    // 1. Store file content
-    const fileKey = buildPluginStorageKey(this.PLUGIN_ID, `files/${docId}`);
-    const arrayBuffer = await file.arrayBuffer();
-    await this.storage.setFile(fileKey, new Uint8Array(arrayBuffer), {
-      mimeType: file.type,
-      fileName: file.name,
-      pluginId: this.PLUGIN_ID
-    });
+    // Read file data
+    const fileData = new Uint8Array(await file.arrayBuffer());
 
-    // 2. Store metadata
-    const metaKey = buildPluginStorageKey(this.PLUGIN_ID, 'documents');
-    const docs = await this.storage.get<Document[]>(metaKey) || [];
-    docs.push({
-      id: docId,
-      title: title,
-      fileKey: fileKey,
-      fileType: file.type,
-      createdAt: Date.now()
-    });
-    await this.storage.set(metaKey, docs);
+    // Store entity + file together
+    await this.storage.set(key,
+      {
+        id: docId,
+        title,
+        fileType: file.type,
+        fileName: file.name,
+        createdAt: Date.now()
+      },
+      {
+        content: fileData // Arbitrary field name
+      }
+    );
 
     return docId;
   }
 
-  async getDocument(docId: string): Promise<{ meta: Document, file: Blob }> {
-    // 1. Get metadata
-    const metaKey = buildPluginStorageKey(this.PLUGIN_ID, 'documents');
-    const docs = await this.storage.get<Document[]>(metaKey) || [];
-    const doc = docs.find(d => d.id === docId);
+  async getDocument(docId: string): Promise<{ meta: any, file: Blob } | null> {
+    const key = buildPluginStorageKey(this.PLUGIN_ID, docId);
+    const result = await this.storage.get(key);
 
-    if (!doc) throw new Error('Document not found');
+    if (!result) return null;
 
-    // 2. Get file
-    const fileData = await this.storage.getFile(doc.fileKey);
-    if (!fileData) throw new Error('File not found');
-
-    const file = new Blob([fileData.data], { type: fileData.metadata.mimeType });
-
-    return { meta: doc, file };
-  }
-
-  async listDocuments(): Promise<Document[]> {
-    const metaKey = buildPluginStorageKey(this.PLUGIN_ID, 'documents');
-    return await this.storage.get<Document[]>(metaKey) || [];
+    return {
+      meta: result.data,
+      file: new Blob([result.files.content], { type: result.data.fileType })
+    };
   }
 
   async deleteDocument(docId: string): Promise<void> {
-    // 1. Get document to find file key
-    const metaKey = buildPluginStorageKey(this.PLUGIN_ID, 'documents');
-    const docs = await this.storage.get<Document[]>(metaKey) || [];
-    const doc = docs.find(d => d.id === docId);
-
-    if (!doc) return;
-
-    // 2. Delete file
-    await this.storage.deleteFile(doc.fileKey);
-
-    // 3. Remove from metadata
-    const updatedDocs = docs.filter(d => d.id !== docId);
-    await this.storage.set(metaKey, updatedDocs);
+    const key = buildPluginStorageKey(this.PLUGIN_ID, docId);
+    await this.storage.delete(key); // Cascades to delete file
   }
 }
 ```
 
----
-
-## Migration Path
-
-### Existing Code (No Changes Required)
+### Multiple Files Per Entity
 
 ```typescript
-// JSON storage continues working exactly as before
-await storage.set('settings', { theme: 'dark' });
-const settings = await storage.get('settings');
+async saveUserProfile(user: User, avatar: File, resume: File): Promise<void> {
+  const key = buildPluginStorageKey('profiles', user.id);
+
+  const avatarData = new Uint8Array(await avatar.arrayBuffer());
+  const resumeData = new Uint8Array(await resume.arrayBuffer());
+
+  await this.storage.set(key,
+    {
+      name: user.name,
+      email: user.email,
+      bio: user.bio
+    },
+    {
+      avatar: avatarData,  // Field names are arbitrary
+      resume: resumeData
+    }
+  );
+}
 ```
 
-### New File Storage (Opt-In)
+### Updating Individual Files
 
 ```typescript
-// New explicit API for files
-await storage.setFile('avatar', fileData, { mimeType: 'image/jpeg' });
-const avatar = await storage.getFile('avatar');
+async updateAvatar(userId: string, newAvatar: File): Promise<void> {
+  const key = buildPluginStorageKey('profiles', userId);
+
+  // Get existing data
+  const result = await this.storage.get(key);
+  if (!result) throw new Error('User not found');
+
+  // Update avatar only
+  const avatarData = new Uint8Array(await newAvatar.arrayBuffer());
+  await this.storage.set(key,
+    result.data,                    // Keep existing data
+    { avatar: avatarData }          // Replace avatar, keep resume
+  );
+}
 ```
-
-**No breaking changes. Backward compatible. Clear separation.**
-
----
-
-## Implementation Phases
-
-### Phase 1: Core File Storage (MVP)
-
-**Goal:** Enable basic file storage for Documents plugin
-
-**Tasks:**
-1. ✅ Extend `StorageAdapter` interface with file methods
-2. ✅ Add `files` table to SQLite schema (migration)
-3. ✅ Add `files` table to PostgreSQL schema
-4. ✅ Implement `fileHandlers.cjs` for Electron IPC
-5. ✅ Add REST API endpoints for file upload/download
-6. ✅ Implement file methods in `SQLiteAdapter`
-7. ✅ Implement file methods in `PostgreSQLAdapter`
-8. ✅ Add MIME type validation
-9. ✅ Add file size limits
-10. ✅ Update preload.cjs to expose file APIs
-
-**Deliverables:**
-- File storage works in both Electron and web
-- Documents plugin can store files up to 50MB
-- User-scoped, secure, validated
-
-### Phase 2: Optimization & Quota Management
-
-**Goal:** Add deduplication, quotas, and monitoring
-
-**Tasks:**
-1. Content-based deduplication (Electron)
-2. Plugin quota tracking and enforcement
-3. Storage usage dashboard
-4. File cleanup on plugin uninstall
-5. Compression for large text files
-
-**Deliverables:**
-- Reduced disk usage via deduplication
-- Per-plugin quotas enforced
-- Users can see storage usage
-
-### Phase 3: Cloud Object Storage (R2/S3)
-
-**Goal:** Scale to large files and reduce database load
-
-**Tasks:**
-1. Integrate Cloudflare R2 or AWS S3
-2. Size-based threshold (>10MB → object storage)
-3. Pre-signed URL generation
-4. Direct client-to-R2 uploads
-5. Migrate existing large files
-
-**Deliverables:**
-- Large file support (>50MB)
-- Better scalability
-- Lower database costs
-
-### Phase 4: Advanced Features
-
-**Goal:** Streaming, thumbnails, and AI integration
-
-**Tasks:**
-1. Streaming support for large files
-2. Thumbnail generation for images
-3. Vector database for AI/RAG
-4. Full-text search in documents
-5. Version history for files
 
 ---
 
@@ -689,36 +563,37 @@ const avatar = await storage.getFile('avatar');
 
 ### ✅ DO
 
-- **Use `buildPluginStorageKey()`** for all keys
+- **Use `buildPluginStorageKey()`** for all keys to prevent collisions
 - **Check `storage !== null`** before using (public pages return null)
-- **Validate MIME types** before accepting files
-- **Clean up files** when documents are deleted
-- **Track plugin quotas** to prevent abuse
-- **Use file methods** for binary data, JSON methods for structured data
+- **Use arbitrary field names** that make sense for your use case (pdf, thumbnail, avatar)
+- **Delete entities** when no longer needed (files cascade automatically)
+- **Test file integrity** by comparing SHA-256 hashes after retrieval
 
 ### ❌ DON'T
 
-- **Don't store large files as JSON** (use `setFile()` instead)
 - **Don't bypass user scoping** (automatic, but respect it)
-- **Don't hardcode paths** (use Electron `app.getPath()`)
-- **Don't check `window.electronAPI` directly** (use `isElectron()`)
+- **Don't check `window.electronAPI` directly** (use `isElectron()` from `@/utils/platform`)
 - **Don't create unnamespaced keys** (always use `buildPluginStorageKey()`)
-- **Don't ignore quota limits** (track usage per plugin)
+- **Don't manually track file lifecycles** (database handles it)
 
 ---
 
 ## Troubleshooting
 
-### File Not Found After Upload
+### Files Not Returned After Storage
 
-**Cause:** Key mismatch or user scoping issue
+**Cause:** Files parameter was `undefined` or empty object during `set()`
 
 **Solution:**
 ```typescript
-// Ensure same key used for set and get
-const key = buildPluginStorageKey('my-plugin', 'file-id');
-await storage.setFile(key, data, metadata);
-const retrieved = await storage.getFile(key); // Use EXACT same key
+// ❌ Wrong - files is undefined
+await storage.set(key, data, undefined);
+
+// ✅ Correct - files is empty object (no files attached)
+await storage.set(key, data, {});
+
+// ✅ Correct - files provided
+await storage.set(key, data, { pdf: pdfData });
 ```
 
 ### Storage Returns Null
@@ -732,95 +607,28 @@ if (!storage) {
   console.warn('Storage not available on public page');
   return;
 }
-// Proceed with storage operations
 ```
 
-### Quota Exceeded Error
+### File Corruption After Retrieval
 
-**Cause:** Plugin exceeded 500MB limit
+**Cause:** Data type mismatch or encoding issue
 
 **Solution:**
 ```typescript
-// Check current usage
-const files = await storage.listFiles('my-plugin:files/');
-const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-console.log(`Plugin storage: ${totalSize / 1024 / 1024} MB`);
+// Verify integrity with SHA-256 hash
+import crypto from 'crypto';
 
-// Clean up old files
-for (const file of oldFiles) {
-  await storage.deleteFile(file.key);
-}
-```
+const originalHash = crypto.createHash('sha256').update(originalData).digest('hex');
+const retrievedHash = crypto.createHash('sha256').update(result.files.pdf).digest('hex');
 
-### MIME Type Rejected
-
-**Cause:** File type not in whitelist
-
-**Solution:**
-```typescript
-// Check allowed types before upload
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
-if (!ALLOWED_TYPES.includes(file.type)) {
-  throw new Error(`File type ${file.type} not allowed`);
-}
+console.assert(originalHash === retrievedHash, 'File corrupted!');
 ```
 
 ---
 
 ## Related Documentation
 
-- **Plugin System:** `/memory-bank/docs/PLUGIN_SYSTEM.md`
-- **Documents Plugin:** `/memory-bank/docs/DOCUMENTS_PLUGIN_SPEC.md`
 - **Storage Adapter:** `/src/shared/storage/StorageAdapter.ts`
 - **Platform Detection:** `/src/utils/platform.ts`
 - **Storage Constants:** `/src/shared/constants.ts`
-
----
-
-## Appendix: Complete Type Definitions
-
-```typescript
-// Complete StorageAdapter interface with file methods
-export interface StorageAdapter {
-  // JSON Storage
-  get<T = any>(key: string): Promise<T | null>;
-  set<T = any>(key: string, value: T): Promise<void>;
-  delete(key: string): Promise<void>;
-  list(prefix?: string): Promise<string[]>;
-  has(key: string): Promise<boolean>;
-  clear(): Promise<void>;
-
-  // File Storage
-  setFile(key: string, data: Uint8Array, metadata?: FileMetadata): Promise<void>;
-  getFile(key: string): Promise<FileData | null>;
-  deleteFile(key: string): Promise<void>;
-  listFiles(prefix?: string): Promise<FileInfo[]>;
-  getFileMetadata(key: string): Promise<FileMetadata | null>;
-}
-
-export interface FileMetadata {
-  mimeType?: string;
-  fileName?: string;
-  size?: number;
-  pluginId?: string;
-}
-
-export interface FileData {
-  data: Uint8Array;
-  metadata: FileMetadata;
-}
-
-export interface FileInfo {
-  key: string;
-  size: number;
-  mimeType?: string;
-  fileName?: string;
-  createdAt: number;
-}
-
-export interface StorageResult<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
-```
+- **Plugin System:** `/memory-bank/docs/PLUGIN_SYSTEM.md`

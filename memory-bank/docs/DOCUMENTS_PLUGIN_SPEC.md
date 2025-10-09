@@ -167,19 +167,35 @@ interface StoredFile {
 }
 ```
 
-**Storage Keys:**
+**Storage Keys (Current Implementation - Dual-Storage Pattern):**
 ```typescript
-// File index (list of all files)
+// Metadata index (list of all documents with metadata)
 buildPluginStorageKey('core-documents', 'files') → StoredFile[]
 
-// Individual file content (for files < 1MB)
-buildPluginStorageKey('core-documents', `file:${id}`) → { ...metadata, content }
+// Individual file content (stored separately from metadata)
+buildPluginStorageKey('core-documents', `files/${fileId}`) → Uint8Array
 
-// Chunked file storage (for files > 1MB)
-buildPluginStorageKey('core-documents', `file:${id}:meta`) → metadata
-buildPluginStorageKey('core-documents', `file:${id}:chunk:0`) → Blob
-buildPluginStorageKey('core-documents', `file:${id}:chunk:1`) → Blob
+// Linking: StoredFile.fileStorageKey points to content key
+// Example:
+// Metadata: { id: 'abc-123', filename: 'Report.pdf', fileStorageKey: 'core-documents:files/abc-123', ... }
+// Content:  'core-documents:files/abc-123' → Uint8Array(pdf bytes)
 ```
+
+**Migration Plan (Files as Entity Properties - After Phase 1):**
+```typescript
+// Future: Unified storage (metadata + files together)
+await storage.set('core-documents:doc:abc-123',
+  { filename: 'Report.pdf', size: 1024, ... },  // Metadata
+  { content: pdfBytes }                         // File content
+);
+
+// Benefits:
+// - Single storage call (atomic operation)
+// - Automatic CASCADE DELETE (no orphaned files)
+// - No manual fileStorageKey linking needed
+```
+
+**Note**: Current implementation uses dual-storage pattern (metadata array + separate file content) for simplicity during MVP development. This will be migrated to the Files as Entity Properties pattern (see `/memory-bank/docs/FILE_STORAGE_SPEC.md`) after Phase 1 implementation completes.
 
 ### 2. File Type Handler Registry
 
@@ -261,71 +277,84 @@ interface Folder {
 4. **Plugin API** (programmatic creation)
 5. **Import wizard** (bulk upload)
 
-**Upload Flow:**
+**Upload Flow (Current Implementation):**
 ```typescript
-async function uploadFile(file: File): Promise<StoredFile> {
-  // 1. Read file metadata
-  const metadata = {
+async function uploadFile(file: File, options: UploadOptions): Promise<StoredFile> {
+  const fileId = crypto.randomUUID();
+  const extension = getExtension(file.name);
+
+  // 1. Create metadata object
+  const metadata: StoredFile = {
+    id: fileId,
     filename: file.name,
-    extension: getExtension(file.name),
-    mimeType: file.type,
-    size: file.size
-  };
-
-  // 2. Check if handler exists
-  const handler = findHandlerForFile(metadata);
-  if (!handler) {
-    throw new Error('No plugin can handle this file type');
-  }
-
-  // 3. Read file content
-  const content = await file.arrayBuffer();
-
-  // 4. Store in Documents storage
-  const storedFile: StoredFile = {
-    id: generateUUID(),
-    ...metadata,
-    content: new Blob([content]),
-    metadata: {
-      tags: [],
-      handler: handler.displayName
-    },
+    extension,
+    mimeType: file.type || 'application/octet-stream',
+    size: file.size,
+    fileStorageKey: buildPluginStorageKey('core-documents', `files/${fileId}`),
+    folderId: options.folderId || null,
+    tags: options.tags || [],
+    metadata: options.metadata || {},
     createdAt: Date.now(),
-    updatedAt: Date.now()
+    updatedAt: Date.now(),
+    accessedAt: Date.now()
   };
 
-  // 5. Save to storage
-  await saveFile(storedFile);
+  // 2. Save file content (Dual-Storage Pattern)
+  const arrayBuffer = await file.arrayBuffer();
+  await storage.set(metadata.fileStorageKey, new Uint8Array(arrayBuffer));
 
-  // 6. Emit event
-  eventBus.emit('file:uploaded', { file: storedFile });
+  // 3. Update metadata index (JSON Storage)
+  cachedFiles.push(metadata);
+  await storage.set(buildPluginStorageKey('core-documents', 'files'), cachedFiles);
 
-  return storedFile;
+  // 4. Emit event
+  eventBus.emit('document:created', { file: metadata });
+
+  return metadata;
 }
-```
 
-**Large File Handling:**
-```typescript
-// Files > 10MB stored in chunks
-const CHUNK_SIZE = 1MB * 5; // 5MB chunks
+// Future: Files as Entity Properties (simpler!)
+async function uploadFile_Future(file: File, options: UploadOptions): Promise<StoredFile> {
+  const fileId = crypto.randomUUID();
+  const metadata = { filename: file.name, size: file.size, ... };
+  const content = new Uint8Array(await file.arrayBuffer());
 
-async function saveFileChunked(file: StoredFile) {
-  // Save metadata separately
-  await storage.set(
-    buildPluginStorageKey('core-documents', `file:${file.id}:meta`),
-    { ...file, content: undefined }  // No content in metadata
+  // Single atomic operation - no manual linking needed
+  await storage.set(`core-documents:doc:${fileId}`,
+    metadata,
+    { content }  // Files as properties
   );
 
-  // Save content in chunks
-  const chunks = splitIntoChunks(file.content, CHUNK_SIZE);
-  for (let i = 0; i < chunks.length; i++) {
-    await storage.set(
-      buildPluginStorageKey('core-documents', `file:${file.id}:chunk:${i}`),
-      chunks[i]
-    );
-  }
+  return { id: fileId, ...metadata };
 }
 ```
+
+**Large File Handling (Future - Phase 5):**
+
+**Current Limitation**: Files of any size stored as single Uint8Array. No chunking implemented yet.
+
+**Planned Implementation** (when user demand exists):
+```typescript
+// Future: Files > 10MB stored in chunks
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+
+async function saveFileChunked(file: StoredFile) {
+  // With Files as Entity Properties API:
+  const chunks = splitIntoChunks(file.content, CHUNK_SIZE);
+  const fileChunks: Record<string, Uint8Array> = {};
+
+  for (let i = 0; i < chunks.length; i++) {
+    fileChunks[`chunk_${i}`] = chunks[i];
+  }
+
+  await storage.set(`core-documents:doc:${file.id}`,
+    { ...metadata, chunkCount: chunks.length },
+    fileChunks  // Multiple file properties: chunk_0, chunk_1, chunk_2, etc.
+  );
+}
+```
+
+**Note**: MVP uses single-storage approach for simplicity. Chunking adds complexity and is only needed for very large files (videos, high-res images). Will implement if users request it.
 
 ### 5. Search & Discovery
 
