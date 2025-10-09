@@ -83,6 +83,8 @@ class DatabaseManager {
         storage_mode TEXT NOT NULL DEFAULT 'local',
         has_password INTEGER DEFAULT 0,
         password_hash TEXT,
+        installed_plugins TEXT,
+        enabled_plugins TEXT,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
         last_used_at INTEGER DEFAULT (strftime('%s', 'now'))
       )
@@ -103,6 +105,31 @@ class DatabaseManager {
     // Create index for faster user_id lookups
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_storage_user_id ON storage(user_id)
+    `);
+
+    // Initialize files table (for binary file storage as entity properties)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS files (
+        storage_key TEXT NOT NULL,
+        field_name TEXT NOT NULL,
+        hash TEXT NOT NULL,
+        metadata TEXT,
+        user_id TEXT NOT NULL,
+        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+        updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+        PRIMARY KEY (storage_key, field_name, user_id),
+        FOREIGN KEY (storage_key, user_id)
+          REFERENCES storage(key, user_id) ON DELETE CASCADE
+      )
+    `);
+
+    // Create indexes for files table
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_files_user_id ON files(user_id)
+    `);
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_files_hash ON files(hash)
     `);
   }
 
@@ -137,6 +164,26 @@ class DatabaseManager {
       }
     }
 
+    // Migration: Add installed_plugins column if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE users ADD COLUMN installed_plugins TEXT`);
+      console.log('✓ Migrated installed_plugins column');
+    } catch (e) {
+      if (!e.message.includes('duplicate column name')) {
+        console.warn('Migration warning (installed_plugins):', e.message);
+      }
+    }
+
+    // Migration: Add enabled_plugins column if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE users ADD COLUMN enabled_plugins TEXT`);
+      console.log('✓ Migrated enabled_plugins column');
+    } catch (e) {
+      if (!e.message.includes('duplicate column name')) {
+        console.warn('Migration warning (enabled_plugins):', e.message);
+      }
+    }
+
     // Migration: Add UNIQUE constraint to profile_name
     // SQLite doesn't support ADD CONSTRAINT, so we need to recreate the table if constraint is missing
     try {
@@ -145,7 +192,7 @@ class DatabaseManager {
       if (tableInfo && !tableInfo.sql.includes('UNIQUE')) {
         console.log('⚠ Adding UNIQUE constraint to profile_name - recreating users table');
 
-        // Create new table with UNIQUE constraint
+        // Create new table with UNIQUE constraint and plugin columns
         this.db.exec(`
           CREATE TABLE users_new (
             id TEXT PRIMARY KEY,
@@ -153,6 +200,8 @@ class DatabaseManager {
             storage_mode TEXT NOT NULL DEFAULT 'local',
             has_password INTEGER DEFAULT 0,
             password_hash TEXT,
+            installed_plugins TEXT,
+            enabled_plugins TEXT,
             created_at INTEGER DEFAULT (strftime('%s', 'now')),
             last_used_at INTEGER DEFAULT (strftime('%s', 'now'))
           )
@@ -160,8 +209,8 @@ class DatabaseManager {
 
         // Copy data from old table, removing duplicates (keep first occurrence)
         this.db.exec(`
-          INSERT INTO users_new (id, profile_name, storage_mode, has_password, password_hash, created_at, last_used_at)
-          SELECT id, profile_name, storage_mode, has_password, password_hash, created_at, last_used_at
+          INSERT INTO users_new (id, profile_name, storage_mode, has_password, password_hash, installed_plugins, enabled_plugins, created_at, last_used_at)
+          SELECT id, profile_name, storage_mode, has_password, password_hash, installed_plugins, enabled_plugins, created_at, last_used_at
           FROM users
           WHERE id IN (
             SELECT MIN(id) FROM users GROUP BY profile_name

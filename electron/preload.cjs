@@ -23,13 +23,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get: (userId) => ipcRenderer.invoke('user:get', userId),
     getCurrent: () => ipcRenderer.invoke('user:getCurrent'),
     list: () => ipcRenderer.invoke('user:list'),
-    setActive: (userId) => ipcRenderer.invoke('user:setActive', userId)
+    setActive: (userId) => ipcRenderer.invoke('user:setActive', userId),
+    getPluginPreferences: (userId) => ipcRenderer.invoke('user:getPluginPreferences', userId)
   },
 
   // Storage API - SQLite via IPC
   storage: {
     get: (key) => ipcRenderer.invoke('storage:get', key),
-    set: (key, value) => ipcRenderer.invoke('storage:set', key, value),
+    set: (key, value, files) => ipcRenderer.invoke('storage:set', key, value, files),
     delete: (key) => ipcRenderer.invoke('storage:delete', key),
     list: (prefix) => ipcRenderer.invoke('storage:list', prefix || ''),
     clear: () => ipcRenderer.invoke('storage:clear'),
