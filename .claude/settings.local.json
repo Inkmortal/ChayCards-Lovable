@@ -120,7 +120,10 @@
       "mcp__puppeteer__puppeteer_fill",
       "Bash(PGPASSWORD=postgres psql -U postgres -h localhost -p 5433 -d chaycards -c \"DROP TABLE IF EXISTS files CASCADE; DROP TABLE IF EXISTS storage CASCADE; DROP TABLE IF EXISTS users CASCADE;\")",
       "Bash(PGPASSWORD=postgres psql -U postgres -h localhost -p 5433 -d chaycards -c \"DELETE FROM users; SELECT COUNT(*) as remaining_users FROM users;\")",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(chmod:*)",
+      "mcp__zen__thinkdeep"
     ],
     "deny": []
   },

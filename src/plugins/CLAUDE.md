@@ -27,7 +27,7 @@ plugin-name/
 export const MyPlugin: Plugin = {
   id: 'my-plugin',
   name: 'My Plugin',
-  requires: ['core.ui'],  // Dependencies
+  requires: ['core-ui'],  // Dependencies
 
   components: {
     'MyList': MyList,  // Registry name: 'my-plugin/MyList'
@@ -93,8 +93,8 @@ export const ComplexPlugin: Plugin = {
 const manager = PluginManager.getInstance();
 
 // Get core UI components
-const Card = manager.getComponent('core.ui/Card');
-const PageHeader = manager.getComponent('core.ui/PageHeader');
+const Card = manager.getComponent('core-ui/Card');
+const PageHeader = manager.getComponent('core-ui/PageHeader');
 
 // Get components from other plugins
 const DocCard = manager.getComponent('core.documents/DocumentCard');
@@ -146,7 +146,7 @@ onPluginsReady: async (manager) => {
 **Full documentation**: `/memory-bank/docs/PLUGIN_SYSTEM.md` (Plugin Lifecycle section)
 
 ## Critical Rules
-1. **RECOMMENDED** use core.ui components for consistency (but not required)
+1. **RECOMMENDED** use core-ui components for consistency (but not required)
 2. **NEVER** import directly from other plugins
 3. Components auto-namespaced: 'plugin-id/ComponentName'
 4. Declare dependencies in 'requires' array
@@ -314,9 +314,9 @@ export const MyList = () => {
   const manager = PluginManager.getInstance();
   
   // Get UI components (always use full namespace)
-  const PageHeader = manager.getComponent('core.ui/PageHeader');
-  const Card = manager.getComponent('core.ui/Card');
-  const EmptyState = manager.getComponent('core.ui/EmptyState');
+  const PageHeader = manager.getComponent('core-ui/PageHeader');
+  const Card = manager.getComponent('core-ui/Card');
+  const EmptyState = manager.getComponent('core-ui/EmptyState');
   
   // Get own service (also namespaced)
   const myService = manager.getService('my-plugin/myService');
@@ -337,6 +337,6 @@ export const MyList = () => {
 ## Quick Start New Plugin
 1. Create: `src/plugins/my-feature/`
 2. Add index.ts with Plugin export
-3. Import & use core.ui components
+3. Import & use core-ui components
 4. Register in main.tsx plugin loader
 5. Plugin auto-provides navigation & routes
