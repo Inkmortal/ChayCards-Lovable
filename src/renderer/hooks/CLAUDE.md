@@ -38,8 +38,8 @@ export function usePlugin(pluginId?: string) {
 ## Usage Examples
 ```typescript
 // Scoped to specific plugin
-const ui = usePlugin('core.ui');
-const Card = ui.getComponent('Card'); // Gets 'core.ui/Card'
+const ui = usePlugin('core-ui');
+const Card = ui.getComponent('Card'); // Gets 'core-ui/Card'
 
 // Global access
 const { getComponent } = usePlugin();

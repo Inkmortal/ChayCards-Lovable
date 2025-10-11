@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, BookOpen, Loader2 } from 'lucide-react';
+import { PanelLeft, PanelLeftClose, BookOpen, Loader2 } from 'lucide-react';
 import { PluginManager } from '../../shared/plugin-system';
 import { PluginHost } from '../plugin-host/PluginHost';
 import { STORAGE_KEYS } from '@/shared/constants';
@@ -134,25 +134,17 @@ export const AppShell: React.FC = () => {
       {/* Header Region */}
       <header className="app-header h-14 border-b border-border bg-card/50 backdrop-blur-sm flex items-center px-4 gap-4">
         {/* Logo and App Name */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg hover:bg-muted transition-colors"
+        <div className="flex items-center gap-2">
+          <div
+            className="w-8 h-8 rounded-xl flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))',
+              boxShadow: 'var(--shadow-md)'
+            }}
           >
-            {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-          </button>
-          <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(145deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))',
-                boxShadow: 'var(--shadow-md)'
-              }}
-            >
-              <BookOpen className="w-4 h-4" style={{ color: 'hsl(var(--primary-foreground))' }} />
-            </div>
-            <h1 className="text-lg font-bold">ChayCards</h1>
+            <BookOpen className="w-4 h-4" style={{ color: 'hsl(var(--primary-foreground))' }} />
           </div>
+          <h1 className="text-lg font-bold">ChayCards</h1>
         </div>
 
         {/* Spacer */}
@@ -173,15 +165,24 @@ export const AppShell: React.FC = () => {
         {/* Sidebar Region */}
         <aside
           className={`app-sidebar ${
-            sidebarOpen ? 'w-64' : 'w-0'
-          } border-r border-border bg-card/30 flex flex-col transition-all duration-300 overflow-hidden`}
+            sidebarOpen ? 'w-64' : 'w-12'
+          } border-r border-border bg-card/30 flex flex-col transition-all duration-300`}
         >
-          {sidebarOpen && (
+          {sidebarOpen ? (
             <>
               {/* Navigation */}
               <nav className="flex-1 p-4 space-y-2 overflow-y-auto" style={{ minHeight: 0 }}>
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
-                  Navigation
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Navigation
+                  </div>
+                  <button
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+                    title="Close sidebar"
+                  >
+                    <PanelLeftClose className="w-3.5 h-3.5 text-muted-foreground" />
+                  </button>
                 </div>
                 {navigation.length > 0 ? (
                   navigation.map((item) => (
@@ -215,11 +216,22 @@ export const AppShell: React.FC = () => {
                 </div>
               )}
             </>
+          ) : (
+            /* Collapsed thin bar */
+            <div className="flex-1 flex flex-col items-center p-2">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 rounded-lg hover:bg-muted transition-colors"
+                title="Open sidebar"
+              >
+                <PanelLeft className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
           )}
         </aside>
 
         {/* Main Content */}
-        <main className="app-main flex-1 overflow-auto bg-background">
+        <main className="app-main flex-1 overflow-auto bg-background relative">
           <Routes>
             {routes.map((route) => (
               <Route

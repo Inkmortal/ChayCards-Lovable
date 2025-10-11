@@ -13,7 +13,7 @@ Minimal shell that hosts plugins. Keep this directory LEAN - no features here.
 ## What DOESN'T Go Here
 - ❌ Feature code (goes in plugins)
 - ❌ Business logic (goes in plugins)  
-- ❌ Custom UI components (use core.ui plugin)
+- ❌ Custom UI components (use core-ui plugin)
 - ❌ Pages with actual features (plugins provide routes)
 
 ## Key Pattern
@@ -33,7 +33,7 @@ const routes = getRoutes(); // From all plugins
 ## Hooks You'll Use
 ```typescript
 // Get components from any plugin
-const { getComponent } = usePlugin('core.ui');
+const { getComponent } = usePlugin('core-ui');
 const PageHeader = getComponent('PageHeader');
 
 // Get services
@@ -43,4 +43,4 @@ const docService = usePlugin().getService('core.documents/documentService');
 ## Remember
 - Plugins handle ALL features
 - This is just infrastructure
-- Use core.ui plugin for visual consistency
+- Use core-ui plugin for visual consistency

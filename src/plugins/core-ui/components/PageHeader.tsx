@@ -26,7 +26,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       <div className="space-y-1">
         <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
         {description && (
-          <p className="text-muted-foreground">{description}</p>
+          <div className="text-muted-foreground">{description}</div>
         )}
       </div>
       {actions && (

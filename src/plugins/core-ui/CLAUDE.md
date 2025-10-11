@@ -60,7 +60,7 @@ components: {
 
 ## Usage Example
 ```typescript
-// Plugin can choose to use core.ui
+// Plugin can choose to use core-ui
 const manager = PluginManager.getInstance();
 const Button = manager.getComponent('core-ui/Button');
 const Card = manager.getComponent('core-ui/Card');
