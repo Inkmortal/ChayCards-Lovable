@@ -30,6 +30,9 @@ export interface StoredFile {
   /** Parent folder ID (null = root) */
   folderId: string | null;
 
+  /** Display order within parent - INTEGER ONLY, gaps of 1000 */
+  order: number;
+
   /** User-defined tags for categorization */
   tags: string[];
 
@@ -58,6 +61,12 @@ export interface Folder {
 
   /** Parent folder ID (null = root) */
   parentId: string | null;
+
+  /** Display order within parent - INTEGER ONLY, gaps of 1000 */
+  order: number;
+
+  /** Cached depth for O(1) max depth validation */
+  depth: number;
 
   /** Optional color for visual organization */
   color?: string;
@@ -232,6 +241,43 @@ export interface FolderTreeNode extends Folder {
 }
 
 /**
+ * Unified tree node that can be either a folder or file
+ * Used for sidebar tree view that shows both types together
+ */
+export type TreeNode =
+  | {
+      type: 'folder';
+      id: string;
+      name: string;
+      parentId: string | null;
+      order: number;
+      depth: number;
+      color?: string;
+      icon?: string;
+      tags: string[];
+      createdAt: number;
+      updatedAt: number;
+      children: TreeNode[];
+      isExpanded?: boolean;
+    }
+  | {
+      type: 'file';
+      id: string;
+      filename: string;
+      extension: string;
+      mimeType: string;
+      size: number;
+      fileStorageKey: string;
+      folderId: string | null;
+      order: number;
+      tags: string[];
+      metadata: Record<string, any>;
+      createdAt: number;
+      updatedAt: number;
+      accessedAt: number;
+    };
+
+/**
  * View mode for file browser
  */
 export type ViewMode = 'grid' | 'list';
@@ -240,6 +286,11 @@ export type ViewMode = 'grid' | 'list';
  * Sort order for files
  */
 export type SortOrder = 'asc' | 'desc';
+
+/**
+ * Sort mode for unified tree
+ */
+export type SortMode = 'manual' | 'name' | 'date' | 'size';
 
 /**
  * File operation result
@@ -262,9 +313,13 @@ export interface FolderOperationResult {
   /** Success status */
   success: boolean;
 
-  /** Error message if failed */
-  error?: string;
+  /** Result data (folder or folders) */
+  data?: Folder | Folder[];
 
-  /** Resulting folder if successful */
-  folder?: Folder;
+  /** Structured error details */
+  error?: {
+    code: 'VALIDATION_ERROR' | 'CIRCULAR_REFERENCE' | 'MAX_DEPTH' | 'STORAGE_ERROR' | 'NOT_FOUND';
+    message: string;
+    details?: any;
+  };
 }

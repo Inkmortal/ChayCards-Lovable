@@ -8,7 +8,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { PluginManager } from '@/shared/plugin-system';
 import type { DocumentsService } from '../services/DocumentsService';
-import type { StoredFile, Folder, FolderTreeNode, FileHandler } from '../types';
+import type { StoredFile, Folder, FolderTreeNode, TreeNode, FileHandler, SortMode } from '../types';
 
 /**
  * Internal hook to get DocumentsService instance
@@ -31,11 +31,14 @@ export const useFiles = (): StoredFile[] => {
   useEffect(() => {
     if (!service) return;
 
-    // Service calls setFiles immediately with current state
-    // Then notifies on future changes
-    const unsubscribe = service.onFilesChange(setFiles);
+    // Initial fetch from storage ONLY (no event listeners!)
+    const fetchFiles = async () => {
+      const fetchedFiles = await service.getFiles();
+      setFiles(fetchedFiles);
+    };
+    fetchFiles();
 
-    return unsubscribe;
+    // NO EVENT LISTENERS - UI updates optimistically, backend persistence is silent
   }, [service]);
 
   return files;
@@ -51,12 +54,27 @@ export const useFolders = (): Folder[] => {
   useEffect(() => {
     if (!service) return;
 
-    const unsubscribe = service.onFoldersChange(setFolders);
+    // Initial fetch from storage ONLY (no event listeners!)
+    const fetchFolders = async () => {
+      const fetchedFolders = await service.getFolders();
+      setFolders(fetchedFolders);
+    };
+    fetchFolders();
 
-    return unsubscribe;
+    // NO EVENT LISTENERS - UI updates optimistically, backend persistence is silent
   }, [service]);
 
   return folders;
+};
+
+/**
+ * Helper to normalize parent/folder IDs to handle null, "null", and undefined.
+ */
+const normalizeId = (id: string | null | undefined): string | null => {
+  if (id === null || id === undefined || id === 'null') {
+    return null;
+  }
+  return id;
 };
 
 /**
@@ -66,7 +84,7 @@ export const useFilesInFolder = (folderId: string | null): StoredFile[] => {
   const allFiles = useFiles();
 
   return useMemo(
-    () => allFiles.filter(file => file.folderId === folderId),
+    () => allFiles.filter(file => normalizeId(file.folderId) === folderId),
     [allFiles, folderId]
   );
 };
@@ -78,7 +96,7 @@ export const useChildFolders = (parentId: string | null): Folder[] => {
   const allFolders = useFolders();
 
   return useMemo(
-    () => allFolders.filter(folder => folder.parentId === parentId),
+    () => allFolders.filter(folder => normalizeId(folder.parentId) === parentId),
     [allFolders, parentId]
   );
 };
@@ -89,11 +107,49 @@ export const useChildFolders = (parentId: string | null): Folder[] => {
 export const useFolderTree = (): FolderTreeNode[] => {
   const service = useDocumentsService();
   const folders = useFolders(); // Re-render when folders change
+  const [tree, setTree] = useState<FolderTreeNode[]>([]);
 
-  return useMemo(() => {
-    if (!service) return [];
-    return service.getFolderTree();
-  }, [service, folders]);
+  useEffect(() => {
+    if (!service) {
+      setTree([]);
+      return;
+    }
+
+    const fetchTree = async () => {
+      const folderTree = await service.getFolderTree();
+      setTree(folderTree);
+    };
+    fetchTree();
+  }, [service, folders]); // Re-fetch when folders change
+
+  return tree;
+};
+
+/**
+ * Hook to get unified tree structure (folders + files together)
+ * Used for sidebar tree view
+ *
+ * Note: This hook refetches directly from service when triggerRefetch changes,
+ * allowing manual cache-busting after drag operations
+ */
+export const useUnifiedTree = (triggerRefetch?: number): TreeNode[] => {
+  const service = useDocumentsService();
+  const [tree, setTree] = useState<TreeNode[]>([]);
+
+  useEffect(() => {
+    if (!service) {
+      setTree([]);
+      return;
+    }
+
+    const fetchTree = async () => {
+      const unifiedTree = await service.getUnifiedTree();
+      setTree(unifiedTree);
+    };
+    fetchTree();
+  }, [service, triggerRefetch]); // Re-fetch when service initializes or triggerRefetch changes
+
+  return tree;
 };
 
 /**
@@ -105,21 +161,20 @@ export const useFile = (fileId: string | undefined): StoredFile | undefined => {
 
   return useMemo(() => {
     if (!service || !fileId) return undefined;
-    return service.getDocument(fileId);
-  }, [service, fileId, files]);
+    return files.find(f => f.id === fileId);
+  }, [files, fileId]);
 };
 
 /**
  * Hook to get a single folder by ID
  */
 export const useFolder = (folderId: string | undefined): Folder | undefined => {
-  const service = useDocumentsService();
   const folders = useFolders(); // Re-render when folders change
 
   return useMemo(() => {
-    if (!service || !folderId) return undefined;
-    return service.getFolder(folderId);
-  }, [service, folderId, folders]);
+    if (!folderId) return undefined;
+    return folders.find(f => f.id === folderId);
+  }, [folders, folderId]);
 };
 
 /**
@@ -171,18 +226,32 @@ export const useDocumentStatistics = () => {
   const service = useDocumentsService();
   const files = useFiles(); // Re-render when files change
   const folders = useFolders(); // Re-render when folders change
+  const [stats, setStats] = useState({
+    totalFiles: 0,
+    totalFolders: 0,
+    totalSize: 0,
+    fileHandlers: 0
+  });
 
-  return useMemo(() => {
+  useEffect(() => {
     if (!service) {
-      return {
+      setStats({
         totalFiles: 0,
         totalFolders: 0,
         totalSize: 0,
         fileHandlers: 0
-      };
+      });
+      return;
     }
-    return service.getStatistics();
-  }, [service, files, folders]);
+
+    const fetchStats = async () => {
+      const statistics = await service.getStatistics();
+      setStats(statistics);
+    };
+    fetchStats();
+  }, [service, files, folders]); // Re-fetch when files or folders change
+
+  return stats;
 };
 
 /**
@@ -206,17 +275,16 @@ export const useFileSearch = (query: string): StoredFile[] => {
  * Hook to get breadcrumb path for a folder
  */
 export const useFolderPath = (folderId: string | null): Folder[] => {
-  const service = useDocumentsService();
   const folders = useFolders(); // Re-render when folders change
 
   return useMemo(() => {
-    if (!service || !folderId) return [];
+    if (!folderId) return [];
 
     const path: Folder[] = [];
     let currentId: string | null = folderId;
 
     while (currentId) {
-      const folder = service.getFolder(currentId);
+      const folder = folders.find(f => f.id === currentId);
       if (!folder) break;
 
       path.unshift(folder); // Add to beginning
@@ -224,5 +292,24 @@ export const useFolderPath = (folderId: string | null): Folder[] => {
     }
 
     return path;
-  }, [service, folderId, folders]);
+  }, [folderId, folders]);
+};
+
+/**
+ * Hook for sorting folders and files
+ * Returns function to trigger sort
+ */
+export const useSortBy = () => {
+  const service = useDocumentsService();
+
+  const sortBy = async (mode: SortMode, parentId: string | null = null) => {
+    if (!service) {
+      console.warn('[useSortBy] Service not initialized');
+      return;
+    }
+
+    await service.sortItemsBy(mode, parentId);
+  };
+
+  return { sortBy };
 };
