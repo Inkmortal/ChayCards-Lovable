@@ -58,6 +58,379 @@ When user opens a file, Documents:
 
 ---
 
+## User Interface & Interaction Design
+
+### Two-Panel Layout
+
+Documents plugin uses a classic **two-panel file manager** layout:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ [Navigation Tree]      │  [Main Content View]            │
+│                        │                                  │
+│ 📁 Projects           │  Grid/List view of files         │
+│   📁 ChayCards  ◀────┼─ Drag files/folders between      │
+│   📄 README.md        │  panels for organization         │
+│ 📁 Archive            │                                  │
+│ 📁 Personal           │  [File cards, upload zone,       │
+│                        │   breadcrumbs, search]          │
+└──────────────────────────────────────────────────────────┘
+     ↑                            ↑
+  Collapsible           Responsive grid/list
+  sidebar tree          with file previews
+```
+
+### Navigation Tree (Left Panel)
+
+**Purpose**: Hierarchical folder/file browser for quick navigation and organization.
+
+**Core Features**:
+- Unified tree showing folders AND files together
+- Expand/collapse folders (chevron icons)
+- Select folder → main view shows contents
+- Whole row draggable (no separate drag handle needed)
+- Multi-select with Cmd/Ctrl+Click
+- Visual hierarchy with indentation (16px per level)
+
+**Visual Design**:
+```
+┌─────────────────────────────────┐
+│ FILES & FOLDERS          [≡]    │ ← Header with collapse button
+├─────────────────────────────────┤
+│ 📁 Projects              (3)    │ ← Folder (count of children)
+│   📁 ChayCards                  │ ← Nested folder (expanded)
+│     📄 README.md      2.5 KB    │ ← File with size
+│     📄 package.json   1.2 KB    │
+│   📁 Archive           (12)     │ ← Collapsed folder
+│ 📁 Personal                     │
+│   📄 Notes.md         4.8 KB    │
+└─────────────────────────────────┘
+```
+
+**Sizing**:
+- Folder rows: 44px height (larger drop target)
+- File rows: 36px height
+- Icons: Folders 20px (w/ custom color), Files 16px (gray)
+- Indentation: 16px per nesting level
+- Chevrons: 14px (before folder icon)
+
+#### Drag & Drop Interaction
+
+**Option A: Immediate Backend Persistence** (Chosen approach)
+
+**Flow**:
+1. User drags folder/file
+2. Original item fades to 30% opacity (stays in place - no tree reflow)
+3. Ghost follows cursor (semi-transparent preview)
+4. Drop zones highlight as cursor moves
+5. User drops → show loading spinner on item
+6. Backend API call (insertBefore/insertAfter/makeChild)
+7. Success → remove spinner, tree refetches from backend
+8. Failure → item snaps back, error toast
+
+**Drop Zones** (Visual feedback):
+
+```
+Folder (3 zones):
+┌────────────────────┐
+│ ← 15% "before"     │ ← 2px blue line
+├────────────────────┤
+│                    │
+│   70% "into"       │ ← Blue background + ring-4
+│                    │
+├────────────────────┤
+│ ← 15% "after"      │ ← 2px blue line
+└────────────────────┘
+
+File (2 zones):
+┌────────────────────┐
+│   50% "before"     │ ← 2px blue line at midpoint
+├────────────────────┤
+│   50% "after"      │
+└────────────────────┘
+```
+
+**Drop Zone Detection**:
+- Cursor Y position relative to item bounds
+- Folders: 15% top = before, 15% bottom = after, 70% middle = into
+- Files: 50/50 split (no "into" zone - files can't contain children)
+
+**Hover-to-Expand** (Deep navigation while dragging):
+- Hover over collapsed folder with "into" drop zone for 750ms
+- Folder auto-expands after timer completes
+- Allows navigating into deep hierarchies without releasing drag
+- Visual feedback: Subtle progress ring on folder icon (fills clockwise)
+- Timer resets if cursor leaves "into" zone
+
+**Multi-Select Dragging**:
+- Cmd+Click (Mac) / Ctrl+Click (Windows) → Add to selection
+- Shift+Click → Range select
+- Drag any selected item → All selected items move together
+- Ghost shows count badge: "3 items"
+- All items inserted at target location in current order
+
+**Keyboard Shortcuts**:
+- Ctrl+Z → Undo last move
+- Ctrl+Shift+Z / Ctrl+Y → Redo
+- Arrow Up/Down → Navigate items
+- Arrow Right → Expand folder
+- Arrow Left → Collapse folder (or move to parent)
+- Enter → Select folder
+- Space → Toggle multi-select
+
+**Mobile Touch**:
+- Long-press (500ms) to start drag
+- Haptic feedback on drag start (if available)
+- Visual pulse animation during long-press countdown
+- Touch-optimized drop zones (20/60/20 for folders instead of 15/70/15)
+
+#### Cross-Panel Drag & Drop
+
+**CRITICAL FEATURE**: Drag between navigation tree ↔ main content view
+
+**Use Cases**:
+
+**1. Tree → Main View** (Move to current folder):
+```
+User drags folder from tree → drops into main content area
+  ↓
+Folder moves to currently selected folder
+  ↓
+Both tree and main view update to reflect new location
+```
+
+**2. Main View → Tree** (Organize into folder):
+```
+User drags file card from main grid → drops onto folder in tree
+  ↓
+File moves into target folder
+  ↓
+Main view removes file (no longer in current folder)
+Tree updates to show file under target folder (if expanded)
+```
+
+**3. Main View → Tree Root** (Move to top level):
+```
+User drags folder from main view → drops at tree root area
+  ↓
+Folder becomes root-level folder
+  ↓
+Appears in both tree and main view root
+```
+
+**Drop Zones for Cross-Panel**:
+- **Tree** acts as drop targets (folder rows highlight)
+- **Main view content area** acts as drop target (entire area highlights - "Move to current folder")
+- **Main view empty space** at bottom (for when grid isn't full) - large drop zone
+
+**Visual Feedback**:
+- Valid drop target: Blue border/background highlight
+- Invalid drop: Red border + cursor changes to 🚫
+- Drop hint text: "Move to Projects folder" (tooltip near cursor)
+
+### Main Content View (Right Panel)
+
+**Purpose**: Display contents of selected folder with rich file previews and organization tools.
+
+**View Modes**:
+
+**Grid View** (default):
+```
+┌─────────────────────────────────────────────────────────┐
+│ [Search] [Filter▾] [Sort▾] [Grid⬛/List☰] [Upload ↑]   │
+├─────────────────────────────────────────────────────────┤
+│ Projects > ChayCards                 3 files, 2 folders │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐       │
+│  │ 📁     │  │ 📁     │  │ 📄     │  │ 📄     │       │
+│  │Archive │  │ src    │  │README  │  │package │       │
+│  │        │  │        │  │        │  │        │       │
+│  │ 12 ⋯   │  │ 45 ⋯   │  │ 2.5 KB │  │ 1.2 KB │       │
+│  └────────┘  └────────┘  └────────┘  └────────┘       │
+│                                                          │
+│  [Drop files here to upload]                            │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**List View**:
+```
+┌─────────────────────────────────────────────────────────┐
+│ Name              Type        Size      Modified         │
+├─────────────────────────────────────────────────────────┤
+│ 📁 Archive       Folder      12 items  2 days ago       │
+│ 📁 src           Folder      45 items  1 hour ago       │
+│ 📄 README.md     Markdown    2.5 KB    3 hours ago      │
+│ 📄 package.json  JSON        1.2 KB    Yesterday        │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Drag & Drop in Main View**:
+
+**Upload from Desktop**:
+- Drag file from desktop → Drop anywhere in main view
+- File uploads to currently selected folder
+- Progress indicator during upload
+- File card appears when complete
+
+**Reorder Within Folder**:
+- Drag file card → drop between other cards
+- Manual ordering within same folder
+- Visual insertion line shows where it will land
+
+**Move to Different Folder**:
+- Drag file card → drop on folder card in main view OR
+- Drag file card → drop on folder in navigation tree
+- Cross-panel drag & drop!
+
+**Selection & Bulk Operations**:
+- Click to select file
+- Cmd/Ctrl+Click → Multi-select
+- Shift+Click → Range select
+- Selected items have blue border + checkmark
+- Bulk actions: Move, Delete, Tag, Download as ZIP
+
+**Context Menu** (Right-click):
+```
+┌───────────────────────┐
+│ Open                  │
+│ Open with...      ►   │ ← Shows available handlers
+│ ───────────────────   │
+│ Cut                   │
+│ Copy                  │
+│ Paste                 │
+│ ───────────────────   │
+│ Rename                │
+│ Move to...        ►   │ ← Folder picker
+│ Add tags...           │
+│ ───────────────────   │
+│ Download              │
+│ Share...              │
+│ ───────────────────   │
+│ Delete                │
+└───────────────────────┘
+```
+
+### Breadcrumb Navigation
+
+**Location**: Top of main content view
+
+**Purpose**: Show current folder path, quick navigation to parent folders
+
+```
+All Documents > Projects > ChayCards > src > components
+    ^click          ^click      ^click      ^click
+```
+
+**Interaction**:
+- Click any segment → Navigate to that folder
+- Shows hierarchy even when tree is collapsed
+- Truncates in middle for very deep paths:
+  `All Documents > ... > src > components`
+
+### Empty States
+
+**No Files in Folder**:
+```
+┌─────────────────────────────────────────┐
+│                                         │
+│         📁                              │
+│    This folder is empty                │
+│                                         │
+│  [Upload Files] or drag files here     │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**No Search Results**:
+```
+┌─────────────────────────────────────────┐
+│         🔍                              │
+│    No files found for "vacation"       │
+│                                         │
+│    Try different search terms          │
+└─────────────────────────────────────────┘
+```
+
+**First Time User**:
+```
+┌─────────────────────────────────────────┐
+│         📂                              │
+│   Welcome to Documents!                │
+│                                         │
+│  Upload your first file to get started │
+│     [Choose File] [Create Folder]      │
+│                                         │
+│  Or try our demo files to explore      │
+└─────────────────────────────────────────┘
+```
+
+### Loading States
+
+**During Move Operation**:
+- Spinner appears inline on item being moved (tree or main view)
+- Other UI remains interactive
+- If operation fails → item returns to original position + error toast
+
+**During Upload**:
+- Progress bar on upload zone
+- File card appears with loading state (blurred thumbnail)
+- Transitions to final state when complete
+
+**During Initial Load**:
+- Skeleton cards in grid (shimmer animation)
+- Skeleton tree items (3-4 placeholder rows)
+
+### Error States
+
+**Failed Upload**:
+```
+┌────────────────────────────────┐
+│ ⚠️ Upload failed               │
+│ large-video.mp4 (2.3 GB)      │
+│                                │
+│ File exceeds 500 MB limit     │
+│ [Try Again] [Cancel]          │
+└────────────────────────────────┘
+```
+
+**Failed Move**:
+Toast notification (bottom-right):
+```
+❌ Failed to move "Report.pdf"
+   Cannot move into own subfolder
+   [Undo] [×]
+```
+
+**Network Error**:
+```
+⚠️ Connection lost
+   Changes will sync when reconnected
+```
+
+### Accessibility
+
+**Keyboard Navigation**:
+- Tab through tree items and file cards
+- Arrow keys navigate within views
+- Enter opens file/folder
+- Space toggles selection
+- Delete key removes selected items (with confirmation)
+
+**Screen Reader**:
+- ARIA labels on all interactive elements
+- Live region announcements for drag & drop operations
+- Role="tree" for navigation tree, role="grid" for file grid
+- Announced: "Moved Report.pdf to Projects folder"
+
+**Focus Management**:
+- Clear focus indicators (blue outline)
+- Focus returns to moved item after drop
+- Focus trap in modals (file viewer, delete confirmation)
+
+---
+
 ## User Workflows
 
 ### Workflow 1: Uploading Files

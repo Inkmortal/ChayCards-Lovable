@@ -88,6 +88,747 @@
 
 ## Recent Changes
 
+### Navigation Tree Drag & Drop Library Research - 2025-10-09
+**Context Research Complete**: Comprehensive analysis of modern navigation tree libraries and implementation patterns for folder/file drag & drop.
+
+**Current State**:
+- Simple FolderTree component (202 lines) - recently nuked broken drag & drop
+- Clean slate: Basic rendering, expand/collapse, selection only
+- Complete UX spec in DOCUMENTS_PLUGIN_SPEC.md with cross-panel drag & drop requirements
+- Requirements: "Option A" pattern (show spinner → backend call → success/failure, NOT optimistic updates)
+
+**Top Library Recommendations**:
+
+1. **react-arborist** (PRIMARY RECOMMENDATION)
+   - Complete tree view component for VSCode/Finder/Explorer equivalents
+   - Built-in: drag-drop, multi-selection, inline editing, virtualization
+   - Performance-optimized for large trees with efficient rendering
+   - Active community, comprehensive docs: https://react-arborist.netlify.app/
+   - Perfect fit for "Option A": `onMove` callback provides clean entry point for backend mutation
+   - Cons: Higher-level abstraction (less granular control), steeper learning curve
+   - Use Case: Feature-rich file explorers where complete solution preferred
+
+2. **Pragmatic Drag and Drop** (Atlassian) (SECONDARY RECOMMENDATION)
+   - Newest library (2024), successor to react-beautiful-dnd
+   - Low-level building blocks, framework-agnostic (vanilla JS + TypeScript)
+   - Lightweight, modern approach with excellent primitives
+   - Tree examples: https://atlassian.design/components/pragmatic-drag-and-drop/examples
+   - Cons: Requires building tree logic yourself, more boilerplate
+   - Use Case: Maximum control and custom D&D interactions beyond simple trees
+
+3. **@dnd-kit** (NOT RECOMMENDED for our use case)
+   - 10kb minified, supports pointer/mouse/touch/keyboard
+   - Highly configurable, minimal re-renders
+   - We previously had issues: optimistic updates causing snap-back, state sync race conditions
+   - Cons: Only one-level lists by default, requires custom tree implementation
+   - Prone to state management complexity (our experience confirms)
+   - Use Case: General D&D tasks, not specialized for trees
+
+4. **@minoru/react-dnd-treeview**
+   - Specialized for tree D&D, built on react-dnd
+   - Simpler API with `onDrop` callback providing new data
+   - Render props for customization
+   - Cons: Less feature-rich than react-arborist, depends on older react-dnd ecosystem
+   - Use Case: Simple tree structures needing quick solution
+
+**Implementation Approach for "Option A" Backend-First Pattern**:
+
+**Recommended Flow (using react-arborist)**:
+```typescript
+// 1. User drags folder/file
+// 2. onMove callback triggers immediately
+const moveNodeMutation = useMutation({
+  mutationFn: moveNodeApiCall,
+  onSuccess: () => {
+    queryClient.invalidateQueries(['folderTree']); // Refetch from backend
+  },
+  onError: (error) => {
+    toast.error('Failed to move folder');
+  },
+  onSettled: () => {
+    setMovingNodeId(null); // Clear loading state
+  }
+});
+
+const handleMove = ({ draggedIds, parentId, index }) => {
+  setMovingNodeId(draggedIds[0]); // Show spinner on dragged item
+  moveNodeMutation.mutate({ nodeId: draggedIds[0], parentId, index });
+};
+
+// 3. Backend call completes
+// 4. Success → react-query refetches tree data → UI updates with confirmed state
+// 5. Failure → error toast shown, tree stays unchanged (no snap-back)
+```
+
+**How to Avoid Previous Mistakes**:
+
+1. **No Optimistic Updates** - Single source of truth is backend (via react-query cache)
+   - Previous issue: Local state manipulation → race condition → items snap back
+   - Solution: Show loading spinner, wait for backend confirmation, refetch
+
+2. **No useEffect State Syncing** - Avoid `useEffect(() => setLocalTree(serverData), [serverData])`
+   - Previous issue: Dependency cycles, race conditions between initialTree prop and local state
+   - Solution: Pass react-query data directly to tree component (no local state)
+
+3. **Query Cancellation** - Cancel outgoing refetches before mutations
+   - Prevents old query overwriting optimistic update
+   - Use `onMutate` to cancel queries: `queryClient.cancelQueries(['folderTree'])`
+
+4. **Rollback Mechanism** - For temporary optimistic updates (if needed)
+   - `onMutate` returns rollback function
+   - `onError` calls rollback to revert
+   - We prefer pessimistic (loading state) over optimistic for reliability
+
+5. **Separation of Local State from Sync State**
+   - React-query manages server state
+   - Local state only for UI concerns (loading, hover, selection)
+   - Never mix the two
+
+**Cross-Panel Drag & Drop Patterns**:
+- HTML5 Drag and Drop API for desktop
+- Pointer Events for touch support (mobile)
+- Tree acts as drop target, main view acts as drop target
+- Visual feedback: borders, backgrounds, drop hints ("Move to Projects folder")
+- Both panels share same mutation functions (insertBefore/insertAfter/makeChild)
+
+**Best Practices Found**:
+- Whole-row draggable (no separate drag handle)
+- Drop zones: 15/70/15 for folders (before/into/after), 50/50 for files
+- Hover-to-expand: 750ms delay with progress indicator (visual countdown)
+- Multi-select: Cmd/Ctrl+Click, Shift+Click for range
+- Mobile: Long-press (500ms) with haptic feedback
+
+**Reference Implementations to Study**:
+1. react-arborist official examples: https://react-arborist.netlify.app/
+2. CodeSandbox examples: https://codesandbox.io/examples/package/react-arborist
+3. Pragmatic Drag and Drop tree: https://atlassian.design/components/pragmatic-drag-and-drop/examples/tree-view
+4. Building with react-arborist guide: https://blog.logrocket.com/using-react-arborist-create-tree-components/
+
+**Next Agent**: Implementation agent should:
+1. Install `react-arborist` as primary choice
+2. Follow "Option A" backend-first pattern (no optimistic updates)
+3. Use react-query for mutations with loading states
+4. Implement cross-panel drag & drop using same mutation functions
+5. Study official examples for best practices
+
+**Key Variable Names** (for future implementation):
+- Tree data: `unifiedTree` (from useUnifiedTree hook)
+- Loading state: `movingNodeId` (string | null)
+- Mutation: `moveNodeMutation` (useMutation hook)
+- Backend methods: `insertBefore(nodeId, targetId)`, `insertAfter(nodeId, targetId)`, `makeChild(nodeId, parentId)`
+
+**Files Referenced**:
+- Current: `/src/plugins/core-documents/components/FolderTree.tsx` (202 lines, stateless)
+- Backend: `/src/plugins/core-documents/services/DocumentsService.ts` (insertBefore/After/makeChild at lines 859-1020)
+- Spec: `/memory-bank/docs/DOCUMENTS_PLUGIN_SPEC.md` (complete UX spec with cross-panel requirements)
+
+## Recent Changes (Older Entries)
+
+### UX Issues Research - FolderTree & Navigation - 2025-10-08
+**Context Research Complete**: Critical UX issues in AppShell navigation toggle and FolderTree component requiring immediate fixes.
+
+**Issue #1 - Navigation Toggle Placement**:
+- **Current**: Hamburger menu (Menu icon) next to ChayCards logo in header (AppShell.tsx lines 138-143)
+- **User wants**: Menu toggle next to "Navigation" text in sidebar
+- **Files**: `src/renderer/layouts/AppShell.tsx` (lines 138-143 remove, lines 183-185 add)
+- **Pattern**: Use Pin/PinOff icon or left/right arrow next to "Navigation" heading
+
+**Issue #2 - "All Files" Root Node**:
+- **Current**: Folders render at root level (FolderTree.tsx line 260)
+- **User wants**: Single "All Files" item at root, all folders nested under it (indented)
+- **Solution**:
+  - Keep existing "All Files" button (lines 247-257) but add expand/collapse chevron
+  - Render folders conditionally when "All Files" expanded
+  - Increase folder indentation by 1 level (from `level={0}` to `level={1}`)
+
+**Issue #3 - Drag-and-Drop Limitations**:
+- **Problem 1**: Cannot drag child folder up to become parent
+- **Problem 2**: No depth limit - can drag infinitely right
+- **Current logic**: `handleDragEnd` in FolderTree.tsx (lines 204-224)
+- **Solution**:
+  - Add `MAX_FOLDER_DEPTH = 5` constant
+  - Check `calculateDepth(targetFolderId)` before allowing drop
+  - Allow drop on root/parent level to move folders up hierarchy
+
+**Issue #4 - Sidebar Toggle in PageHeader**:
+- **Current**: Collapse/expand button in FileBrowser PageHeader (lines 126-136)
+- **User says**: Doesn't make sense there - should be IN the sidebar itself
+- **Solution**: Move to top of sidebar (AppShell or FolderTree top section)
+
+**Issue #5 - Folder Appearance (CRITICAL - User Frustration)**:
+- **Current problem**: Folders look like long rectangular buttons (full-width Button component)
+  ```typescript
+  // FolderTree.tsx lines 103-115 - THE PROBLEM
+  <div className={cn(
+    'flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer',
+    'hover:bg-accent',
+    isSelected && 'bg-accent font-medium'
+  )}>
+  ```
+- **User complaint**: "Folders look terrible - just long buttons, not like folders"
+- **Modern folder pattern** (VS Code, Finder, File Explorer):
+  - Compact height (~32px per item)
+  - Icon + name layout (not full-width button)
+  - Indentation guides (vertical lines showing hierarchy)
+  - Chevron BEFORE folder icon
+  - Subtle hover (not full button highlight)
+  - Selected state only on folder item, not full width
+
+**Recommended Folder Styling**:
+```typescript
+<div
+  className={cn(
+    "flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer",
+    "hover:bg-accent/50 transition-colors",
+    isSelected && "bg-accent",
+    "min-h-[32px]"
+  )}
+  style={{ paddingLeft: `${level * 16 + 8}px` }}
+>
+  {hasChildren && (
+    <ChevronRight className={cn("h-3.5 w-3.5 shrink-0", isExpanded && "rotate-90")} />
+  )}
+  <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+  <span className="text-sm truncate flex-1">{folder.name}</span>
+</div>
+```
+
+**Key Variable Names**:
+- AppShell: `sidebarOpen`, `setSidebarOpen` (state for main nav sidebar)
+- FolderTree: `expandedFolders` (Set<string>), `handleToggleExpand(folderId)`
+- FolderNode: `isExpanded`, `isSelected`, `hasChildren`, `level` (depth)
+- Drag handlers: `handleDragEnd`, `useDraggable`, `useDroppable` (from @dnd-kit)
+
+**Files to Modify**:
+1. `/src/renderer/layouts/AppShell.tsx` - Move navigation toggle from header to sidebar
+2. `/src/plugins/core-documents/components/FolderTree.tsx` - Main fixes (appearance, "All Files" root, drag limits)
+3. `/src/plugins/core-documents/components/FileBrowser.tsx` - Remove sidebar toggle from PageHeader
+
+**Implementation Priority**:
+1. ⭐⭐⭐ Issue #5 - Folder appearance (CRITICAL - user frustration)
+2. ⭐⭐ Issue #2 - "All Files" virtual root
+3. ⭐⭐ Issue #3 - Drag-and-drop limits
+4. ⭐ Issue #1 & #4 - Navigation toggle placement
+
+**Next Agent**: Implementation agent should start with Issue #5 (folder appearance).
+
+### Documents Plugin UI Improvements Research - 2025-10-08
+**Context Research Complete**: Comprehensive analysis of UI patterns for spacing, breadcrumbs, collapsible sidebar, folder cards, and file/folder ordering.
+
+**Key Findings**:
+- **Spacing Issue Identified**: FileBrowser root container has NO padding (`line 91: <div className="file-browser h-full flex flex-col">`)
+  - Standard pattern from DemoPage.tsx: `p-8 max-w-6xl mx-auto space-y-8` (line 301)
+  - Quick fix: Add `p-8 space-y-6` to root container
+- **Collapsible Sidebar Pattern**: AppShell.tsx (lines 15, 138-178) provides exact implementation
+  - State: `const [sidebarOpen, setSidebarOpen] = useState(true)`
+  - Toggle icons: `PanelLeftClose` (already imported), `PanelLeft` (already imported)
+  - Transition: `transition-all duration-300` with conditional width (`w-64` vs `w-0`)
+  - Conditional rendering: `{sidebarOpen && <Content />}` prevents layout issues
+- **Breadcrumb Navigation**: Hook already exists but unused
+  - `useFolderPath(selectedFolderId)` from useDocuments.ts returns folder path array
+  - Icons: `ChevronRight` (already imported) for separators
+  - Pattern: "All Documents" root + clickable path segments
+- **Folder Card Styling**: DemoPage.tsx shows beautiful card pattern
+  - Current: `p-4` padding, `h-8 w-8` icon, `font-medium` text
+  - Proposed: `p-6 border-2 rounded-2xl` card, `w-14 h-14` icon container, `text-xl font-bold` text
+  - Color fallback: `folder.color || 'hsl(var(--primary))'` (use semantic theme variable)
+- **File/Folder Order**: Currently folders first (line 202), user wants files first
+  - Simple fix: Move `filesInFolder.map()` before `childFolders.map()` in render
+
+**Spacing/Padding Standards** (from DemoPage.tsx):
+- Page root: `p-8` padding
+- Cards: `p-6` (large) or `p-4` (small)
+- Sections: `space-y-8`, `space-y-6`, `space-y-4`
+- Grid gaps: `gap-6` (main), `gap-4` (cards), `gap-3` (components)
+- Border radius: `rounded-2xl` (cards), `rounded-xl` (sections), `rounded-lg` (items)
+
+**Implementation Scope** (1 file):
+1. `/src/plugins/core-documents/components/FileBrowser.tsx` (268 lines)
+   - Add page padding (`p-8 space-y-6`) to root container (line 91)
+   - Add sidebar toggle state and button (lines 161-172)
+   - Add breadcrumb navigation above content area (import `useFolderPath`)
+   - Enhance folder card styling (lines 203-221)
+   - Reverse file/folder display order (swap map order lines 202-258)
+
+**Priority Order**:
+1. ⭐ Page padding (`p-8 space-y-6`) - QUICK WIN (1 line change)
+2. ⭐ File/folder order swap - ONE LINE CHANGE
+3. ⭐⭐ Collapsible sidebar toggle
+4. ⭐⭐ Breadcrumb navigation
+5. ⭐⭐⭐ Beautiful folder cards
+
+**All patterns exist** - copy from AppShell.tsx (collapsible), DemoPage.tsx (cards, collapsible), existing imports.
+
+**Files Referenced**:
+- `/src/plugins/core-documents/components/FileBrowser.tsx` - Primary modification target
+- `/src/renderer/layouts/AppShell.tsx` - Collapsible sidebar pattern
+- `/src/plugins/demo-plugin/components/DemoPage.tsx` - Spacing and card patterns
+- `/src/plugins/core-ui/components/PageHeader.tsx` - Component reference
+- `/src/renderer/components/ui/collapsible.tsx` - Radix UI component
+
+**See**: Complete research report in `/tmp/context_research_report.md` with code snippets and implementation examples.
+
+### Folder Drag-and-Drop Implementation COMPLETE - 2025-10-08
+**Status**: ✅ Implementation complete, ❌ Testing blocked by authentication issue
+
+**What Was Completed**:
+1. **Documentation Fixes** (8 files):
+   - Fixed incorrect `core.ui` → `core-ui` plugin naming in CLAUDE.md files
+   - Updated FRONTEND_ARCHITECTURE.md, activeContext.md, progress.md
+
+2. **Folder Drag-and-Drop Implementation**:
+   - ✅ Installed @dnd-kit packages (core, sortable, utilities)
+   - ✅ Added `order?: number` field to Folder interface (types.ts:63)
+   - ✅ Implemented `moveFolder()` in DocumentsService (lines 719-780)
+     - Validates circular references and name conflicts
+     - Automatically assigns order values
+     - Emits 'folder:moved' events
+   - ✅ Implemented `reorderFolders()` in DocumentsService (lines 782-819)
+     - Batch updates folder order within same parent
+     - Emits 'folders:reordered' events
+   - ✅ Updated `createFolder()` to auto-assign order values (lines 502-521)
+   - ✅ Updated `getFolderTree()` to sort by order field (lines 692-711)
+   - ✅ Created FolderTree component with drag-and-drop (FolderTree.tsx)
+     - Uses @dnd-kit/core for drag infrastructure
+     - Visual feedback: 50% opacity when dragging, blue border on drop zone
+     - Proper event handling for drag/drop operations
+   - ✅ Integrated FolderTree into FileBrowser with callbacks (FileBrowser.tsx)
+   - ✅ Fixed import path bug: `@/lib/utils` → `@/shared/lib/utils`
+
+**Files Modified**:
+- `src/plugins/core-documents/types.ts` - Added order field to Folder interface
+- `src/plugins/core-documents/services/DocumentsService.ts` - Added move/reorder methods
+- `src/plugins/core-documents/components/FolderTree.tsx` - NEW drag-and-drop component
+- `src/plugins/core-documents/components/FileBrowser.tsx` - Integrated FolderTree
+- 8 documentation files - Fixed core.ui → core-ui naming
+
+**Blocking Issue - Authentication**:
+- ❌ **Cannot test implementation** - Users can register but can't access /app/documents
+- **Problem**: Auth token not persisting across page navigations in web mode
+- **Symptom**: Immediate redirect to /login when accessing any /app/* route except /app/demo
+- **Impact**: Folder drag-and-drop code is complete but untested
+- **Next Step**: Debug authentication storage/retrieval before testing UI
+
+**Next Steps After Auth Fix**:
+1. Test folder drag-and-drop with frontend-qa-tester
+2. Verify visual feedback works correctly
+3. Test folder move operations (drag folder onto another folder)
+4. Test folder reorder operations (drag folder between folders)
+5. Create test folders to validate functionality end-to-end
+
+**Implementation Details**:
+- Service methods use database storage patterns (pure DB, no caches)
+- Automatic order calculation prevents manual order management
+- Backend validation prevents circular references
+- Event system notifies observers of folder changes
+- All TypeScript compilation passes with zero errors
+
+### Folder Drag-and-Drop Research - 2025-10-08
+**Context Research Complete**: Comprehensive analysis of Documents plugin folder system for implementing drag-and-drop folder reorganization.
+
+**Current State:**
+- **No drag-drop library installed** (package.json has no @dnd-kit, react-beautiful-dnd, or react-dnd)
+- **Folder data structure exists** (`src/plugins/core-documents/types.ts`):
+  - `Folder` interface: `id, name, parentId, color, icon, tags, createdAt, updatedAt`
+  - **Missing**: `order` field for custom positioning within parent
+- **DocumentsService has full folder CRUD** (`src/plugins/core-documents/services/DocumentsService.ts`):
+  - `createFolder()` with Windows-like validation (unique names per parent, case-insensitive)
+  - `updateFolder()` supports changing `parentId` (move to different parent)
+  - `validateFolderMove()` prevents circular references
+  - `getFolderTree()` builds hierarchical structure
+  - **Current sorting**: Alphabetical by name (no custom ordering yet)
+- **FileBrowser.tsx is placeholder** - No UI implementation yet
+- **Core-UI components available**: Card, Button, List, EmptyState (no drag-drop components)
+
+**Library Recommendation: @dnd-kit**
+- Install: `@dnd-kit/core` + `@dnd-kit/sortable`
+- **Why @dnd-kit:**
+  - Modern, accessible, performant (React 18 compatible)
+  - Touch device support (mobile-first)
+  - Tree structure support via sortable utilities
+  - Smaller bundle than react-beautiful-dnd
+  - Active maintenance
+
+**Data Model Changes:**
+```typescript
+// Add to Folder interface in types.ts
+interface Folder {
+  // ... existing fields
+  order: number;  // NEW: Custom ordering within parent (0, 1, 2, ...)
+}
+```
+
+**Service API (Simplified & Clean):**
+```typescript
+// 1. Move folder to new parent (appends to end)
+async moveFolder(
+  folderId: string,
+  newParentId: string | null
+): Promise<FolderOperationResult>
+// Logic:
+// - Validate no circular dependency
+// - Update parentId
+// - Set order = max(siblings.order) + 1
+// - Save folder
+
+// 2. Reorder folders within same parent
+async reorderFolders(
+  parentId: string | null,
+  folderIds: string[]  // New order
+): Promise<void>
+// Logic:
+// - Verify all folders have same parentId
+// - Update order: folderIds[0].order = 0, folderIds[1].order = 1, etc.
+// - Batch update (use transaction in SQLite)
+
+// 3. Backfill order on first load
+// In loadFromStorage():
+// - Check if any folder missing order field
+// - If yes, sort folders alphabetically by name within each parent
+// - Assign orders: 0, 1, 2, ... per parent
+```
+
+**Implementation Plan (4 Phases):**
+
+**Phase 1: Data & Service Layer (Backend Only)**
+- [x] Add `order: number` to Folder interface (`types.ts`)
+- [x] Update `DocumentsService.loadFromStorage()`:
+  - Backfill order alphabetically for existing folders
+  - Only runs once (check if folders have order field)
+- [x] Update `createFolder()`: Set `order = max(siblings.order) + 1` (or 0 if no siblings)
+- [x] Implement `moveFolder(folderId, newParentId)`:
+  - Validate with `validateFolderMove()`
+  - Update `parentId` and append to end of children
+  - Return structured error for circular refs
+- [x] Implement `reorderFolders(parentId, folderIds[])`:
+  - Batch update with transaction support (SQLite)
+  - Update order field based on array index
+- [x] Update `getFolderTree()`: Sort children by `order` field (not alphabetically)
+- [x] Add `batchUpdateFolders()` to StorageAdapter interface (transaction support)
+
+**Phase 2: Static UI with Mock Data**
+- [x] Build `FolderTree` component (hierarchical display)
+- [x] Create mock folders with `order` field
+- [x] Render folders sorted by order
+- [x] Add expand/collapse functionality
+- [x] Verify correct sorting without drag-drop
+
+**Phase 3: Drag-Drop Integration**
+- [x] Install packages: `npm install @dnd-kit/core @dnd-kit/sortable`
+- [x] Wrap `FolderTree` in `DndContext`
+- [x] Create `DraggableFolderItem` component with drag handle
+- [x] Add drop zones:
+  - **ON folder**: Highlight entire folder → calls `moveFolder()`
+  - **BETWEEN folders**: Show horizontal line → calls `reorderFolders()`
+- [x] Implement `onDragEnd` handler with optimistic UI updates:
+  ```typescript
+  const originalState = [...folders];
+  setFolders(newOrderedFolders);  // Immediate UI update
+  try {
+    await documentsService.reorderFolders(parentId, newFolderIds);
+  } catch (error) {
+    setFolders(originalState);  // Revert on failure
+    toast.error('Failed to reorder folders');
+  }
+  ```
+- [x] Use `onDragOver` for real-time visual feedback during drag
+- [x] Error handling with state reversion
+
+**Phase 4: Visual Polish**
+- [x] Drag handle icon (GripVertical from lucide-react)
+- [x] Hover states on drop targets
+- [x] Drop indicators (border highlight for "on folder", horizontal line for "between")
+- [x] CSS transitions for smooth reordering animation
+- [x] "Can't drop here" indicator for invalid targets (circular refs)
+- [x] Keyboard accessibility (arrow keys for navigation, Enter to expand/collapse)
+- [x] Breadcrumb trail showing destination path during drag
+
+**Drop Target Differentiation:**
+- **Drop ON folder**: User drags folder onto another folder to nest it
+  - Visual: Highlight entire target folder with border/background
+  - Action: `moveFolder(draggedId, targetId)`
+  - Collision: `pointerWithin` algorithm
+- **Drop BETWEEN folders**: User drags folder between two folders to reorder
+  - Visual: Horizontal line indicator in gap
+  - Action: `reorderFolders(parentId, newOrderedIds)`
+  - Collision: `closestCenter` algorithm
+
+**Ordering Strategy:**
+- **Type**: Simple integer ordering (0, 1, 2, 3, ...)
+- **Rationale**: Sufficient for <100 folders per parent (typical use case)
+- **Trade-off**: Reordering requires updating multiple rows (row-shifting), but acceptable for MVP
+- **Future**: Can migrate to fractional indexing (LexoRank-style) if performance issues
+
+**Transaction Support:**
+- **SQLite**: Uses better-sqlite3 transactions via `db.transaction()`
+- **PostgreSQL**: REST API doesn't wrap batch updates in transactions yet (MVP risk accepted)
+- **MVP Strategy**: Accept non-atomic risk - folder reordering unlikely to fail, user can retry on error
+- **Phase 2**: Add transaction support to PostgreSQL adapter
+
+**Key Files Modified:**
+- `src/plugins/core-documents/types.ts` - Add `order` field to Folder
+- `src/plugins/core-documents/services/DocumentsService.ts` - Add moveFolder(), reorderFolders()
+- `src/shared/storage/StorageAdapter.ts` - Add batchUpdateFolders() interface
+- `src/shared/storage/SQLiteAdapter.ts` - Implement batch updates with transactions
+- `src/plugins/core-documents/components/FileBrowser.tsx` - Build folder tree UI
+- `src/plugins/core-documents/components/FolderTree.tsx` - NEW: Hierarchical folder display with drag-drop
+- `src/plugins/core-documents/components/DraggableFolderItem.tsx` - NEW: Individual folder with drag handle
+
+**Testing Strategy:**
+- Unit tests: moveFolder(), reorderFolders(), validateFolderMove()
+- Integration tests: Drag folder onto another folder, drag folder between folders
+- Edge cases: Circular reference prevention, batch update rollback
+- Accessibility: Keyboard navigation, screen reader announcements
+
+**See**: `memory-bank/docs/DOCUMENTS_PLUGIN_SPEC.md`, `memory-bank/docs/DOCUMENTS_DATA_MODEL.md` for full specifications.
+
+## Recent Changes
+
+### Navigation Tree - Complete Nuclear Cleanup (2025-10-10)
+**Status**: ✅ Clean slate achieved - ready for fresh implementation
+
+**What Was Nuked**:
+1. **FolderTree.tsx** - Reduced from 713 lines → 202 lines
+   - ❌ Removed: All @dnd-kit imports and drag & drop logic
+   - ❌ Removed: Optimistic update system (updateTreeOptimistically, persistMoveAsync, rollback)
+   - ❌ Removed: Local state management (useState for tree, hasSyncedRef race condition fixes)
+   - ❌ Removed: Drop zone detection (before/into/after, 15/70/15 percentages)
+   - ❌ Removed: Hover-to-expand functionality (750ms timers, auto-expand)
+   - ❌ Removed: Drag overlay ghost component
+   - ❌ Removed: useSortable hooks, SortableContext, DndContext
+   - ✅ Kept: Simple tree rendering, expand/collapse, folder selection, clean styling
+
+2. **FileBrowser.tsx** - Cleaned
+   - ❌ Removed: All drag & drop handlers (handleInsertBefore, handleInsertAfter, handleMakeChild)
+   - ❌ Removed: Event listeners and optimistic update logic
+   - ✅ Changed: `initialTree` prop → `tree` prop (simple data passing)
+   - ✅ Component now just displays data from backend via `tree` prop
+
+3. **package.json** - Dependencies Removed
+   - ❌ @dnd-kit/core (^6.3.1)
+   - ❌ @dnd-kit/sortable (^10.0.0)
+   - ❌ @dnd-kit/utilities (^3.2.2)
+   - ✅ npm install removed 4 packages successfully
+
+4. **DocumentsService.ts** - UNCHANGED (Intentional)
+   - ✅ Kept: insertBefore, insertAfter, makeChild methods (backend operations)
+   - ✅ Kept: File versions (insertFileBefore, insertFileAfter, makeFileChild)
+   - These are pure backend operations - may be useful for future implementation
+
+5. **useDocuments.ts** - Already Clean
+   - ✅ No event listeners for file/folder changes
+   - ✅ Hooks fetch once on mount only
+   - ✅ No refetching on events
+
+**Why the Nuclear Option**:
+- Optimistic updates were causing tree to revert immediately after drop
+- Race conditions between initialTree prop and local state
+- Complex state syncing (useEffect, refs, dependency cycles)
+- User frustration: "when i let go, the folder goes back to where it was"
+- Better to start fresh with simpler, proven pattern
+
+**Current State**:
+- Tree displays folders/files from backend (via `tree` prop)
+- Expand/collapse works perfectly
+- Folder selection works perfectly
+- NO drag & drop - clean slate
+- NO sync issues - tree always matches backend
+- NO race conditions - stateless component
+
+**Implementation Plan Created**:
+- Complete specification in `NAVIGATION_TREE_SPEC.md` (800+ lines)
+- Option A chosen: Immediate backend persistence with loading spinners
+- Features planned: Multi-select, Undo/Redo (Ctrl+Z), Mobile long-press
+- Drop zones: 15/70/15 for folders, 50/50 for files
+- Hover-to-expand: 750ms with progress indicator
+- Whole row draggable (no separate drag handle)
+
+**Next Steps**:
+- When ready to re-implement: Follow NAVIGATION_TREE_SPEC.md exactly
+- Start with Phase 1: Basic rendering (already done)
+- Phase 2: Add @dnd-kit back with new approach
+- Phase 3: Backend persistence (Option A pattern)
+- Phase 4+: Multi-select, Undo, Mobile, Accessibility
+
+**Key Learning**: Optimistic updates are hard to get right. Immediate backend persistence with loading indicators is simpler and more reliable.
+
+### Folder System Architecture Research - 2025-10-09
+**Context Research Complete**: Comprehensive analysis of current folder system implementation to inform complete refactor design.
+
+**Current Data Schema**:
+- **Folder Interface** (DocumentsService.ts:30-44):
+  ```typescript
+  interface Folder {
+    id: string;
+    userId: string;
+    name: string;
+    parentId: string | null;
+    order: number;  // ⚠️ CRITICAL BUG: Float-based ordering
+    color?: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+  ```
+- **Storage Pattern**: Flat storage with individual keys (`core-documents:folders:{folderId}`)
+- **Query Pattern**: Fetch all folders, filter in-memory by `parentId` (O(N) reads every time)
+- **No Validation**: No max depth, no circular reference prevention, no order uniqueness
+
+**Current APIs**:
+- `createFolder(name, parentId?, color?)` - Auto-assigns `order = maxOrder + 1`
+- `moveFolder(folderId, newParentId, newOrder)` - Updates parentId and order
+- `reorderFolders(folderId, newOrder)` - Changes order within same parent
+- `listFolders(parentId?)` - Fetches ALL folders, filters by parentId
+- **All methods**: No validation, no collision detection, no rebalancing
+
+**Pain Points Identified**:
+
+1. **Order Precision Loss** (FolderTree.tsx:165-170):
+   ```typescript
+   // Midpoint calculation leads to precision loss after ~50 operations
+   return (prevOrder + nextOrder) / 2;  // ⚠️ BREAKS
+   ```
+   **Impact**: Folders stop reordering correctly
+
+2. **Storage Inefficiency** (DocumentsService.ts:560-590):
+   ```typescript
+   // Every operation fetches EVERY folder from storage
+   const allFolders = await this.storage.list<Folder>(this.STORAGE_KEYS.FOLDERS);
+   ```
+   **Impact**: O(N) reads for every single folder operation
+
+3. **Event Cascade** (useDocuments.ts:120-140):
+   ```typescript
+   // Every folder move triggers full refetch of all folders
+   const handleFolderMoved = (folder: Folder) => {
+     refetchFolders();  // O(N) reads
+   };
+   ```
+   **Impact**: Moving 10 folders = 10N storage reads
+
+4. **No Validation** (DocumentsService.ts:620-650):
+   - ❌ No circular reference detection
+   - ❌ No max depth enforcement
+   - ❌ No name validation
+   - ❌ No order uniqueness
+
+5. **Monolithic Component** (FolderTree.tsx:1-710):
+   - Business logic mixed with UI
+   - Hard to test
+   - Poor code reuse
+   - Performance issues (full tree re-renders)
+
+**Required Changes for Refactor**:
+
+**Must Replace**:
+1. Float ordering → Lexicographic fractional indexing
+2. Individual storage reads → Batch operations
+3. Full refetches → Granular event-driven updates
+4. Monolithic component → Extracted services + hooks
+5. No validation → Comprehensive validation layer
+
+**Must Add**:
+1. Order rebalancing - Detect and fix collisions
+2. Circular reference detection - Prevent invalid hierarchies
+3. Max depth enforcement - Prevent infinite nesting
+4. Optimistic UI updates - Update UI before backend confirms
+5. Debounced events - Prevent cascade loops
+
+**Must Preserve**:
+1. Event bus pattern - Works well for decoupling
+2. User scoping - Automatic filtering by userId
+3. Platform abstraction - Storage adapter pattern is good
+4. TypeScript strict mode - Strong typing prevents bugs
+
+**Files Referenced**:
+- `/mnt/c/Users/danhc/Documents/Projects/ChayCards-Lovable/src/plugins/core-documents/services/DocumentsService.ts`
+- `/mnt/c/Users/danhc/Documents/Projects/ChayCards-Lovable/src/plugins/core-documents/components/FolderTree.tsx`
+- `/mnt/c/Users/danhc/Documents/Projects/ChayCards-Lovable/src/plugins/core-documents/hooks/useDocuments.ts`
+- `/mnt/c/Users/danhc/Documents/Projects/ChayCards-Lovable/src/plugins/core-documents/types.ts`
+
+**Next Step**: Design complete refactor architecture based on these findings.
+
+### Root Cause: Drag-to-Top Bug - 2025-10-08
+**Bug Description**: User can drag folders to the bottom (bug #2 fixed) but CANNOT drag folders to become the first/top folder in the list.
+
+**Root Cause Identified**: Both RootDropZone components (top and bottom) have **identical IDs** causing drop zone conflicts.
+
+**Evidence**:
+- Line 105: Top RootDropZone uses `id: 'drop-root'`
+- Line 651: Top RootDropZone renders before folder list
+- Line 668: Bottom RootDropZone renders after folder list
+- Line 104-110: Both use same droppable data: `{ type: 'root', accepts: 'folder' }`
+- Line 419-426: handleDragOver detects `targetDropId === 'drop-root'` without distinguishing which drop zone
+
+**Specific Problem**:
+When user drags folder to top RootDropZone:
+1. Both drop zones respond to same ID `'drop-root'`
+2. No position information in droppable data
+3. handleDragEnd cannot differentiate top vs bottom drops
+4. Likely behavior: Bottom drop zone wins (rendered last), folders always go to bottom
+
+**Recommended Fix** (Files as Entity Properties pattern):
+1. **Change IDs to be unique** (FolderTree.tsx lines 103-121):
+   ```typescript
+   // Top RootDropZone (line 651)
+   const RootDropZone: React.FC<{ position: 'top' | 'bottom' }> = ({ position }) => {
+     const { setNodeRef, isOver } = useDroppable({
+       id: `drop-root-${position}`,  // UNIQUE ID
+       data: {
+         type: 'root',
+         accepts: 'folder',
+         position  // ADD POSITION
+       }
+     });
+   ```
+
+2. **Update handleDragOver** (lines 419-426) to capture position:
+   ```typescript
+   } else if (targetDropId.startsWith('drop-root')) {
+     const position = over.data.current?.position || 'bottom';
+     setDragOverState({
+       targetFolderId: null,
+       type: 'inside',
+       indent: 4,
+       targetLevel: 1,
+       position  // ADD TO STATE
+     });
+   ```
+
+3. **Update handleDragEnd** (lines 473-477) to use position for order calculation:
+   ```typescript
+   if (type === 'inside') {
+     // Determine order based on position
+     const newOrder = capturedDragState.position === 'top' ? 0 : 999;
+     onFolderMove?.(draggedFolder.id, targetFolderId, newOrder);
+   }
+   ```
+
+**Files Affected**:
+- `/src/plugins/core-documents/components/FolderTree.tsx` (lines 103-121, 419-426, 473-477, 651, 668)
+
+**Next Steps**:
+1. Implementation agent should apply fix to FolderTree.tsx
+2. Test dragging folder to top (should become first folder with order=0)
+3. Test dragging folder to bottom (should become last folder with order=999)
+4. Verify no regressions in drag-to-inside functionality
+
+### Backlog Updates - 2025-10-08
+Updated two major tasks to "Done" status in Notion:
+
+1. **File Storage API** (282bbd9b-1a29-81be-9bcc-cdadacf99d1a)
+   - Implemented Files as Entity Properties pattern
+   - Extended StorageAdapter.set() with files parameter
+   - Added files tables to SQLite and PostgreSQL
+   - Superior to original dual-API spec
+
+2. **Documents Plugin** (1fcbbd9b-1a29-812f-a383-cd5d7edbe1b0)
+   - Full DocumentsService with CRUD operations
+   - FileBrowser component with upload/download/delete
+   - useDocuments hook for state management
+   - Files as Entity Properties integration working
+
+Both tasks moved from "In progress" to "Done" with detailed completion notes.
+
 ### Async/Await Pattern in React Event Handlers (October 8, 2025)
 - **Bug Discovery**: Theme cycling button in demo plugin silently failing
   - **Root Cause**: Event handler called `themeService.getAvailableThemes()` without `await`
@@ -621,7 +1362,7 @@
 13. **ES Modules**: Package.json "type": "module" affects all .js files
 14. **Plugin Architecture**: Simple is better - like game mods, not enterprise
 15. **Theme System**: CSS variable-based theming works excellently with plugin architecture
-16. **Component Sharing**: Optional core.ui plugin provides consistency without forcing it
+16. **Component Sharing**: Optional core-ui plugin provides consistency without forcing it
 17. **Storage Keys**: Each plugin should own its own storage namespace (e.g., `plugin-id:key-name`)
 18. **localStorage vs StorageAdapter**: Only use StorageAdapter - localStorage should be avoided except for pre-storage-init fallbacks
 19. **Setup Persistence**: Check actual storage data, not just in-memory flags, to handle localStorage clearing

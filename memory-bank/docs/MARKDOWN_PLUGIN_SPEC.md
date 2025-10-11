@@ -9,7 +9,7 @@ The Markdown plugin provides a lightweight note-taking and document editing expe
 - **Plugin ID**: `core-markdown`
 - **Plugin Name**: Markdown Notes
 - **Category**: Core Plugin
-- **Dependencies**: `core.ui`, `core-theme`
+- **Dependencies**: `core-ui`, `core-theme`
 
 ## Features
 

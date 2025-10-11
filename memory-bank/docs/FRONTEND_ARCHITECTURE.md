@@ -44,7 +44,7 @@ The `core-ui` plugin provides shared components that ensure visual consistency:
 ```typescript
 // src/plugins/core-ui/index.ts
 export const CoreUIPlugin: Plugin = {
-  id: 'core.ui',
+  id: 'core-ui',
   name: 'Core UI Components',
   
   components: {

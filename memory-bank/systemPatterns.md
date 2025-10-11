@@ -1211,6 +1211,110 @@ CREATE INDEX idx_files_hash ON files(hash);  -- Find all refs to same file
 - **Pattern**: Get original component, wrap it, re-register
 - **Benefit**: Clean enhancement without direct dependencies
 
+### Folder Drag-and-Drop with @dnd-kit Pattern
+**Problem**: Users need to reorganize folder hierarchies with drag-and-drop, but implementing this requires careful state management and visual feedback.
+
+**Solution**: Use @dnd-kit library with service-layer methods for folder operations.
+
+```typescript
+// Service Layer: Implement move and reorder operations
+class DocumentsService {
+  async moveFolder(folderId: string, newParentId: string | null): Promise<FolderOperationResult> {
+    // 1. Validate circular reference
+    if (await this.wouldCreateCircularReference(folderId, newParentId)) {
+      return { success: false, error: 'Circular reference' };
+    }
+
+    // 2. Check name conflicts
+    const folder = this.folders.get(folderId);
+    const siblings = Array.from(this.folders.values())
+      .filter(f => f.parentId === newParentId);
+
+    if (siblings.some(s => s.name.toLowerCase() === folder.name.toLowerCase())) {
+      return { success: false, error: 'Name conflict' };
+    }
+
+    // 3. Update folder
+    folder.parentId = newParentId;
+    folder.order = Math.max(...siblings.map(s => s.order || 0), -1) + 1;
+    await this.saveFolder(folder);
+
+    // 4. Emit event
+    this.eventBus.emit('folder:moved', { folderId, newParentId });
+    return { success: true };
+  }
+
+  async reorderFolders(parentId: string | null, folderIds: string[]): Promise<void> {
+    // 1. Verify all folders have same parent
+    const folders = folderIds.map(id => this.folders.get(id)!);
+    if (!folders.every(f => f.parentId === parentId)) {
+      throw new Error('All folders must have same parent');
+    }
+
+    // 2. Update order fields
+    folders.forEach((folder, index) => {
+      folder.order = index;
+    });
+
+    // 3. Batch save
+    await Promise.all(folders.map(f => this.saveFolder(f)));
+
+    // 4. Emit event
+    this.eventBus.emit('folders:reordered', { parentId, folderIds });
+  }
+}
+
+// Component: Use @dnd-kit with optimistic updates
+import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+
+const FolderTree: React.FC<Props> = ({ folders, onMove, onReorder }) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    // Optimistic update
+    const originalFolders = [...folders];
+    const newFolders = reorderArray(folders, active.id, over.id);
+    setFolders(newFolders);
+
+    try {
+      // Persist to backend
+      await onReorder(newFolders.map(f => f.id));
+    } catch (error) {
+      // Revert on failure
+      setFolders(originalFolders);
+      toast.error('Failed to reorder folders');
+    }
+  };
+
+  return (
+    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={folders} strategy={verticalListSortingStrategy}>
+        {folders.map(folder => (
+          <SortableItem key={folder.id} folder={folder} />
+        ))}
+      </SortableContext>
+    </DndContext>
+  );
+};
+```
+
+**Key Benefits**:
+- ✅ Visual feedback during drag (opacity, borders)
+- ✅ Optimistic UI updates for snappy feel
+- ✅ Service-layer validation (circular refs, name conflicts)
+- ✅ Event system notifies observers
+- ✅ Automatic order calculation
+- ✅ Rollback on error
+
+**Pattern Requirements**:
+1. Folder interface must have `order?: number` field
+2. Service layer handles validation and persistence
+3. Component layer handles visual feedback and optimistic updates
+4. Use @dnd-kit for accessibility and touch support
+5. Emit events for state changes (observers can react)
+
 ### Async Service Methods in React Handlers Pattern
 **Problem**: Service methods that access storage are async (return `Promise<T>`), but React event handlers are synchronous by default.
 

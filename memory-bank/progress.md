@@ -173,6 +173,12 @@
 - [x] Plugin manifest with onLoad lifecycle hook
 - [x] Placeholder FileBrowser component
 - [x] TypeScript compilation verified (zero errors)
+- [x] **Folder drag-and-drop implementation** (October 8, 2025)
+  - Added order field to Folder interface
+  - Implemented moveFolder() and reorderFolders() methods
+  - Created FolderTree component with @dnd-kit integration
+  - Visual feedback (opacity, borders) for drag operations
+  - ⚠️ **Testing blocked** - Auth issue prevents access to /app/documents
 
 ### 🔴 File Storage Implementation - Phase 1 (IN PROGRESS - October 7, 2025)
 **Status**: Implementation plan complete with all 12 files identified
@@ -307,6 +313,14 @@ We are in the **Feature Plugin Development** phase (October 6, 2025):
 
 ## Known Issues
 
+### Critical Issues
+1. **Authentication Token Not Persisting (October 8, 2025)**
+   - **Symptom**: Users can register successfully but cannot access /app/* routes (except /app/demo)
+   - **Behavior**: Immediate redirect to /login when navigating to /app/documents or other authenticated routes
+   - **Impact**: Blocks testing of folder drag-and-drop implementation
+   - **Likely Cause**: Auth token not being stored or retrieved correctly in web mode
+   - **Status**: Needs investigation and fix before further UI testing
+
 ### Minor Issues
 1. Vite sometimes needs restart when changing shared code
 2. CRLF line ending warnings in git (Windows/WSL difference - cosmetic only)
@@ -353,7 +367,7 @@ We are in the **Feature Plugin Development** phase (October 6, 2025):
 3. **Simple beats complex** - Game mod approach over enterprise patterns
 4. **Frontend-first works** - Build UI with mocks, add backend later
 5. **Theme system is solid** - Original CSS variable approach is excellent
-6. **Optional consistency** - core.ui provides shared components without forcing
+6. **Optional consistency** - core-ui provides shared components without forcing
 7. **Everything is a plugin** - Even themes are plugins that can enhance each other
 8. **AppShell stays minimal** - Just layout, no features or business logic
 9. **Python backends are just services** - Plugins can spawn child processes without core changes
