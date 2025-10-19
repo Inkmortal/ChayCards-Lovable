@@ -53,13 +53,10 @@ When the human mentions status terms, they refer to the **literal Status propert
 - **"In Review"** = Status property equals "In Review"
 - **"Done"** = Status property equals "Done"
 
-**ALWAYS filter by Status property** when human mentions these terms to save context and get exactly what they mean.
+### Primary Method: Use curl for Exact Property Filtering
 
-### How to Query by Status (HYBRID APPROACH)
+**When filtering by Status, Priority, or any exact property value, ALWAYS use curl first:**
 
-**The MCP server doesn't expose database queries** - use this two-step hybrid flow:
-
-**Step 1: Query with Official Notion API (curl)**
 ```bash
 curl -X POST https://api.notion.com/v1/databases/1fcbbd9b-1a29-8037-93a7-f8088c952035/query \
   -H "Authorization: Bearer ${NOTION_API_KEY}" \
@@ -73,51 +70,59 @@ curl -X POST https://api.notion.com/v1/databases/1fcbbd9b-1a29-8037-93a7-f8088c9
   }'
 ```
 
-This returns an array of page objects with IDs like:
-```json
-{"results": [
-  {"id": "280bbd9b-1a29-8166-b3a6-d82d29898b58", "properties": {...}},
-  {"id": "280bbd9b-1a29-8175-b6b2-f141a5aea2b4", "properties": {...}}
-]}
-```
-
-**Step 2: Fetch Full Details with MCP**
-Use the page IDs from Step 1 to get complete content:
+**Then fetch full details with MCP:**
 ```
 mcp__notion__notion-fetch
-- id: "280bbd9b-1a29-8166-b3a6-d82d29898b58"
+- id: "[page_id_from_curl_results]"
 ```
 
-Returns full page with Notion-flavored Markdown content, properties, and acceptance criteria.
+### Secondary Method: MCP Search for Semantic Queries
 
-### Why Hybrid?
-- **curl**: Official API supports property filtering (Status, Priority, etc.)
-- **MCP fetch**: Returns rich formatted content (checkboxes, sections, full details)
-- **MCP**: Limited to basic tools (search, fetch, create, update) - no query/filter
+Use MCP search when you need **content-based or semantic search**, not exact property filtering:
+
+```
+mcp__notion__notion-search
+- query: "plugin system refactoring tasks" or "document storage issues"
+- data_source_url: "collection://1fcbbd9b-1a29-80d5-bc07-000be692a8ea"
+```
+
+**Good for MCP search:**
+- Finding tasks by topic/content (e.g., "plugin storage tasks")
+- Searching within task descriptions
+- General workspace searches
+
+**NOT good for MCP search:**
+- Filtering by exact Status values (use curl)
+- Filtering by Priority (use curl)
+- Filtering by Category (use curl)
+- Combining multiple property filters (use curl)
 
 ### Complete Example: "Show me tasks in progress"
 
+**Step 1: Query by Status property with curl**
 ```bash
-# Step 1: Query by Status via API
 curl -X POST https://api.notion.com/v1/databases/1fcbbd9b-1a29-8037-93a7-f8088c952035/query \
   -H "Authorization: Bearer ${NOTION_API_KEY}" \
   -H "Notion-Version: 2022-06-28" \
   -H "Content-Type: application/json" \
   -d '{"filter": {"property": "Status", "status": {"equals": "In progress"}}}'
-
-# Returns 3 task IDs:
-# - 280bbd9b-1a29-8166-b3a6-d82d29898b58 (Refactor electron/main.cjs)
-# - 280bbd9b-1a29-8175-b6b2-f141a5aea2b4 (Centralize Plugin Storage Key)
-# - 280bbd9b-1a29-81bc-b1fb-e46e3d4b06c9 (Standardize Platform Detection)
 ```
 
-Then fetch details for each:
+Returns task IDs with exact Status = "In progress" match.
+
+**Step 2: Fetch full details with MCP**
 ```
 mcp__notion__notion-fetch
 - id: "280bbd9b-1a29-81bc-b1fb-e46e3d4b06c9"
 ```
 
-Returns full task with acceptance criteria, problem description, solution steps.
+Returns complete task with acceptance criteria, problem description, solution steps.
+
+### Why This Approach?
+- ✅ **curl for precision** - Guarantees exact Status/Priority/Category matches
+- ✅ **MCP for content** - Rich formatted results with checkboxes and structure
+- ✅ **Best of both** - Accurate filtering + full formatted content
+- ✅ **Reliable** - No ambiguity in property filtering
 
 ## Updating Tasks
 

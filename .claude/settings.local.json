@@ -123,7 +123,14 @@
       "Bash(git rm:*)",
       "Bash(npm run typecheck:*)",
       "Bash(chmod:*)",
-      "mcp__zen__thinkdeep"
+      "mcp__zen__thinkdeep",
+      "Bash(timeout 10 npx tsc --noEmit)",
+      "Read(//c/Users/danhc/Documents/Projects/**)",
+      "WebFetch(domain:react-arborist.netlify.app)",
+      "WebFetch(domain:stackblitz.com)",
+      "Bash(PGPASSWORD=postgres psql:*)",
+      "mcp__puppeteer__puppeteer_hover",
+      "Bash(echo:*)"
     ],
     "deny": []
   },
@@ -131,7 +138,8 @@
   "enabledMcpjsonServers": [
     "puppeteer",
     "notion",
-    "zen"
+    "zen",
+    "html2design"
   ],
   "outputStyle": "Explanatory"
 }

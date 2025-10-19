@@ -36,26 +36,53 @@
    - ~~IPC storage communication~~ ✅ Complete
 
 ### 🎯 Current Phase: Feature Plugins
-1. **File Storage Implementation - Phase 1** 🔴 **IMPLEMENTATION PLAN READY** (October 7, 2025)
-   - **Status**: Complete implementation plan created with all 12 files identified
-   - **Problem**: Current storage only handles JSON - binary files get corrupted
-   - **Solution**: Files stored AS PROPERTIES of entities, not as separate storage
-   - **Key Innovation**: Database foreign keys prevent orphaned files (CASCADE DELETE)
+
+### Main View Folder/File Operations - IN PROGRESS
+**Status**: Research phase
+**Agent**: context-researcher
+**Goal**: Feature parity between folder tree sidebar and main content area
+**User Request**: "implement, study how the tree does it, and remember i want to be able to drag between the tree and main view"
+
+**Current State**:
+- ✅ Folder tree sidebar: Full functionality (three-dot menus, drag-drop, all operations)
+- ✅ File storage backend: 100% complete (SQLite + PostgreSQL with CASCADE DELETE)
+- ❌ Main view: Folders show as cards but only support click-to-navigate (no operations)
+
+**Acceptance Criteria**:
+- Three-dot context menu on folder cards in main view (rename, delete, change color)
+- Drag folders within main view to reorder
+- Drag folders from main view → sidebar tree
+- Drag folders from sidebar tree → main view folders
+- Drag folders from sidebar tree → main view area (make sibling)
+- File cards have context menus (rename, delete)
+- Symmetric UX: Everything you can do in tree, you can do in main view
+
+**Implementation Scope**:
+1. Add three-dot menu to folder cards (FileBrowser.tsx)
+2. Wire up onRename, onDelete, onChangeColor callbacks (same dialogs as tree)
+3. Integrate drag-drop for folders in main grid view
+4. Add drag-drop between tree ↔ main view (inter-component)
+5. Add file context menus (rename, delete)
+6. Ensure visual feedback matches tree (hover states, drop zones)
+
+**See**: FileBrowser.tsx lines 1517-1559 for current folder card implementation
+
+1. **File Storage Implementation - Phase 1** ✅ **COMPLETE** (January 2025)
+   - **Status**: Files as Entity Properties pattern fully implemented
    - **Architecture**:
      - Unified API: `set(key, data, files)` and `get(key)` returns `{ data, files }`
      - Files attach to entities in single atomic operation
      - Delete entity → files cascade automatically (database enforced)
      - User scoping via composite keys `(storage_key, field_name, user_id)`
-   - **Platform Strategy**:
-     - Electron: Files in userData/files/ with SHA-256 deduplication + SQLite metadata
-     - Cloud: PostgreSQL BYTEA (Phase 1), migrate to S3 (Phase 3)
-     - Local: Unlimited (disk space limit), Cloud: Payment plan quotas
-   - **Implementation Scope** (12 files total):
-     - Core Storage (7 files): StorageAdapter interface, SQLite/PostgreSQL adapters, IPC handlers, server endpoints
-     - Plugins (5 files): DocumentsService, SettingsService, ThemeService, DemoDataService, DemoPage
-     - All `storage.get()` calls updated to use `result?.data` pattern
-     - No backward compatibility - clean slate approach
-   - **See**: `/memory-bank/docs/FILE_STORAGE_SPEC.md` for complete specification
+   - **Platform Implementation**:
+     - Electron: SHA-256 hash-based deduplication in userData/files/
+     - Cloud: PostgreSQL BYTEA storage with base64 transport
+     - Both: CASCADE DELETE via database foreign keys
+   - **Key Benefits**:
+     - ✅ No orphaned files (database FK enforcement)
+     - ✅ Atomic operations
+     - ✅ Simpler plugin code
+     - ✅ User scoping automatic
 2. **Documents Plugin Phase 1** ✅ **COMPLETE** (October 6, 2025)
    - Core service architecture with dual-storage abstraction (772 lines)
    - Observer pattern with React hooks for state management
@@ -87,6 +114,161 @@
 - **Deployment Strategy**: Local-first for desktop, cloud-first for web, future mobile support
 
 ## Recent Changes
+
+### Drag-Drop Research - 2025-10-19
+**Status**: ✅ RESEARCH COMPLETE
+**Agent**: context-researcher
+**Goal**: Document drag-drop patterns for implementing grid-based folder drag-drop in main view
+
+**Key Findings**:
+
+1. **React-Arborist vs HTML5 Drag-Drop**
+   - React-arborist: ONLY for tree views (FolderTree.tsx sidebar)
+   - HTML5 Drag-Drop API: REQUIRED for grid layouts (FileBrowser.tsx main view)
+   - Cannot use react-arborist for folder cards in grid
+
+2. **Critical Data Structure** (from FolderTree.tsx:112-130)
+   ```typescript
+   // React-arborist onMove callback provides:
+   {
+     dragIds: string[],        // ["folder-uuid-123"]
+     parentId: string | null,  // Target parent or "__ALL_FILES__" or null
+     index: number            // Position in parent's children array
+   }
+   ```
+
+3. **handleFolderMove Method** (FileBrowser.tsx:368-430)
+   - **Signature**: `async (draggedId: string, operation: { parentId: string | null; index: number }) => Promise<void>`
+   - **ID Translation**: `__ALL_FILES__` → `null` at component boundary (line 375)
+   - **Conflict Detection**: Checks for duplicate names BEFORE optimistic update (lines 382-410)
+   - **Optimistic Updates**: `updateTreeAfterMove()` immutably modifies tree, reverts on error
+   - **Backend API**: `documentsService.moveToPosition(draggedId, actualParentId, index)`
+
+4. **Visual Feedback Classes**
+   - Dragged item: `opacity-50`
+   - Drop target (into folder): `bg-primary/10 ring-2 ring-primary/40`
+   - Processing (during save): `opacity-70`
+   - Invalid drop: No visual feedback or `cursor-not-allowed`
+
+5. **HTML5 Drag-Drop Pattern for Grid**
+   ```typescript
+   // Make folder card draggable
+   <div
+     draggable={true}
+     onDragStart={(e) => {
+       e.dataTransfer.effectAllowed = 'move';
+       e.dataTransfer.setData('folder-id', folder.id);
+       setDraggedFolderId(folder.id);
+     }}
+     onDragEnd={() => setDraggedFolderId(null)}
+   />
+
+   // Make folder card a drop target
+   <div
+     onDragOver={(e) => {
+       e.preventDefault(); // REQUIRED to allow drop
+       e.dataTransfer.dropEffect = 'move';
+     }}
+     onDrop={async (e) => {
+       e.preventDefault();
+       const draggedId = e.dataTransfer.getData('folder-id');
+       await handleFolderMove(draggedId, {
+         parentId: folder.id,  // Drop INTO this folder
+         index: 0             // Append to end
+       });
+     }}
+   />
+   ```
+
+6. **Conflict Resolution Flow** (FileBrowser.tsx:457-583)
+   - Three options: Replace, Merge, Rename
+   - Modal dialog already implemented
+   - Reusable for grid drag-drop
+
+7. **Common Pitfalls to Avoid**
+   - Missing `e.preventDefault()` in onDragOver → drops won't fire
+   - Not clearing drag state in onDragEnd → visual glitches
+   - Allowing folder to drop into itself → circular reference
+   - Incorrect index calculation → folders appear in wrong position
+
+8. **Implementation Recommendations**
+   - Phase 1: Drop INTO folders only (simpler, reuses existing handleFolderMove)
+   - Phase 2: Add reordering with position calculation
+   - Reuse conflict resolution UI and logic
+   - Reuse visual feedback classes
+
+**Critical Variables**:
+- `draggedFolderId: string | null` - Currently dragged folder
+- `dropTargetId: string | null` - Current drop target
+- `isDragging: boolean` - Global drag state
+- `isValidDropTarget: boolean` - Per-folder validation
+
+**Files Referenced**:
+- `/src/plugins/core-documents/components/FolderTree.tsx` - React-arborist patterns (lines 112-130, 256-259)
+- `/src/plugins/core-documents/components/FileBrowser.tsx` - handleFolderMove (lines 368-430), conflict resolution (lines 457-583)
+- `/memory-bank/docs/DRAG_DROP_PATTERNS.md` - Complete patterns documentation (436 lines)
+
+**Next Steps**:
+1. Implement HTML5 drag-drop on folder cards in FileBrowser.tsx main grid
+2. Wire up to existing handleFolderMove method
+3. Add three-dot context menus to folder cards
+4. Test cross-component drag (tree ↔ grid)
+
+**See**: DRAG_DROP_PATTERNS.md for complete implementation guide including CSS padding rules for react-arborist and data integrity patterns.
+
+### Documents Plugin Sidebar Tree - Complete - 2025-10-17
+**Status**: ✅ COMPLETE - All core features implemented
+
+**Final Implementation**:
+1. **React-Arborist Integration** ✅
+   - Folder/file tree with expand/collapse
+   - Drag-and-drop with backend persistence
+   - Multi-file support in unified tree
+   - Clean virtual "All Files" root node pattern
+
+2. **ID Translation Layer** ✅ (FileBrowser.tsx:150)
+   - Virtual `"__ALL_FILES__"` node never reaches database
+   - Converted to `null` before API calls
+   - Prevents data corruption at component boundary
+
+3. **Data Integrity** ✅
+   - V4 migration cleans up historical `"__ALL_FILES__"` corruption
+   - Normalization functions removed (no fallbacks for bad data)
+   - Database-first approach with migrations for fixes
+
+4. **UI Polish** ✅
+   - Fixed cursor positioning (removed CSS padding conflicts)
+   - Fixed folder alignment (spacer width matches chevron: 18px)
+   - Clean indentation with vertical hierarchy lines
+   - "All Files" node flush left, children properly indented
+   - Collapsible sidebar with smooth transitions
+
+5. **Folder Creation UX** ✅
+   - Visual HSL color picker (HslColorPicker from react-colorful)
+   - Popover-based UI matching theme plugin pattern
+   - Default color uses theme primary variable (adapts to theme)
+   - Immediate UI update after creation (tree refetch trigger)
+   - Stores colors as hex for compatibility
+
+**Architecture Patterns Established**:
+- Virtual tree nodes (UI-only abstractions, never persisted)
+- ID translation at component boundaries
+- Optimistic updates with fallback on error
+- Migration-based data integrity (not normalization)
+- Theme-aware default values
+
+**Known Limitations** (Future Enhancements):
+- Magnetic drop zones (top/bottom) not yet implemented
+- Multi-select drag not yet implemented
+- Undo/Redo for drag operations not yet implemented
+
+**Key Files**:
+- `src/plugins/core-documents/components/FileBrowser.tsx` - ID translation, folder creation with color picker
+- `src/plugins/core-documents/components/FolderTree.tsx` - React-arborist integration, alignment fixes
+- `src/plugins/core-documents/services/DocumentsService.ts` - V4 migration, moveToPosition API
+- `src/plugins/core-documents/hooks/useDocuments.ts` - Reactive hooks with triggerRefetch parameter
+
+**See**: `docs/DRAG_DROP_PATTERNS.md` for complete implementation patterns and debugging guide.
 
 ### Navigation Tree Drag & Drop Library Research - 2025-10-09
 **Context Research Complete**: Comprehensive analysis of modern navigation tree libraries and implementation patterns for folder/file drag & drop.
@@ -1394,3 +1576,423 @@ Both tasks moved from "In progress" to "Done" with detailed completion notes.
 45. **API Endpoint Pattern**: Use `/api/users/me/*` pattern for user-specific data queries (follows REST conventions)
 46. **publicSafe Metadata**: Mark plugins that don't need user storage with `publicSafe: true` - enables anonymous user experience
 47. **Async Event Handlers**: React event handlers can be async - service methods that access storage return `Promise<T>` and must be awaited
+# Context Research Report
+
+## Task Understanding
+Research FolderTree.tsx drag-drop implementation to replicate in FileBrowser.tsx main view folder cards, enabling:
+1. Drag-drop between folder cards in main view
+2. Drag-drop between main view and tree
+3. Three-dot menu operations (rename, delete, color change) on main view folder cards
+
+## Critical Variable Names
+
+### React-Arborist Core Props
+- `dragHandle`: Ref callback to make element draggable (line 172, 247)
+- `onMove`: Callback receiving `{dragIds: string[], parentId: string|null, index: number}` (line 166)
+- `renderCursor`: Custom cursor component for drop indicator (line 167)
+- `node.state.isDragging`: Boolean for visual feedback (line 258)
+- `node.willReceiveDrop`: Boolean for drop zone highlight (line 259)
+
+### Folder Operation Callbacks (FileBrowser props)
+- `onCreate(parentId: string)`: Open create dialog with parent pre-selected (line 1448)
+- `onDelete(folderId: string)`: Show delete options dialog (line 1454)
+- `onRename(folderId: string)`: Show rename dialog (line 1455)
+- `onChangeColor(folderId: string)`: Show color picker dialog (line 1456)
+
+### Backend Methods (DocumentsService)
+- `moveToPosition(folderId, parentId, index)`: Simple position-based move API (line 931)
+- `createFolder(options)`: Validate and create folder (line 419)
+- `updateFolder(folderId, {name?, color?})`: Update metadata (line 500)
+- `deleteFolder(folderId, deleteContents)`: Delete with contents (line 577)
+- `deleteFolderAndMoveContents(folderId)`: Safe delete moving children to parent (line 643)
+
+### State Management (FileBrowser)
+- `treeRefetchKey`: Number incremented to trigger useUnifiedTree refetch (line 156)
+- `localTree`: Optimistic local state for drag operations (line 158)
+- `fetchedTree`: Server truth synced via useUnifiedTree hook (line 157)
+
+## Key Functions & Signatures
+
+### Drag-Drop Handler
+```typescript
+// FolderTree.tsx:112-130
+const handleMove = async ({
+  dragIds,      // Array of dragged node IDs (only first used)
+  parentId,     // New parent folder ID (null = root)
+  index         // Position in parent's children (0-based)
+}: {
+  dragIds: string[];
+  parentId: string | null;
+  index: number;
+}) => {
+  // Delegates to FileBrowser's onMove prop
+  await onMove(dragIds[0], { parentId, index });
+};
+```
+
+### Conflict Resolution (FileBrowser.tsx:365-427)
+```typescript
+const handleFolderMove = async (
+  draggedId: string,
+  operation: { parentId: string | null; index: number }
+) => {
+  // 1. Translate virtual __ALL_FILES__ to null
+  const actualParentId = operation.parentId === '__ALL_FILES__' ? null : operation.parentId;
+
+  // 2. Check for duplicate names (case-insensitive)
+  const conflict = targetFolders.find(f =>
+    f.id !== draggedId &&
+    f.name.toLowerCase() === draggedFolder.name.toLowerCase()
+  );
+
+  if (conflict) {
+    // Show conflict dialog: Replace, Merge, or Rename
+    return;
+  }
+
+  // 3. Optimistic update
+  setLocalTree(updateTreeAfterMove(currentTree, draggedId, actualParentId, index));
+
+  // 4. Persist to backend
+  await documentsService.moveToPosition(draggedId, actualParentId, index);
+
+  // 5. Trigger refetch
+  setTreeRefetchKey(prev => prev + 1);
+};
+```
+
+### Three-Dot Menu Handlers (FileBrowser.tsx:663-852)
+```typescript
+// All follow same pattern: fetch data, show dialog, wait for user input
+
+const handleDirectRename = async (folderId: string) => {
+  const folder = await documentsService.getFolder(folderId);
+  setRenameFolderId(folderId);
+  setDirectRenameValue(folder.name);
+  setDirectRenameDialogOpen(true);
+};
+
+const handleFolderDelete = async (folderId: string) => {
+  const hasContents = await checkFolderContents(folderId);
+  setFolderHasContents(hasContents);
+  setDeleteDialogOpen(true);
+};
+
+const handleChangeColor = async (folderId: string) => {
+  const folder = await documentsService.getFolder(folderId);
+  setChangeColorValue(folder.color || defaultFolderColor);
+  setChangeColorDialogOpen(true);
+};
+```
+
+## Naming Conventions to Follow
+
+### Components
+- PascalCase: `FolderTree`, `FileBrowser`, `CustomCursor`
+
+### Functions
+- camelCase: `handleMove`, `handleFolderDelete`, `updateTreeAfterMove`
+- Event handlers: `on` prefix (props), `handle` prefix (internal)
+
+### State Variables
+- camelCase: `treeRefetchKey`, `deleteDialogOpen`, `changeColorValue`
+- Dialog state pattern: `[feature]DialogOpen`, `[feature]Value`, `[feature]Error`
+
+### Constants
+- UPPER_SNAKE_CASE: `FOLDER_CONFIG.ORDER_GAP`, `STORAGE_KEYS.FILES`
+
+## Relevant Code Snippets
+
+### Three-Dot Menu Component (FolderTree.tsx:362-395)
+```typescript
+{isFolder && !isAllFilesNode && (
+  <div onClick={(e) => e.stopPropagation()}>
+    <DropdownMenu
+      trigger={
+        <button className="p-1 rounded hover:bg-accent">
+          <MoreVertical className="w-4 h-4" />
+        </button>
+      }
+    >
+      {onRename && (
+        <DropdownMenuItem onClick={() => onRename(data.id)}>
+          <Edit2 className="mr-2 h-4 w-4" />
+          Rename
+        </DropdownMenuItem>
+      )}
+      {onChangeColor && (
+        <DropdownMenuItem onClick={() => onChangeColor(data.id)}>
+          <Palette className="mr-2 h-4 w-4" />
+          Change Color
+        </DropdownMenuItem>
+      )}
+      {onDelete && (
+        <DropdownMenuItem onClick={() => onDelete(data.id)}>
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </DropdownMenuItem>
+      )}
+    </DropdownMenu>
+  </div>
+)}
+```
+
+### Visual Feedback During Drag (FolderTree.tsx:249-259)
+```typescript
+className={cn(
+  'group relative flex gap-2 rounded-lg cursor-pointer',
+  isSelected && 'bg-accent/30',
+  !isSelected && 'hover:bg-muted/50',
+  isProcessing && 'opacity-70',  // Subtle processing feedback
+  node.state.isDragging && 'opacity-50',  // Being dragged
+  node.willReceiveDrop && isFolder && 'bg-primary/10 ring-2 ring-primary/40'  // Drop target
+)}
+```
+
+### Custom Cursor Component (FolderTree.tsx:23-64)
+```typescript
+const CustomCursor: React.FC<CursorProps> = ({ top, left, indent }) => {
+  return (
+    <>
+      {/* Blue insertion line */}
+      <div style={{
+        position: 'absolute',
+        top: top - 1,  // Center on cursor position
+        left: left + 8,
+        right: 8,
+        height: 2,
+        backgroundColor: 'hsl(var(--primary))',
+        transition: 'top 0.15s ease-out'
+      }} />
+
+      {/* Circle indicator */}
+      <div style={{
+        position: 'absolute',
+        top: top - 3,
+        left: left + 6,
+        width: 6,
+        height: 6,
+        backgroundColor: 'hsl(var(--primary))',
+        borderRadius: '50%'
+      }} />
+    </>
+  );
+};
+```
+
+## Architectural Patterns in Use
+
+### 1. Optimistic UI Updates
+- Local tree state (`localTree`) updated immediately on drag
+- Backend persisted asynchronously
+- On error: revert to `fetchedTree` (server truth)
+
+### 2. Virtual Root Node Pattern
+- `__ALL_FILES__` exists only in UI layer (FileBrowser.tsx:858)
+- ID translation at component boundary (line 372)
+- Backend never sees virtual IDs
+
+### 3. Refetch Trigger Pattern
+- Increment `treeRefetchKey` after mutations
+- `useUnifiedTree(treeRefetchKey)` hook watches this key
+- Triggers fresh fetch from storage without event listeners
+
+### 4. Dialog State Management
+- Each operation has 3-4 state variables: `open`, `value`, `error`, `id`
+- Example: `renameDialogOpen`, `renameValue`, `renameError`, `renameFolderId`
+- Reset all state on dialog close
+
+## Dependencies & Imports
+
+### React-Arborist
+```typescript
+import { Tree, NodeApi, TreeApi, CursorProps } from 'react-arborist';
+// Tree: Main component with drag-drop built-in
+// NodeApi: Type for node state/operations
+// CursorProps: Type for custom cursor component
+```
+
+### Core-UI Plugin
+```typescript
+const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
+const DropdownMenuItem = manager.getComponent('core-ui/DropdownMenuItem');
+const Card = manager.getComponent('core-ui/Card');
+const Dialog = manager.getComponent('core-ui/Dialog');
+```
+
+### DocumentsService
+```typescript
+const documentsService = manager.getService('core-documents/documentsService');
+```
+
+## Project-Specific Requirements
+
+### From DRAG_DROP_PATTERNS.md
+
+1. **No CSS padding on react-arborist Tree container** (critical)
+   - Use `paddingTop`/`paddingBottom` props only
+   - CSS padding breaks cursor position calculation
+
+2. **Schema version 4 migration** (DocumentsService.ts:1611)
+   - Fixes corrupt `parentId = "__ALL_FILES__"` from pre-translation era
+   - One-time cleanup on service init
+
+3. **HSL color storage pattern** (FileBrowser.tsx:24-72)
+   - UI: HSL format for color picker manipulation
+   - Storage: Hex format for compatibility
+   - Helpers: `hslToHex`, `hslStringToObject`, `hslObjectToString`
+
+### From activeContext.md
+
+**Current acceptance criteria** (Main View Folder/File Operations):
+- [ ] Drag folders within main view (reorder)
+- [ ] Drag folders between main view and tree
+- [ ] Drag files within main view (reorder)
+- [ ] Drag files between main view and tree
+- [ ] Three-dot menu on folder cards (rename, delete, color)
+- [ ] Three-dot menu on file cards (rename, delete, move)
+
+## Common Pitfalls to Avoid
+
+1. **Virtual ID Leakage**
+   - ALWAYS translate `__ALL_FILES__` to `null` before backend calls
+   - Check FileBrowser.tsx:372 for pattern
+
+2. **CSS Padding on Virtualized Lists**
+   - DO NOT add `p-*` classes to Tree component
+   - Use props only: `paddingTop={8}` `paddingBottom={8}`
+
+3. **Forgetting Refetch Trigger**
+   - After successful mutation: `setTreeRefetchKey(prev => prev + 1)`
+   - Without this, UI won't show new/updated folders
+
+4. **Duplicate Name Validation**
+   - MUST be case-insensitive: `name.toLowerCase() === newName.toLowerCase()`
+   - Check before optimistic update to avoid rollback
+
+5. **Dialog State Cleanup**
+   - ALWAYS reset ALL state variables on dialog close
+   - Example: `setRenameValue('')`, `setRenameError('')`, `setRenameFolderId(null)`
+
+## Recommendations
+
+### For Main View Folder Cards
+
+1. **Reuse existing folder card UI** (FileBrowser.tsx:1517-1546)
+   - Already has proper structure, color handling, click handlers
+   - Add HTML5 drag-drop attributes (`draggable`, `onDragStart`, `onDrop`)
+
+2. **Three-dot menu integration**
+   - Copy pattern from FolderTree.tsx:362-395
+   - Wire to existing handlers: `handleDirectRename`, `handleFolderDelete`, `handleChangeColor`
+   - Already implemented in FileBrowser, just needs UI connection
+
+3. **Drag-drop implementation options**:
+
+   **Option A: HTML5 Drag-Drop API** (simpler, standalone)
+   - Add `draggable="true"` to folder cards
+   - Handle `onDragStart`, `onDragOver`, `onDrop` events
+   - Visual feedback via `isDragging` state + CSS
+   - No library dependency
+   - **Caveat**: Inter-component drag (tree ↔ main view) requires shared drag context
+
+   **Option B: React-Arborist for Main View** (complex, consistent)
+   - Wrap main view folder grid in react-arborist Tree
+   - Unified drag-drop between tree and main view
+   - **Caveat**: Grid layout in virtualized list is challenging
+   - **Caveat**: Requires custom node renderer for card layout
+
+4. **Inter-component drag-drop** (tree ↔ main view)
+
+   **Challenge**: React-arborist drop zones don't accept external drag sources by default
+
+   **Solution A: Shared HTML5 context**
+   - Use `dataTransfer.setData('folderId', id)` in both components
+   - Both components check `dataTransfer.getData('folderId')` on drop
+   - Works but loses react-arborist visual feedback in tree
+
+   **Solution B: Single unified react-arborist instance**
+   - Main view becomes alternate renderer for same tree data
+   - Drag-drop "just works" between views
+   - More complex initial setup, simpler long-term
+
+### Recommended Implementation Approach
+
+**Phase 1: Main View Folder Operations** (current task)
+1. Add three-dot menu to folder cards (copy FolderTree pattern)
+2. Wire to existing handlers (already implemented)
+3. Test rename, delete, color change operations
+
+**Phase 2: Main View Drag-Drop** (next task)
+1. Start with HTML5 drag-drop within main view only
+2. Visual feedback similar to FolderTree (`opacity-50` when dragging)
+3. Use `handleFolderMove` for backend persistence
+
+**Phase 3: Inter-Component Drag-Drop** (future enhancement)
+1. Evaluate react-arborist dual-renderer vs HTML5 shared context
+2. Consider UX impact (do users actually need this?)
+3. Implement with proper conflict resolution
+
+### Variable Names & Signatures to Use
+
+**Folder card drag state**:
+```typescript
+const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
+const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+```
+
+**HTML5 drag handlers**:
+```typescript
+const handleDragStart = (e: React.DragEvent, folderId: string) => {
+  e.dataTransfer.setData('folderId', folderId);
+  setDraggedFolderId(folderId);
+};
+
+const handleDragOver = (e: React.DragEvent, folderId: string) => {
+  e.preventDefault();  // Required to allow drop
+  setDropTargetId(folderId);
+};
+
+const handleDrop = async (e: React.DragEvent, targetFolderId: string) => {
+  e.preventDefault();
+  const draggedId = e.dataTransfer.getData('folderId');
+
+  // Calculate index based on visual position
+  const index = calculateDropIndex(draggedId, targetFolderId);
+
+  await handleFolderMove(draggedId, {
+    parentId: selectedFolderId,  // Same parent (reorder)
+    index
+  });
+
+  setDraggedFolderId(null);
+  setDropTargetId(null);
+};
+```
+
+**Three-dot menu integration** (add to folder card):
+```typescript
+{/* After folder name/icon */}
+<div onClick={(e) => e.stopPropagation()}>
+  <DropdownMenu
+    trigger={
+      <button className="opacity-0 group-hover:opacity-100 p-1">
+        <MoreVertical className="w-4 h-4 text-muted-foreground" />
+      </button>
+    }
+  >
+    <DropdownMenuItem onClick={() => handleDirectRename(folder.id)}>
+      <Edit2 className="mr-2 h-4 w-4" />
+      Rename
+    </DropdownMenuItem>
+    <DropdownMenuItem onClick={() => handleChangeColor(folder.id)}>
+      <Palette className="mr-2 h-4 w-4" />
+      Change Color
+    </DropdownMenuItem>
+    <DropdownMenuItem onClick={() => handleFolderDelete(folder.id)}>
+      <Trash2 className="mr-2 h-4 w-4" />
+      Delete
+    </DropdownMenuItem>
+  </DropdownMenu>
+</div>
+```

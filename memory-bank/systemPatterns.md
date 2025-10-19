@@ -996,6 +996,22 @@ try {
 }
 ```
 
+### Implemented File Storage Patterns (January 2025)
+
+**Files as Entity Properties - PRODUCTION READY**:
+- ✅ `electron/database.cjs` - `files` table with CASCADE DELETE FK
+- ✅ `server/index.js` - `files` table with BYTEA storage
+- ✅ `electron/ipc/storageHandlers.cjs` - SHA-256 deduplication implemented
+- ✅ `src/shared/storage/StorageAdapter.ts` - Interface returns `{data, files}`
+- ✅ `src/shared/storage/SQLiteAdapter.ts` - Full implementation
+- ✅ `src/shared/storage/PostgreSQLAdapter.ts` - Base64 transport implemented
+
+**Key Achievements**:
+- **CASCADE DELETE**: Database foreign keys prevent orphaned files
+- **SHA-256 Deduplication**: Electron stores files once, shares across entities
+- **User Scoping**: Composite keys `(storage_key, field_name, user_id)` enforce isolation
+- **Platform Flexibility**: Same API works for SQLite (disk) and PostgreSQL (BYTEA)
+
 ### Backend Flexibility Pattern (BYTEA → S3 Migration)
 **Problem**: BYTEA storage in PostgreSQL has scaling limits and higher costs at scale.
 
@@ -1358,3 +1374,10 @@ const handleThemeChange = async () => {
 - ✅ Clear error messages when forgetting await
 - ✅ Consistent pattern across all storage-backed services
 - ✅ No race conditions or timing issues
+
+### React-Arborist Drag-and-Drop Pattern
+**Critical Rule**: When using react-arborist (or any virtualized list with absolute positioning), use **only prop-based padding** (`paddingTop`/`paddingBottom`), never CSS padding classes (`p-*`, `py-*`).
+
+**Why**: CSS padding breaks cursor position calculations because the cursor is absolutely positioned and doesn't inherit container padding. The library assumes props are the only spacing source.
+
+**See**: `docs/DRAG_DROP_PATTERNS.md` for complete explanation with mathematical breakdown, real-world fix, and debug checklist.

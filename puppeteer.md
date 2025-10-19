@@ -8,6 +8,78 @@ Use Puppeteer MCP to test and verify frontend implementations during development
 - **Default viewport**: 1200x800 for desktop testing
 - **Mobile viewport**: 375x667 for mobile testing
 
+## Authentication (ChayCards Specific)
+
+**CRITICAL**: ChayCards requires authentication before accessing any features. Always authenticate first in your test scripts.
+
+### Test Credentials
+- **Username**: `test`
+- **Password**: `test1234`
+
+### Authentication Flow
+```
+# 1. Navigate to app (will redirect to login)
+mcp__puppeteer__puppeteer_navigate
+- url: "http://localhost:8080"
+- launchOptions: {
+    "headless": true,
+    "args": [
+      "--enable-gpu",
+      "--use-gl=desktop",
+      "--enable-webgl",
+      "--ignore-gpu-blocklist",
+      "--enable-accelerated-2d-canvas"
+    ]
+  }
+
+# 2. Wait for login page to load
+mcp__puppeteer__puppeteer_evaluate
+- script: "new Promise(r => setTimeout(r, 1000))"
+
+# 3. Fill login form
+mcp__puppeteer__puppeteer_fill
+- selector: "input[name='username'], input[type='text'], input[placeholder*='username' i], input[placeholder*='email' i]"
+- value: "test"
+
+mcp__puppeteer__puppeteer_fill
+- selector: "input[name='password'], input[type='password']"
+- value: "test1234"
+
+# 4. Submit login
+mcp__puppeteer__puppeteer_click
+- selector: "button[type='submit'], button:has-text('Login'), button:has-text('Sign In')"
+
+# 5. Wait for redirect to app
+mcp__puppeteer__puppeteer_evaluate
+- script: "new Promise(r => setTimeout(r, 2000))"
+
+# 6. Verify logged in (check for app content)
+mcp__puppeteer__puppeteer_evaluate
+- script: |
+    ({
+      isLoggedIn: document.querySelector('[data-authenticated], .app-shell, nav') !== null,
+      currentUrl: window.location.href
+    })
+```
+
+### JWT Token Storage
+After successful login:
+- JWT token is stored in localStorage as `authToken`
+- Token persists across page reloads in the same session
+- Token is automatically included in API requests
+
+### Testing Without Re-Authentication
+For testing specific features without re-authenticating each time, you can inject the token directly:
+
+```
+mcp__puppeteer__puppeteer_evaluate
+- script: |
+    localStorage.setItem('authToken', 'YOUR_VALID_JWT_TOKEN_HERE');
+    window.location.reload();
+```
+
+**Note**: This approach requires a valid JWT token from a previous authentication. For most tests, use the standard login flow above.
+
 ## Core Commands
 
 ### Navigation

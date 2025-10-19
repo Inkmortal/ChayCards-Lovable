@@ -223,8 +223,11 @@ Main Claude → implementation (auto-calls) → code-cleanup-refactor → code-r
 ##### Integration Tools
 - **Notion MCP** - Track tasks in ChayCards_Dev database across sessions
   - **CRITICAL**: When human mentions status terms (e.g., "in progress", "backlog", "done"), these refer to the **literal Notion Status property values**
-  - Always filter queries by Status property when these terms are mentioned
-  - See notion.md for complete Status filtering guide
+  - **For exact property filtering**: Use curl first, then `mcp__notion__notion-fetch` for full details
+  - **For semantic search**: Use `mcp__notion__notion-search` for content-based queries
+  - curl is PREFERRED for Status/Priority/Category filtering (guarantees exact matches)
+  - MCP is PREFERRED for fetching full task details with formatted content
+  - See notion.md for complete hybrid workflow guide
 - **Puppeteer MCP** - Automated browser testing and UI verification
 
 #### Agent Best Practices

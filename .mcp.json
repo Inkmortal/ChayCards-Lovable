@@ -10,8 +10,10 @@
       "env": {}
     },
     "notion": {
-      "type": "sse",
-      "url": "https://mcp.notion.com/sse"
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.notion.com/mcp"],
+      "env": {}
     },
     "zen": {
       "type": "stdio",
@@ -25,6 +27,17 @@
         "GEMINI_API_KEY": "AIzaSyAqzE9HF9uRD06LReVB30WI6n910SO5moc",
         "OPENAI_API_KEY": "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"
       }
+    },
+    "html2design": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-proxy",
+        "--transport",
+        "streamablehttp",
+        "https://h2d-mcp.divriots.com/25354493-0f68-4092-b4cf-c037d70ef0d4/mcp"
+      ],
+      "env": {}
     }
   }
 }

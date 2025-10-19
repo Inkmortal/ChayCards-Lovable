@@ -24,7 +24,7 @@ const useDocumentsService = (): DocumentsService | undefined => {
 /**
  * Hook to get all files with real-time updates
  */
-export const useFiles = (): StoredFile[] => {
+export const useFiles = (triggerRefetch?: number): StoredFile[] => {
   const service = useDocumentsService();
   const [files, setFiles] = useState<StoredFile[]>([]);
 
@@ -39,7 +39,7 @@ export const useFiles = (): StoredFile[] => {
     fetchFiles();
 
     // NO EVENT LISTENERS - UI updates optimistically, backend persistence is silent
-  }, [service]);
+  }, [service, triggerRefetch]);
 
   return files;
 };
@@ -47,7 +47,7 @@ export const useFiles = (): StoredFile[] => {
 /**
  * Hook to get all folders with real-time updates
  */
-export const useFolders = (): Folder[] => {
+export const useFolders = (triggerRefetch?: number): Folder[] => {
   const service = useDocumentsService();
   const [folders, setFolders] = useState<Folder[]>([]);
 
@@ -62,7 +62,7 @@ export const useFolders = (): Folder[] => {
     fetchFolders();
 
     // NO EVENT LISTENERS - UI updates optimistically, backend persistence is silent
-  }, [service]);
+  }, [service, triggerRefetch]);
 
   return folders;
 };
@@ -80,8 +80,8 @@ const normalizeId = (id: string | null | undefined): string | null => {
 /**
  * Hook to get files in a specific folder
  */
-export const useFilesInFolder = (folderId: string | null): StoredFile[] => {
-  const allFiles = useFiles();
+export const useFilesInFolder = (folderId: string | null, triggerRefetch?: number): StoredFile[] => {
+  const allFiles = useFiles(triggerRefetch);
 
   return useMemo(
     () => allFiles.filter(file => normalizeId(file.folderId) === folderId),
@@ -92,8 +92,8 @@ export const useFilesInFolder = (folderId: string | null): StoredFile[] => {
 /**
  * Hook to get child folders of a parent
  */
-export const useChildFolders = (parentId: string | null): Folder[] => {
-  const allFolders = useFolders();
+export const useChildFolders = (parentId: string | null, triggerRefetch?: number): Folder[] => {
+  const allFolders = useFolders(triggerRefetch);
 
   return useMemo(
     () => allFolders.filter(folder => normalizeId(folder.parentId) === parentId),
@@ -274,8 +274,8 @@ export const useFileSearch = (query: string): StoredFile[] => {
 /**
  * Hook to get breadcrumb path for a folder
  */
-export const useFolderPath = (folderId: string | null): Folder[] => {
-  const folders = useFolders(); // Re-render when folders change
+export const useFolderPath = (folderId: string | null, triggerRefetch?: number): Folder[] => {
+  const folders = useFolders(triggerRefetch); // Re-render when folders change OR triggerRefetch changes
 
   return useMemo(() => {
     if (!folderId) return [];

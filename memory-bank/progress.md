@@ -161,7 +161,7 @@
 - [x] theme-tokyonight (1 variant)
 - [x] theme-chay (custom branded theme)
 
-### ✅ Documents Plugin Phase 1 (COMPLETE - October 6, 2025)
+### ✅ Documents Plugin Phase 1 (COMPLETE - October 17, 2025)
 - [x] Complete type definitions (StoredFile, Folder, FileHandler, operation types)
 - [x] DocumentsService with dual-storage abstraction (772 lines)
 - [x] Observer pattern implementation with state change listeners
@@ -173,79 +173,77 @@
 - [x] Plugin manifest with onLoad lifecycle hook
 - [x] Placeholder FileBrowser component
 - [x] TypeScript compilation verified (zero errors)
-- [x] **Folder drag-and-drop implementation** (October 8, 2025)
-  - Added order field to Folder interface
-  - Implemented moveFolder() and reorderFolders() methods
-  - Created FolderTree component with @dnd-kit integration
-  - Visual feedback (opacity, borders) for drag operations
-  - ⚠️ **Testing blocked** - Auth issue prevents access to /app/documents
+- [x] **Folder Sidebar Tree - COMPLETE** (October 15-17, 2025)
+  - React-arborist integration with drag & drop support
+  - Virtual tree pattern with "__ALL_FILES__" synthetic root node
+  - ID translation layer prevents virtual IDs from reaching database
+  - V4 migration fixes historical data corruption (parentId = "__ALL_FILES__")
+  - Data integrity: migrations over normalization fallbacks
+  - Drag cursor positioning fixed (CSS padding conflict resolved)
+  - Folder creation triggers automatic tree refetch
+  - HSL color picker with Popover (matches theme plugin UX)
+  - Theme-aware default folder colors (reads --primary CSS variable)
+  - Folder alignment fixed (18px spacer matches chevron width)
+  - Clean visual feedback during drag operations
+  - Three-dot context menu (rename, delete, change color) - COMPLETE
+  - **Known limitation**: No magnetic top/bottom dropping (future enhancement)
 
-### 🔴 File Storage Implementation - Phase 1 (IN PROGRESS - October 7, 2025)
-**Status**: Implementation plan complete with all 12 files identified
-**Breaking Change**: No backward compatibility - clean slate approach
+### ✅ File Storage Implementation - Phase 1 (COMPLETE - January 2025)
+**Status**: Files as Entity Properties pattern fully implemented
+**Backend Architecture**: 100% complete across both platforms
 
-#### Core Storage System (7 files)
-- [ ] `electron/database.cjs` - Add `files` table with CASCADE DELETE foreign key
+#### Core Storage System (7 files) - ALL COMPLETE
+- [x] `electron/database.cjs` - `files` table with CASCADE DELETE foreign key
   - Composite PK: `(storage_key, field_name, user_id)`
   - FK to `storage(key, user_id)` ON DELETE CASCADE
-  - SHA-256 hash column for content-based addressing
-- [ ] `server/index.js` - Add `files` table + update GET/PUT endpoints
+  - SHA-256 hash column for content-based deduplication
+- [x] `server/index.js` - `files` table + GET/PUT endpoints
   - BYTEA column for binary file data
   - Base64 encoding for JSON transport over REST
-  - Update GET `/api/storage/:key` to return `{ value, files }`
-  - Update PUT `/api/storage/:key` to accept `{ value, files }`
-- [ ] `electron/ipc/storageHandlers.cjs` - Update get/set handlers
+  - GET `/api/storage/:key` returns `{ value, files }`
+  - PUT `/api/storage/:key` accepts `{ value, files }`
+- [x] `electron/ipc/storageHandlers.cjs` - get/set handlers with file support
   - `storage:get` returns `{ data, files }` with file content from disk
   - `storage:set` implements SHA-256 deduplication to `{userData}/files/`
-  - Files stored as `{hash}` without extension
-- [ ] `electron/preload.cjs` - Update set signature
-  - Change: `set: (key, value, files) => ipcRenderer.invoke(...)`
-- [ ] `src/shared/storage/StorageAdapter.ts` - Update interface
+  - Files stored as `{hash}.bin` for deduplication
+- [x] `electron/preload.cjs` - Updated set signature with files parameter
+- [x] `src/shared/storage/StorageAdapter.ts` - Interface updated
   - `get<T>(key): Promise<{ data: T; files: Record<string, Uint8Array> } | null>`
   - `set<T>(key, value, files?: Record<string, Uint8Array | null>): Promise<void>`
-- [ ] `src/shared/storage/SQLiteAdapter.ts` - Implement new interface
-  - Pass files parameter through to IPC
-  - Return structured result from IPC handler
-- [ ] `src/shared/storage/PostgreSQLAdapter.ts` - Implement new interface
-  - Convert Uint8Array to base64 for transport
-  - Convert base64 back to Uint8Array on retrieval
+- [x] `src/shared/storage/SQLiteAdapter.ts` - Implementation complete
+  - Passes files parameter through to IPC
+  - Returns structured result from IPC handler
+- [x] `src/shared/storage/PostgreSQLAdapter.ts` - Implementation complete
+  - Converts Uint8Array to base64 for transport
+  - Converts base64 back to Uint8Array on retrieval
 
-#### Plugin Updates (5 files)
-All `storage.get()` calls must change to `result?.data` pattern:
+**Key Benefits**:
+- ✅ No orphaned files (CASCADE DELETE enforced by database FK)
+- ✅ Atomic operations (entity + files stored together)
+- ✅ SHA-256 deduplication in Electron (content-based addressing)
+- ✅ User scoping automatic via composite keys
 
-- [ ] `src/plugins/core-documents/services/DocumentsService.ts`
-  - Remove `fileStorageKey` field from StoredFile interface
-  - Change uploadFile: `storage.set('core-documents:doc:{id}', metadata, { content: fileData })`
-  - Change getFile: `const result = await storage.get(...); return { metadata: result.data, content: result.files.content }`
-  - Change deleteFile: Just `storage.delete()` (files cascade)
-  - Update all other storage calls (~5 locations)
-- [ ] `src/plugins/core-settings/services/SettingsService.ts`
-  - Line 113: `const result = await storage.get(...); const stored = result?.data;`
-- [ ] `src/plugins/core-theme/services/ThemeService.ts`
-  - Update ~14 storage.get() calls to use `result?.data || []` pattern
-  - Lines: 65, 100, 146, 304, 326, 352, 360, 379, 423, 481, 498, 513, 533, 543
-- [ ] `src/plugins/demo-plugin/services/DemoDataService.ts`
-  - Line 41: `const result = await storage.get(...); const notes = result?.data || [];`
-- [ ] `src/plugins/demo-plugin/components/DemoPage.tsx`
-  - Line 104: `const result = await storage.get(key); const value = result?.data;`
+### 🔴 Documents Plugin Phase 2 (IN PROGRESS - Current)
+**Status**: Folder tree complete, main view needs operations
 
-#### Testing & Validation
-- [ ] Test Electron: Upload PDF, verify hash-based file at `%APPDATA%/ChayCards/files/{hash}`
-- [ ] Test Cloud: Upload PDF, verify BYTEA in PostgreSQL files table
-- [ ] Test CASCADE DELETE: Delete entity, verify file rows removed
-- [ ] Test all plugins: Settings, Theme, Demo load data correctly
-- [ ] Verify no `storage.get()` calls return undefined
+**COMPLETE**:
+- [x] Folder sidebar tree with full functionality (drag-drop, three-dot menus)
+- [x] Folder operations from sidebar (delete, rename, change color)
+- [x] FileBrowser main content area shows folders as cards
 
-**Implementation Order**: Database schemas → IPC handlers → Server endpoints → Adapters → Interface → Plugins → Testing
+**INCOMPLETE - Main View Operations (0%)**:
+- [ ] Three-dot context menu on folder cards in main view
+- [ ] Drag-drop within main view (reorder folders/files)
+- [ ] Drag-drop between tree ↔ main view ↔ folders
+- [ ] File context menus in main view (rename, delete)
+- [ ] Symmetric UX (everything in tree should work in main view)
 
-### 🔲 Documents Plugin Phase 2 (After File Storage)
-- [ ] FileBrowser UI with Grid/List toggle
-- [ ] FolderTree component with search and collapse/expand
-- [ ] FileCard for file display
-- [ ] FileViewer for preview
-- [ ] Advanced search and filtering
-- [ ] Drag-and-drop functionality
-- [ ] Custom right-click context menus
+**Acceptance Criteria**:
+- User can perform all folder operations from main view (not just sidebar)
+- Drag folders from main view into sidebar tree
+- Drag folders from tree into main view folders
+- Three-dot menu on folder cards matches tree menu
+- File cards have context menus for rename/delete
 
 ### 🔲 Feature Plugins (Ready to Implement)
 - [ ] core.tasks plugin - **READY TO IMPLEMENT**

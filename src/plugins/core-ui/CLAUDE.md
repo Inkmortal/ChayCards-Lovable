@@ -43,6 +43,9 @@ components: {
   'Tooltip': Tooltip,              // Tooltips
   'Popover': Popover,              // Popovers
   'DropdownMenu': DropdownMenu,    // Dropdown menus
+  'DropdownMenuItem': DropdownMenuItem,  // Dropdown menu items
+  'DropdownMenuSeparator': DropdownMenuSeparator,  // Dropdown dividers
+  'DropdownMenuLabel': DropdownMenuLabel,  // Dropdown section labels
 
   // Form Controls
   'Select': Select,                // Select dropdowns

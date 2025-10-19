@@ -23,7 +23,12 @@ import { ProgressBar } from './components/ProgressBar';
 import { MetricCard } from './components/MetricCard';
 import { FormSection } from './components/FormSection';
 import { Dialog } from './components/Dialog';
-import { DropdownMenu } from './components/DropdownMenu';
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from './components/DropdownMenu';
 import { Tabs } from './components/Tabs';
 import { Tooltip } from './components/Tooltip';
 import { Separator } from './components/Separator';
@@ -67,6 +72,9 @@ export const CoreUIPlugin: Plugin = {
     'FormSection': FormSection,
     'Dialog': Dialog,
     'DropdownMenu': DropdownMenu,
+    'DropdownMenuItem': DropdownMenuItem,
+    'DropdownMenuSeparator': DropdownMenuSeparator,
+    'DropdownMenuLabel': DropdownMenuLabel,
     'Tabs': Tabs,
     'Tooltip': Tooltip,
     'Separator': Separator,

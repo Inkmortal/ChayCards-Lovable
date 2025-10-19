@@ -57,8 +57,9 @@ export class DocumentsService {
     console.log('[DocumentsService] Initializing...');
     this.storage = storage;
 
-    // Run migration to v3 schema
+    // Run migrations
     await this.migrateToV3();
+    await this.migrateToV4();
 
     this.initialized = true;
 
@@ -633,6 +634,72 @@ export class DocumentsService {
   }
 
   /**
+   * Delete folder and move all contents (child folders and files) to parent
+   * Safer alternative to deleteFolder(id, true) - preserves data
+   *
+   * @param folderId - Folder to delete
+   * @returns Operation result
+   */
+  async deleteFolderAndMoveContents(folderId: string): Promise<FolderOperationResult> {
+    if (!this.storage) {
+      return { success: false, error: 'Storage not initialized' };
+    }
+
+    const folders = await this.getFolders();
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) {
+      return { success: false, error: 'Folder not found' };
+    }
+
+    try {
+      const parentId = folder.parentId;  // Where to move contents
+
+      // Get all child folders
+      const childFolders = folders.filter(f => f.parentId === folderId);
+
+      // Get all files in this folder
+      const files = await this.getFiles();
+      const filesInFolder = files.filter(f => f.folderId === folderId);
+
+      // Move all child folders to parent
+      for (const childFolder of childFolders) {
+        childFolder.parentId = parentId;
+        childFolder.depth = await this.calculateDepth(parentId, folders);
+        childFolder.updatedAt = Date.now();
+
+        // Recursively update depth for descendants
+        await this.updateDepth(childFolder.id, childFolder.depth, folders);
+      }
+
+      // Move all files to parent
+      for (const file of filesInFolder) {
+        file.folderId = parentId;
+        file.updatedAt = Date.now();
+      }
+
+      // Delete the now-empty folder
+      const folderIndex = folders.findIndex(f => f.id === folderId);
+      folders.splice(folderIndex, 1);
+
+      // Save changes atomically
+      await this.storage.set(this.FOLDERS_KEY, folders);
+      await this.storage.set(this.FILES_KEY, files);
+
+      // Emit events
+      const eventBus = PluginManager.getInstance().getEventBus();
+      eventBus.emit('folder:deleted', { folder });
+      eventBus.emit('folders:moved', { folders: childFolders, newParentId: parentId });
+      eventBus.emit('files:moved', { files: filesInFolder, newParentId: parentId });
+
+      console.log('[DocumentsService] Folder deleted and contents moved:', folder.name, 'to parent', parentId);
+      return { success: true };
+    } catch (error) {
+      console.error('[DocumentsService] Failed to delete folder and move contents:', error);
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /**
    * List all folders
    */
   async listFolders(parentId: string | null = null): Promise<Folder[]> {
@@ -852,6 +919,78 @@ export class DocumentsService {
   }
 
   // ==================== New Semantic Folder APIs ====================
+
+  /**
+   * Move folder to specific position in parent's children
+   * This is the SIMPLE API that matches what react-arborist gives us
+   *
+   * @param folderId - Folder to move
+   * @param parentId - New parent (null = root)
+   * @param index - Position in parent's children array (0-based)
+   */
+  async moveToPosition(folderId: string, parentId: string | null, index: number): Promise<FolderOperationResult> {
+    if (!this.storage) {
+      return { success: false, error: { code: 'STORAGE_ERROR', message: 'Storage not initialized' } };
+    }
+
+    const folders = await this.getFolders();
+    const folder = folders.find(f => f.id === folderId);
+
+    if (!folder) {
+      return { success: false, error: { code: 'NOT_FOUND', message: 'Folder not found' } };
+    }
+
+    // Validate circular reference if moving to a folder parent
+    if (parentId !== null && !(await this.validateFolderMove(folderId, parentId))) {
+      return {
+        success: false,
+        error: {
+          code: 'CIRCULAR_REFERENCE',
+          message: 'Cannot move folder into its own subfolder'
+        }
+      };
+    }
+
+    const oldParentId = folder.parentId;
+
+    // Get siblings in the new parent (excluding the folder being moved)
+    const siblings = folders
+      .filter(f => this.normalizeParentId(f.parentId) === this.normalizeParentId(parentId) && f.id !== folderId)
+      .sort((a, b) => a.order - b.order);
+
+    // Update parent
+    folder.parentId = parentId;
+
+    // Calculate new order based on index
+    if (siblings.length === 0) {
+      // First child - use default starting order
+      folder.order = 1000;
+    } else if (index === 0) {
+      // Insert before first sibling
+      folder.order = Math.round(siblings[0].order - 1000);
+    } else if (index >= siblings.length) {
+      // Insert after last sibling
+      folder.order = Math.round(siblings[siblings.length - 1].order + 1000);
+    } else {
+      // Insert between siblings at index-1 and index
+      const before = siblings[index - 1];
+      const after = siblings[index];
+      folder.order = Math.round((before.order + after.order) / 2);
+    }
+
+    folder.updatedAt = Date.now();
+
+    // Update depth if parent changed
+    if (oldParentId !== parentId) {
+      const newDepth = await this.calculateDepth(parentId, folders);
+      await this.updateDepth(folderId, newDepth, folders);
+    }
+
+    // Save to storage
+    await this.storage.set(this.FOLDERS_KEY, folders);
+
+    return { success: true, data: folder };
+  }
 
   /**
    * Insert folder before target folder (moves to target's parent if needed)
@@ -1462,6 +1601,44 @@ export class DocumentsService {
     await this.storage.set(STORAGE_KEYS.SCHEMA_VERSION, 3);
 
     console.log('[DocumentsService] Migrated to schema v3 -', folders.length, 'folders and', files.length, 'files');
+  }
+
+  /**
+   * Migrate to v4: Fix corrupted __ALL_FILES__ parentIds
+   * Some folders were saved with parentId = "__ALL_FILES__" before ID translation was added
+   * This migration converts those to proper null values
+   */
+  private async migrateToV4(): Promise<void> {
+    if (!this.storage) return;
+
+    const versionResult = await this.storage.get<number>(STORAGE_KEYS.SCHEMA_VERSION);
+    const version = versionResult?.data;
+
+    if (version === 4) return; // Already migrated to v4
+
+    console.log('[DocumentsService] Migrating to schema v4 (fixing __ALL_FILES__ corruption)...');
+
+    const foldersResult = await this.storage.get<Folder[]>(this.FOLDERS_KEY);
+    const folders = foldersResult?.data || [];
+
+    let fixedCount = 0;
+    for (const folder of folders) {
+      if (folder.parentId === '__ALL_FILES__') {
+        folder.parentId = null;
+        folder.updatedAt = Date.now();
+        fixedCount++;
+      }
+    }
+
+    if (fixedCount > 0) {
+      await this.storage.set(this.FOLDERS_KEY, folders);
+      console.log(`[DocumentsService] Fixed ${fixedCount} folders with corrupted __ALL_FILES__ parentId`);
+    }
+
+    // Save schema version
+    await this.storage.set(STORAGE_KEYS.SCHEMA_VERSION, 4);
+
+    console.log('[DocumentsService] Migrated to schema v4');
   }
 
   // ==================== FileHandler Registry ====================
