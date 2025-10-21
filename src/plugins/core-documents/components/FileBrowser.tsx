@@ -7,14 +7,16 @@
  * - File upload and management
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { FileText, FolderPlus, Upload, Folder, ChevronRight, PanelLeftClose, PanelLeft, ArrowUpDown, MoreVertical, Edit2, Palette, Trash2 } from 'lucide-react';
 import { HslColorPicker } from 'react-colorful';
+import { useDrag, useDrop } from 'react-dnd';
 import { PluginManager } from '@/shared/plugin-system';
 import { useDocumentStatistics, useUnifiedTree, useFilesInFolder, useChildFolders, useFolderPath, useSortBy } from '../hooks/useDocuments';
 import { FolderTree } from './FolderTree';
 import { Input } from '@/renderer/components/ui/input';
 import { Label } from '@/renderer/components/ui/label';
+import { useToast } from '@/renderer/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
 import type { SortMode } from '../types';
 
@@ -149,9 +151,237 @@ const generateUniqueFolderName = async (
   }
 };
 
+// ============ FolderCard Component ============
+
+interface FolderCardProps {
+  folder: any;
+  folders: any[];
+  setFolders: React.Dispatch<React.SetStateAction<any[]>>;
+  documentsService: any;
+  toast: any;
+  onFolderSelect: (folderId: string) => void;
+  onRename: (folderId: string) => void;
+  onChangeColor: (folderId: string) => void;
+  onDelete: (folderId: string) => void;
+  isDescendant: (sourceId: string, targetId: string) => boolean;
+  setTreeRefetchKey: React.Dispatch<React.SetStateAction<number>>;
+}
+
+const FolderCard: React.FC<FolderCardProps> = ({
+  folder,
+  folders,
+  setFolders,
+  documentsService,
+  toast,
+  onFolderSelect,
+  onRename,
+  onChangeColor,
+  onDelete,
+  isDescendant,
+  setTreeRefetchKey
+}) => {
+  const manager = PluginManager.getInstance();
+  const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
+  const DropdownMenuItem = manager.getComponent('core-ui/DropdownMenuItem');
+
+  const ref = useRef<HTMLDivElement>(null);
+
+  // useDrag hook - makes this folder draggable
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'FOLDER',
+    item: { id: folder.id, source: 'main-view' },
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  }), [folder.id]);
+
+  // useDrop hook - makes this folder accept drops
+  const [{ isOver }, drop] = useDrop(() => ({
+    accept: 'FOLDER',
+    drop: async (item: { id: string; source: string }) => {
+      const draggedId = item.id;
+
+      // Don't drop on self
+      if (draggedId === folder.id) return;
+
+      // Check for circular reference
+      if (isDescendant(folder.id, draggedId)) {
+        toast({
+          title: "Cannot move folder",
+          description: "Cannot move folder into itself or its descendants",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // OPTIMISTIC UPDATE (same as FolderTree!)
+      const prevFolders = [...folders];
+
+      // Find the dragged folder and update its parentId
+      const updateFolderParent = (nodes: any[]): any[] => {
+        return nodes.map(node => {
+          if (node.type === 'folder') {
+            if (node.id === draggedId) {
+              // Found the dragged folder - update its parentId
+              return { ...node, parentId: folder.id };
+            }
+            // Recursively update children
+            if (node.children) {
+              return {
+                ...node,
+                children: updateFolderParent(node.children)
+              };
+            }
+          }
+          return node;
+        });
+      };
+
+      const updatedFolders = updateFolderParent(prevFolders);
+      setFolders(updatedFolders);
+
+      try {
+        // Backend validation
+        const result = await documentsService.updateFolder(draggedId, { parentId: folder.id });
+
+        if (!result.success) {
+          // REVERT on validation error (same as FolderTree!)
+          setFolders(prevFolders);
+          toast({
+            title: "Move failed",
+            description: result.error?.message || "Failed to move folder",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Folder moved",
+            description: `Moved to ${folder.name}`,
+          });
+          // Trigger tree refetch to sync with backend
+          setTreeRefetchKey(prev => prev + 1);
+        }
+      } catch (error) {
+        // REVERT on network error
+        setFolders(prevFolders);
+        console.error('[FolderCard] Drop failed:', error);
+        toast({
+          title: "Move failed",
+          description: "An error occurred while moving the folder",
+          variant: "destructive"
+        });
+      }
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver(),
+    }),
+  }), [folder.id, folders, isDescendant, documentsService, toast, setFolders, setTreeRefetchKey]);
+
+  // Combine drag and drop refs
+  drag(drop(ref));
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Only navigate if not clicking on the menu
+    if (!(e.target as HTMLElement).closest('.folder-menu')) {
+      onFolderSelect(folder.id);
+    }
+  };
+
+  return (
+    <div
+      ref={ref}
+      onClick={handleClick}
+      className={cn(
+        "group relative p-4 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-all duration-200",
+        isDragging && "opacity-50 scale-95",  // Visual feedback during drag
+        isOver && "ring-2 ring-primary/40 bg-primary/10"  // Visual feedback when hovering over drop target
+      )}
+    >
+      {/* Folder icon with color */}
+      <Folder
+        className="w-8 h-8 mb-2"
+        style={{ color: folder.color || 'hsl(var(--primary))' }}
+      />
+
+      {/* Folder name */}
+      <p className="text-sm font-medium truncate">{folder.name}</p>
+
+      {/* Three-dot menu (same as tree) */}
+      {DropdownMenu && (
+        <div
+          className="folder-menu absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <DropdownMenu
+            trigger={
+              <button className="p-1 rounded hover:bg-accent transition-colors">
+                <MoreVertical className="w-4 h-4 text-muted-foreground" />
+              </button>
+            }
+          >
+            <DropdownMenuItem onClick={() => onRename(folder.id)}>
+              <Edit2 className="mr-2 h-4 w-4" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onChangeColor(folder.id)}>
+              <Palette className="mr-2 h-4 w-4" />
+              Change Color
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onDelete(folder.id)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenu>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============ FileCard Component ============
+
+interface FileCardProps {
+  file: any;
+}
+
+const FileCard: React.FC<FileCardProps> = ({ file }) => {
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div
+      className={cn(
+        "group relative p-4 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-all duration-200"
+      )}
+    >
+      {/* File icon */}
+      <FileText className="w-8 h-8 mb-2 text-muted-foreground" />
+
+      {/* File name */}
+      <p className="text-sm font-medium truncate mb-1">{file.filename}</p>
+
+      {/* File size */}
+      <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+
+      {/* Three-dot menu placeholder (future) */}
+      <div
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button className="p-1 rounded hover:bg-accent transition-colors">
+          <MoreVertical className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const FileBrowser: React.FC = () => {
   const manager = PluginManager.getInstance();
   const stats = useDocumentStatistics();
+  const { toast } = useToast();
 
   // Local tree state for optimistic updates
   const [treeRefetchKey, setTreeRefetchKey] = useState(0);
@@ -1529,13 +1759,32 @@ export const FileBrowser: React.FC = () => {
               </div>
             )
           ) : (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground text-lg font-medium">Main view cleared</p>
-              <p className="text-sm text-muted-foreground mt-2">Ready for fresh drag-and-drop implementation</p>
-              <div className="mt-6 text-xs text-muted-foreground/70">
-                <p>Files: {filesInFolder.length}</p>
-                <p>Folders: {childFolders.length}</p>
-              </div>
+            <div className="grid grid-cols-4 gap-4">
+              {/* Folders */}
+              {childFolders.map(folder => (
+                <FolderCard
+                  key={folder.id}
+                  folder={folder}
+                  folders={localTree}
+                  setFolders={setLocalTree}
+                  documentsService={documentsService}
+                  toast={toast}
+                  onFolderSelect={setSelectedFolderId}
+                  onRename={handleDirectRename}
+                  onChangeColor={handleChangeColor}
+                  onDelete={handleFolderDelete}
+                  isDescendant={(sourceId, targetId) => isDescendant(sourceId, targetId, localTree)}
+                  setTreeRefetchKey={setTreeRefetchKey}
+                />
+              ))}
+
+              {/* Files */}
+              {filesInFolder.map(file => (
+                <FileCard
+                  key={file.id}
+                  file={file}
+                />
+              ))}
             </div>
           )}
         </div>
