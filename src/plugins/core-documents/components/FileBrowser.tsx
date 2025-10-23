@@ -114,6 +114,28 @@ const getContrastColor = (hsl: string): string => {
 };
 
 /**
+ * Format timestamp as relative time
+ * Examples: "Just now", "5 minutes ago", "2 hours ago", "Yesterday", "3 days ago"
+ */
+const formatRelativeTime = (timestamp: number): string => {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (seconds < 60) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+};
+
+/**
  * Generate unique folder name with counter pattern
  * Pattern: "New Folder", "New Folder (1)", "New Folder (2)", etc.
  *
@@ -267,34 +289,65 @@ const FolderCard: React.FC<FolderCardProps> = ({
     }
   };
 
+  // Calculate folder statistics
+  const folderStats = React.useMemo(() => {
+    // Count files in this folder
+    const countFiles = (nodes: any[], targetFolderId: string): number => {
+      let count = 0;
+      for (const node of nodes) {
+        if (node.type === 'file' && node.folderId === targetFolderId) {
+          count++;
+        }
+        if (node.type === 'folder') {
+          count += countFiles(node.children, targetFolderId);
+        }
+      }
+      return count;
+    };
+
+    return {
+      fileCount: countFiles(folders, folder.id)
+    };
+  }, [folders, folder.id]);
+
   return (
     <div
       ref={ref}
       onClick={handleClick}
       className={cn(
-        "group relative p-4 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-all duration-200",
-        isDragging && "opacity-50 scale-95",  // Visual feedback during drag
-        isOver && "ring-2 ring-primary/40 bg-primary/10"  // Visual feedback when hovering over drop target
+        "group relative overflow-hidden cursor-pointer",
+        // Base card with depth - TALLER aspect ratio (more vertical)
+        "p-4 rounded-2xl",
+        "bg-gradient-to-br from-card to-card/90",
+        "border-2 border-border/50",
+        "shadow-lg shadow-black/5",
+        // Hover effects
+        "hover:shadow-xl hover:shadow-black/10",
+        "hover:border-primary/30",
+        "hover:-translate-y-1",
+        "transition-all duration-200",
+        // Drag states
+        isDragging && "opacity-50 scale-95",
+        isOver && "ring-2 ring-primary/40 bg-primary/10 border-primary/50",
+        // Boxy layout - more square like macOS/Google Drive
+        "flex flex-col justify-center aspect-[4/3]"
       )}
     >
-      {/* Folder icon with color */}
-      <Folder
-        className="w-8 h-8 mb-2"
-        style={{ color: folder.color || 'hsl(var(--primary))' }}
+      {/* Colored accent stripe at top - reduced from h-2 to h-1 */}
+      <div
+        className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl"
+        style={{ backgroundColor: folder.color || 'hsl(var(--primary))' }}
       />
 
-      {/* Folder name */}
-      <p className="text-sm font-medium truncate">{folder.name}</p>
-
-      {/* Three-dot menu (same as tree) */}
+      {/* Three-dot menu (hidden until hover) - moved to top right corner */}
       {DropdownMenu && (
         <div
-          className="folder-menu absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="folder-menu absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10"
           onClick={(e) => e.stopPropagation()}
         >
           <DropdownMenu
             trigger={
-              <button className="p-1 rounded hover:bg-accent transition-colors">
+              <button className="p-1.5 rounded-lg bg-background/80 backdrop-blur-sm hover:bg-accent/50 transition-colors shadow-sm">
                 <MoreVertical className="w-4 h-4 text-muted-foreground" />
               </button>
             }
@@ -312,6 +365,64 @@ const FolderCard: React.FC<FolderCardProps> = ({
               Delete
             </DropdownMenuItem>
           </DropdownMenu>
+        </div>
+      )}
+
+      {/* Main content - vertical centered layout like macOS */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 px-3 py-4">
+        {/* Folder icon - increased from w-14 to w-16 */}
+        <div className="relative">
+          <Folder
+            className="w-16 h-16 drop-shadow-lg"
+            style={{ color: folder.color || 'hsl(var(--primary))' }}
+          />
+
+          {/* Content preview dots */}
+          {folderStats.fileCount > 0 && (
+            <div className="absolute -bottom-1 -right-1 flex gap-0.5">
+              {[...Array(Math.min(3, folderStats.fileCount))].map((_, i) => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shadow-sm"
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Text content - centered below icon */}
+        <div className="flex flex-col items-center gap-0.5 w-full">
+          {/* Folder name - increased from text-sm to text-base */}
+          <h3 className="text-base font-semibold truncate w-full text-center px-2">
+            {folder.name}
+          </h3>
+
+          {/* Metadata - single line */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <FileText className="w-3 h-3" />
+              {folderStats.fileCount} {folderStats.fileCount === 1 ? 'item' : 'items'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tags (optional) - centered */}
+      {folder.tags && folder.tags.length > 0 && (
+        <div className="flex gap-1 mt-2 overflow-hidden justify-center flex-wrap px-2">
+          {folder.tags.slice(0, 2).map(tag => (
+            <span
+              key={tag}
+              className="px-2 py-0.5 rounded-full bg-primary/10 text-xs font-medium truncate"
+            >
+              {tag}
+            </span>
+          ))}
+          {folder.tags.length > 2 && (
+            <span className="px-2 py-0.5 text-xs text-muted-foreground">
+              +{folder.tags.length - 2}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -334,26 +445,53 @@ const FileCard: React.FC<FileCardProps> = ({ file }) => {
   return (
     <div
       className={cn(
-        "group relative p-4 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-all duration-200"
+        "group relative overflow-hidden cursor-pointer",
+        // Base card with depth - TALLER aspect ratio (matching folders)
+        "p-4 rounded-2xl",
+        "bg-gradient-to-br from-card to-card/90",
+        "border-2 border-border/50",
+        "shadow-lg shadow-black/5",
+        // Hover effects
+        "hover:shadow-xl hover:shadow-black/10",
+        "hover:border-primary/30",
+        "hover:-translate-y-1",
+        "transition-all duration-200",
+        // Boxy layout - matching folders
+        "flex flex-col justify-center aspect-[4/3]"
       )}
     >
-      {/* File icon */}
-      <FileText className="w-8 h-8 mb-2 text-muted-foreground" />
+      {/* Subtle accent stripe for files (lighter than folders) - reduced from h-2 to h-1 */}
+      <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl bg-muted-foreground/20" />
 
-      {/* File name */}
-      <p className="text-sm font-medium truncate mb-1">{file.filename}</p>
-
-      {/* File size */}
-      <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-
-      {/* Three-dot menu placeholder (future) */}
+      {/* Three-dot menu (hidden until hover) - top right corner */}
       <div
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10"
         onClick={(e) => e.stopPropagation()}
       >
-        <button className="p-1 rounded hover:bg-accent transition-colors">
+        <button className="p-1.5 rounded-lg bg-background/80 backdrop-blur-sm hover:bg-accent/50 transition-colors shadow-sm">
           <MoreVertical className="w-4 h-4 text-muted-foreground" />
         </button>
+      </div>
+
+      {/* Main content - vertical centered layout like macOS */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 px-3 py-4">
+        {/* File icon - increased from w-14 to w-16 */}
+        <div className="flex-shrink-0">
+          <FileText className="w-16 h-16 text-muted-foreground drop-shadow-lg" />
+        </div>
+
+        {/* Text content - centered below icon */}
+        <div className="flex flex-col items-center gap-0.5 w-full">
+          {/* File name - increased from text-sm to text-base */}
+          <h3 className="text-base font-semibold truncate w-full text-center px-2">
+            {file.filename}
+          </h3>
+
+          {/* Metadata - single line */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{formatFileSize(file.size)}</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1760,7 +1898,56 @@ export const FileBrowser: React.FC = () => {
               </div>
             )
           ) : (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+              {/* Parent folder navigation card (only shown when inside a folder) */}
+              {selectedFolderId && folderPath && folderPath.length > 0 && (
+                <div
+                  onClick={() => {
+                    // Navigate to parent folder
+                    const parentFolder = folderPath[folderPath.length - 2];
+                    setSelectedFolderId(parentFolder ? parentFolder.id : null);
+                  }}
+                  className={cn(
+                    "group relative overflow-hidden cursor-pointer",
+                    // Dashed border to indicate it's special
+                    "p-4 rounded-2xl",
+                    "bg-muted/30 border-2 border-dashed border-border",
+                    // Hover effects (lighter than regular folders)
+                    "hover:bg-muted/50",
+                    "hover:border-primary/50",
+                    "hover:-translate-y-1",
+                    "transition-all duration-200",
+                    // Boxy layout matching other cards
+                    "flex flex-col justify-center aspect-[4/3]"
+                  )}
+                >
+                  {/* Main content - vertical centered layout like macOS */}
+                  <div className="flex-1 flex flex-col items-center justify-center gap-3 px-3 py-4">
+                    {/* Parent folder icon with up arrow - increased from w-14 to w-16 */}
+                    <div className="relative">
+                      <Folder className="w-16 h-16 text-muted-foreground/60 drop-shadow-lg" />
+                      {/* Up arrow overlay - increased from w-7 to w-8 */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <ChevronRight className="w-8 h-8 text-muted-foreground rotate-[-90deg]" />
+                      </div>
+                    </div>
+
+                    {/* Text content - centered below icon */}
+                    <div className="flex flex-col items-center gap-0.5 w-full">
+                      {/* Parent label - increased from text-sm to text-base */}
+                      <h3 className="text-base font-semibold truncate w-full text-center px-2 text-muted-foreground">
+                        {folderPath.length > 1 ? folderPath[folderPath.length - 2].name : 'All Files'}
+                      </h3>
+
+                      {/* Helper text */}
+                      <div className="text-xs text-muted-foreground/70">
+                        <span>Go to parent</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Folders */}
               {childFolders.map(folder => (
                 <FolderCard
