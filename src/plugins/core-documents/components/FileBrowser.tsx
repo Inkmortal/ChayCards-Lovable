@@ -157,6 +157,7 @@ interface FolderCardProps {
   folder: any;
   folders: any[];
   setFolders: React.Dispatch<React.SetStateAction<any[]>>;
+  updateTreeAfterMove: (tree: any[], draggedId: string, newParentId: string | null, newIndex: number) => any[];
   documentsService: any;
   toast: any;
   onFolderSelect: (folderId: string) => void;
@@ -171,6 +172,7 @@ const FolderCard: React.FC<FolderCardProps> = ({
   folder,
   folders,
   setFolders,
+  updateTreeAfterMove,
   documentsService,
   toast,
   onFolderSelect,
@@ -214,30 +216,9 @@ const FolderCard: React.FC<FolderCardProps> = ({
         return;
       }
 
-      // OPTIMISTIC UPDATE (same as FolderTree!)
+      // OPTIMISTIC UPDATE - Physically move node in tree structure (same as tree sidebar!)
       const prevFolders = [...folders];
-
-      // Find the dragged folder and update its parentId
-      const updateFolderParent = (nodes: any[]): any[] => {
-        return nodes.map(node => {
-          if (node.type === 'folder') {
-            if (node.id === draggedId) {
-              // Found the dragged folder - update its parentId
-              return { ...node, parentId: folder.id };
-            }
-            // Recursively update children
-            if (node.children) {
-              return {
-                ...node,
-                children: updateFolderParent(node.children)
-              };
-            }
-          }
-          return node;
-        });
-      };
-
-      const updatedFolders = updateFolderParent(prevFolders);
+      const updatedFolders = updateTreeAfterMove(prevFolders, draggedId, folder.id, 0);
       setFolders(updatedFolders);
 
       try {
@@ -396,13 +377,33 @@ export const FileBrowser: React.FC = () => {
   // Selected folder state
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const filesInFolder = useFilesInFolder(selectedFolderId, treeRefetchKey);
-  const childFoldersUnsorted = useChildFolders(selectedFolderId, treeRefetchKey);
 
-  // Sort folders by order property
-  const childFolders = React.useMemo(
-    () => [...childFoldersUnsorted].sort((a, b) => (a.order || 0) - (b.order || 0)),
-    [childFoldersUnsorted]
-  );
+  // Extract child folders directly from localTree for instant optimistic updates
+  const childFolders = React.useMemo(() => {
+    const extractChildren = (nodes: any[], parentId: string | null): any[] => {
+      if (parentId === null) {
+        // Root level: return top-level folders (no parentId or parentId === null)
+        return nodes.filter(n => n.type === 'folder' && (!n.parentId || n.parentId === null));
+      }
+
+      // Find the parent folder and return its children
+      for (const node of nodes) {
+        if (node.type === 'folder') {
+          if (node.id === parentId) {
+            // Found parent - return its folder children
+            return node.children.filter((c: any) => c.type === 'folder');
+          }
+          // Recursively search in children
+          const found = extractChildren(node.children, parentId);
+          if (found.length > 0) return found;
+        }
+      }
+      return [];
+    };
+
+    const folders = extractChildren(localTree, selectedFolderId);
+    return folders.sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [localTree, selectedFolderId]);
 
   const folderPath = useFolderPath(selectedFolderId, treeRefetchKey);
 
@@ -1767,6 +1768,7 @@ export const FileBrowser: React.FC = () => {
                   folder={folder}
                   folders={localTree}
                   setFolders={setLocalTree}
+                  updateTreeAfterMove={updateTreeAfterMove}
                   documentsService={documentsService}
                   toast={toast}
                   onFolderSelect={setSelectedFolderId}
