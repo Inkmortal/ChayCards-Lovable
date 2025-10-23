@@ -497,6 +497,167 @@ const FileCard: React.FC<FileCardProps> = ({ file }) => {
   );
 };
 
+// ============ ParentNavigationCard Component ============
+
+interface ParentNavigationCardProps {
+  parentFolder: any;
+  parentFolderId: string | null;
+  localTree: any[];
+  setLocalTree: React.Dispatch<React.SetStateAction<any[]>>;
+  updateTreeAfterMove: (tree: any[], draggedId: string, newParentId: string | null, newIndex: number) => any[];
+  documentsService: any;
+  toast: any;
+  setTreeRefetchKey: React.Dispatch<React.SetStateAction<number>>;
+  onNavigate: () => void;
+}
+
+const ParentNavigationCard: React.FC<ParentNavigationCardProps> = ({
+  parentFolder,
+  parentFolderId,
+  localTree,
+  setLocalTree,
+  updateTreeAfterMove,
+  documentsService,
+  toast,
+  setTreeRefetchKey,
+  onNavigate
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // useDrop hook - makes parent card accept folder drops
+  const [{ isOver }, drop] = useDrop(() => ({
+    accept: 'FOLDER',
+    drop: async (item: { id: string; source: string }) => {
+      const draggedId = item.id;
+
+      // Find dragged folder and its order value
+      const findNode = (nodes: any[], id: string): any => {
+        for (const node of nodes) {
+          if (node.id === id) return node;
+          if (node.type === 'folder' && node.children) {
+            const found = findNode(node.children, id);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const draggedFolder = findNode(localTree, draggedId);
+      if (!draggedFolder) {
+        console.error('[ParentNavigationCard] Dragged folder not found');
+        return;
+      }
+
+      // Get children of parent folder, sorted by order (same as backend)
+      const getChildren = (tree: any[], parentId: string | null): any[] => {
+        if (parentId === null) {
+          return tree.filter(n => (n.parentId === null || !n.parentId));
+        }
+        const parent = findNode(tree, parentId);
+        return parent?.type === 'folder' ? parent.children : [];
+      };
+
+      const parentChildren = getChildren(localTree, parentFolderId)
+        .filter(n => n.id !== draggedId)  // Exclude the item being moved
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+      // Calculate correct index based on order value (matches backend sort)
+      const draggedOrder = draggedFolder.order || 0;
+      let correctIndex = parentChildren.findIndex(child => (child.order || 0) > draggedOrder);
+      if (correctIndex === -1) correctIndex = parentChildren.length;
+
+      // OPTIMISTIC UPDATE - Use correct index based on order
+      const prevFolders = [...localTree];
+      const updatedFolders = updateTreeAfterMove(prevFolders, draggedId, parentFolderId, correctIndex);
+      setLocalTree(updatedFolders);
+
+      try {
+        // Backend validation
+        const result = await documentsService.updateFolder(draggedId, { parentId: parentFolderId });
+
+        if (!result.success) {
+          // REVERT on validation error
+          setLocalTree(prevFolders);
+          toast({
+            title: "Move failed",
+            description: result.error?.message || "Failed to move folder",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Folder moved",
+            description: `Moved to ${parentFolder?.name || 'All Files'}`,
+          });
+          // Trigger tree refetch to sync with backend
+          setTreeRefetchKey(prev => prev + 1);
+        }
+      } catch (error) {
+        // REVERT on network error
+        setLocalTree(prevFolders);
+        console.error('[ParentNavigationCard] Drop failed:', error);
+        toast({
+          title: "Move failed",
+          description: "An error occurred while moving the folder",
+          variant: "destructive"
+        });
+      }
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver(),
+    }),
+  }), [parentFolderId, localTree, documentsService, toast, setLocalTree, setTreeRefetchKey, parentFolder?.name, updateTreeAfterMove]);
+
+  // Attach drop ref
+  drop(ref);
+
+  return (
+    <div
+      ref={ref}
+      onClick={onNavigate}
+      className={cn(
+        "group relative overflow-hidden cursor-pointer",
+        // Dashed border to indicate it's special
+        "p-4 rounded-2xl",
+        "bg-muted/30 border-2 border-dashed border-border",
+        // Hover effects (lighter than regular folders)
+        "hover:bg-muted/50",
+        "hover:border-primary/50",
+        "hover:-translate-y-1",
+        "transition-all duration-200",
+        // Drop target highlight
+        isOver && "ring-2 ring-primary/40 bg-primary/10 border-primary/50",
+        // Boxy layout matching other cards
+        "flex flex-col justify-center aspect-[4/3]"
+      )}
+    >
+      {/* Main content - vertical centered layout like macOS */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 px-3 py-4">
+        {/* Parent folder icon with up arrow */}
+        <div className="relative">
+          <Folder className="w-16 h-16 text-muted-foreground/60 drop-shadow-lg" />
+          {/* Up arrow overlay */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <ChevronRight className="w-8 h-8 text-muted-foreground rotate-[-90deg]" />
+          </div>
+        </div>
+
+        {/* Text content - centered below icon */}
+        <div className="flex flex-col items-center gap-0.5 w-full">
+          {/* Parent label */}
+          <h3 className="text-base font-semibold truncate w-full text-center px-2 text-muted-foreground">
+            {parentFolder?.name || 'All Files'}
+          </h3>
+
+          {/* Helper text */}
+          <div className="text-xs text-muted-foreground/70">
+            <span>{isOver ? 'Drop to move here' : 'Go to parent'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const FileBrowser: React.FC = () => {
   const manager = PluginManager.getInstance();
   const stats = useDocumentStatistics();
@@ -1901,51 +2062,20 @@ export const FileBrowser: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
               {/* Parent folder navigation card (only shown when inside a folder) */}
               {selectedFolderId && folderPath && folderPath.length > 0 && (
-                <div
-                  onClick={() => {
-                    // Navigate to parent folder
-                    const parentFolder = folderPath[folderPath.length - 2];
-                    setSelectedFolderId(parentFolder ? parentFolder.id : null);
+                <ParentNavigationCard
+                  parentFolder={folderPath[folderPath.length - 2]}
+                  parentFolderId={folderPath[folderPath.length - 2] ? folderPath[folderPath.length - 2].id : null}
+                  localTree={localTree}
+                  setLocalTree={setLocalTree}
+                  updateTreeAfterMove={updateTreeAfterMove}
+                  documentsService={documentsService}
+                  toast={toast}
+                  setTreeRefetchKey={setTreeRefetchKey}
+                  onNavigate={() => {
+                    const parentFolderId = folderPath[folderPath.length - 2] ? folderPath[folderPath.length - 2].id : null;
+                    setSelectedFolderId(parentFolderId);
                   }}
-                  className={cn(
-                    "group relative overflow-hidden cursor-pointer",
-                    // Dashed border to indicate it's special
-                    "p-4 rounded-2xl",
-                    "bg-muted/30 border-2 border-dashed border-border",
-                    // Hover effects (lighter than regular folders)
-                    "hover:bg-muted/50",
-                    "hover:border-primary/50",
-                    "hover:-translate-y-1",
-                    "transition-all duration-200",
-                    // Boxy layout matching other cards
-                    "flex flex-col justify-center aspect-[4/3]"
-                  )}
-                >
-                  {/* Main content - vertical centered layout like macOS */}
-                  <div className="flex-1 flex flex-col items-center justify-center gap-3 px-3 py-4">
-                    {/* Parent folder icon with up arrow - increased from w-14 to w-16 */}
-                    <div className="relative">
-                      <Folder className="w-16 h-16 text-muted-foreground/60 drop-shadow-lg" />
-                      {/* Up arrow overlay - increased from w-7 to w-8 */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <ChevronRight className="w-8 h-8 text-muted-foreground rotate-[-90deg]" />
-                      </div>
-                    </div>
-
-                    {/* Text content - centered below icon */}
-                    <div className="flex flex-col items-center gap-0.5 w-full">
-                      {/* Parent label - increased from text-sm to text-base */}
-                      <h3 className="text-base font-semibold truncate w-full text-center px-2 text-muted-foreground">
-                        {folderPath.length > 1 ? folderPath[folderPath.length - 2].name : 'All Files'}
-                      </h3>
-
-                      {/* Helper text */}
-                      <div className="text-xs text-muted-foreground/70">
-                        <span>Go to parent</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                />
               )}
 
               {/* Folders */}
