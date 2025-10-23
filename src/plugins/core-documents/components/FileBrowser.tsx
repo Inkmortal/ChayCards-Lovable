@@ -238,9 +238,43 @@ const FolderCard: React.FC<FolderCardProps> = ({
         return;
       }
 
-      // OPTIMISTIC UPDATE - Physically move node in tree structure (same as tree sidebar!)
+      // OPTIMISTIC UPDATE - Calculate correct index based on order property (matching backend sort)
       const prevFolders = [...folders];
-      const updatedFolders = updateTreeAfterMove(prevFolders, draggedId, folder.id, 0);
+
+      // Find dragged folder and its order value
+      const findNode = (nodes: any[], id: string): any => {
+        for (const node of nodes) {
+          if (node.id === id) return node;
+          if (node.type === 'folder' && node.children) {
+            const found = findNode(node.children, id);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const getChildren = (tree: any[], parentId: string | null): any[] => {
+        if (parentId === null) {
+          return tree.filter((n: any) => (n.parentId === null || !n.parentId));
+        }
+        const parent = findNode(tree, parentId);
+        return parent?.type === 'folder' ? parent.children : [];
+      };
+
+      const draggedFolder = findNode(folders, draggedId);
+      if (!draggedFolder) return;
+
+      // Get target folder's children, sorted by order (matching backend)
+      const targetChildren = getChildren(folders, folder.id)
+        .filter((n: any) => n.id !== draggedId)
+        .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+
+      // Calculate where this folder belongs based on its order value
+      const draggedOrder = draggedFolder.order || 0;
+      let correctIndex = targetChildren.findIndex((child: any) => (child.order || 0) > draggedOrder);
+      if (correctIndex === -1) correctIndex = targetChildren.length;
+
+      const updatedFolders = updateTreeAfterMove(prevFolders, draggedId, folder.id, correctIndex);
       setFolders(updatedFolders);
 
       try {
@@ -494,6 +528,64 @@ const FileCard: React.FC<FileCardProps> = ({ file }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+// ============ BreadcrumbFolder Component ============
+
+interface BreadcrumbFolderProps {
+  folder: { id: string; name: string } | null;
+  isActive: boolean;
+  onClick: () => void;
+  onDrop: (draggedId: string, source: string) => Promise<void>;
+}
+
+const BreadcrumbFolder: React.FC<BreadcrumbFolderProps> = ({
+  folder,
+  isActive,
+  onClick,
+  onDrop
+}) => {
+  const ref = useRef<HTMLButtonElement>(null);
+
+  const [{ isOver, canDrop }, drop] = useDrop(() => ({
+    accept: 'FOLDER',
+    drop: async (item: { id: string; source: string }) => {
+      const targetId = folder?.id || null;
+
+      // Don't drop on self
+      if (item.id === targetId) return;
+
+      console.log(`[Breadcrumb] Drop ${item.id} (from ${item.source}) onto ${folder?.name || 'All Files'}`);
+      await onDrop(item.id, item.source);
+    },
+    canDrop: (item) => {
+      return item.id !== (folder?.id || null);
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver() && monitor.canDrop(),
+      canDrop: monitor.canDrop(),
+    }),
+  }), [folder, onDrop]);
+
+  drop(ref);
+
+  return (
+    <button
+      ref={ref}
+      onClick={onClick}
+      className={cn(
+        "text-sm font-medium transition-all px-2 py-1 rounded",
+        isActive
+          ? "text-foreground underline underline-offset-4"
+          : "text-muted-foreground hover:text-foreground",
+        // Drop feedback
+        isOver && "bg-primary/20 ring-1 ring-primary/40",
+        canDrop && !isOver && "hover:bg-muted/50"
+      )}
+    >
+      {folder?.name || 'All Files'}
+    </button>
   );
 };
 
@@ -1479,33 +1571,119 @@ export const FileBrowser: React.FC = () => {
         />
       )}
 
-      {/* Breadcrumb Navigation - Always visible with visual prominence */}
+      {/* Breadcrumb Navigation - Always visible with visual prominence + drop targets */}
       <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 rounded-lg border border-border/50">
-        <button
+        <BreadcrumbFolder
+          folder={null}
+          isActive={selectedFolderId === null}
           onClick={() => setSelectedFolderId(null)}
-          className={cn(
-            "text-sm font-medium transition-colors",
-            selectedFolderId === null
-              ? "text-foreground underline underline-offset-4"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          All Files
-        </button>
+          onDrop={async (draggedId, source) => {
+            // Move folder to root (All Files)
+            console.log(`[Breadcrumb] Moving ${draggedId} to root`);
+            const prevTree = [...localTree];
+
+            // Calculate correct index based on order property (matching backend sort)
+            const findNode = (nodes: any[], id: string): any => {
+              for (const node of nodes) {
+                if (node.id === id) return node;
+                if (node.type === 'folder' && node.children) {
+                  const found = findNode(node.children, id);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+
+            const draggedFolder = findNode(localTree, draggedId);
+            if (!draggedFolder) return;
+
+            const rootChildren = localTree
+              .filter((n: any) => (n.parentId === null || !n.parentId) && n.id !== draggedId)
+              .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+
+            const draggedOrder = draggedFolder.order || 0;
+            let correctIndex = rootChildren.findIndex((child: any) => (child.order || 0) > draggedOrder);
+            if (correctIndex === -1) correctIndex = rootChildren.length;
+
+            const updatedTree = updateTreeAfterMove(prevTree, draggedId, null, correctIndex);
+            setLocalTree(updatedTree);
+
+            try {
+              const result = await documentsService.updateFolder(draggedId, { parentId: null });
+              if (!result.success) {
+                setLocalTree(prevTree);
+                toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
+              } else {
+                toast({ title: "Folder moved", description: "Moved to All Files" });
+                setTreeRefetchKey(prev => prev + 1);
+              }
+            } catch (error) {
+              setLocalTree(prevTree);
+              toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
+            }
+          }}
+        />
         {folderPath && folderPath.map((folder, index) => (
           <React.Fragment key={folder.id}>
             <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
-            <button
+            <BreadcrumbFolder
+              folder={folder}
+              isActive={index === folderPath.length - 1}
               onClick={() => setSelectedFolderId(folder.id)}
-              className={cn(
-                "text-sm font-medium transition-colors",
-                index === folderPath.length - 1
-                  ? "text-foreground underline underline-offset-4"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {folder.name}
-            </button>
+              onDrop={async (draggedId, source) => {
+                // Move to this breadcrumb folder
+                console.log(`[Breadcrumb] Moving ${draggedId} to ${folder.name}`);
+                const prevTree = [...localTree];
+
+                // Calculate correct index based on order property (matching backend sort)
+                const findNode = (nodes: any[], id: string): any => {
+                  for (const node of nodes) {
+                    if (node.id === id) return node;
+                    if (node.type === 'folder' && node.children) {
+                      const found = findNode(node.children, id);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+
+                const getChildren = (tree: any[], parentId: string | null): any[] => {
+                  if (parentId === null) {
+                    return tree.filter((n: any) => (n.parentId === null || !n.parentId));
+                  }
+                  const parent = findNode(tree, parentId);
+                  return parent?.type === 'folder' ? parent.children : [];
+                };
+
+                const draggedFolder = findNode(localTree, draggedId);
+                if (!draggedFolder) return;
+
+                const parentChildren = getChildren(localTree, folder.id)
+                  .filter((n: any) => n.id !== draggedId)
+                  .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+
+                const draggedOrder = draggedFolder.order || 0;
+                let correctIndex = parentChildren.findIndex((child: any) => (child.order || 0) > draggedOrder);
+                if (correctIndex === -1) correctIndex = parentChildren.length;
+
+                const updatedTree = updateTreeAfterMove(prevTree, draggedId, folder.id, correctIndex);
+                setLocalTree(updatedTree);
+
+                try {
+                  const result = await documentsService.updateFolder(draggedId, { parentId: folder.id });
+                  if (!result.success) {
+                    setLocalTree(prevTree);
+                    toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
+                  } else {
+                    toast({ title: "Folder moved", description: `Moved to ${folder.name}` });
+                    setTreeRefetchKey(prev => prev + 1);
+                  }
+                } catch (error) {
+                  setLocalTree(prevTree);
+                  toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
+                }
+              }}
+            />
           </React.Fragment>
         ))}
       </div>

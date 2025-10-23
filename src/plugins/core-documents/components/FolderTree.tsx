@@ -10,6 +10,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Tree, NodeApi, TreeApi, CursorProps } from 'react-arborist';
+import { useDrag, useDrop } from 'react-dnd';
 import { ChevronRight, ChevronDown, Folder, FileText, PanelLeftClose, MoreVertical, Edit2, Trash2, Palette, Plus } from 'lucide-react';
 import type { TreeNode } from '../types';
 import { cn } from '@/shared/lib/utils';
@@ -183,6 +184,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
                 }
                 isProcessing={processingNodeId === node.id}
                 onFolderSelect={onFolderSelect}
+                onMove={onMove}
                 onCreate={onCreate}
                 onDelete={onDelete}
                 onRename={onRename}
@@ -205,6 +207,7 @@ interface TreeNodeRendererProps {
   isSelected: boolean;
   isProcessing: boolean;
   onFolderSelect: (folderId: string | null) => void;
+  onMove?: (draggedId: string, operation: { parentId: string | null; index: number }) => Promise<void>;
   onCreate?: (parentId: string) => void;
   onDelete?: (folderId: string) => void;
   onRename?: (folderId: string) => void;
@@ -218,6 +221,7 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
   isSelected,
   isProcessing,
   onFolderSelect,
+  onMove,
   onCreate,
   onDelete,
   onRename,
@@ -230,6 +234,67 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
   const isFolder = data.type === 'folder';
   const hasChildren = isFolder && data.children && data.children.length > 0;
   const isAllFilesNode = data.id === '__ALL_FILES__';
+
+  // Create ref for combining react-arborist dragHandle + react-dnd hooks
+  const ref = useRef<HTMLDivElement>(null);
+
+  // React-dnd drag hook - for cross-functional dragging (tree -> main view, tree -> breadcrumb)
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'FOLDER',
+    item: { id: data.id, source: 'tree' },
+    canDrag: () => !isAllFilesNode && isFolder, // Only folders can be dragged, not All Files
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  }), [data.id, isAllFilesNode, isFolder]);
+
+  // React-dnd drop hook - for accepting external drops (main view -> tree, breadcrumb -> tree)
+  const [{ isOverExternal, canDropExternal }, drop] = useDrop(() => ({
+    accept: 'FOLDER',
+    drop: async (item: { id: string; source: string }) => {
+      // IMPORTANT: Only handle drops from external sources (not tree-to-tree)
+      if (item.source === 'tree') {
+        // Let react-arborist handle tree-to-tree (smoother with insertion cursor)
+        return;
+      }
+
+      if (!onMove || !isFolder) return;
+
+      const targetParentId = isAllFilesNode ? null : data.id;
+      console.log(`[TreeNode] External drop: ${item.id} (from ${item.source}) -> ${isAllFilesNode ? 'All Files (root)' : data.name}`);
+
+      // Calculate correct index based on order property (matching backend sort)
+      // This requires access to the full tree to find the dragged item and calculate position
+      // For now, we pass index: 0 and let the backend handle ordering
+      // The tree will refetch and show the correct sorted position
+      await onMove(item.id, {
+        parentId: targetParentId,
+        index: 0
+      });
+    },
+    canDrop: (item) => {
+      // Don't accept tree-to-tree (react-arborist handles that)
+      // Don't accept drop on self (but All Files is never "self" for regular folders)
+      // Only folders can accept drops (All Files is a folder)
+      return item.source !== 'tree' && item.id !== data.id && isFolder;
+    },
+    collect: (monitor) => ({
+      isOverExternal: monitor.isOver() && monitor.canDrop(),
+      canDropExternal: monitor.canDrop(),
+    }),
+  }), [data.id, data.name, isFolder, isAllFilesNode, onMove]);
+
+  // Combine all refs: react-dnd drop -> react-dnd drag -> react-arborist dragHandle -> actual DOM element
+  React.useEffect(() => {
+    if (isAllFilesNode) {
+      // All Files: Only apply drop ref (not draggable, but accepts drops)
+      drop(ref);
+    } else if (dragHandle) {
+      // Regular folders: Apply all three refs
+      drop(drag(ref));
+      dragHandle(ref.current);
+    }
+  }, [isAllFilesNode, dragHandle, drop, drag]);
 
   // Show vertical line for all nodes that have a parent (lines always visible)
   // Children disappear when parent is collapsed, so we don't need to check isOpen
@@ -244,7 +309,7 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
 
   return (
     <div
-      ref={isAllFilesNode ? undefined : dragHandle}  // Disable drag for All Files
+      ref={ref}  // Always use ref (All Files needs drop ref, regular folders need all refs)
       style={style}
       className={cn(
         'group relative flex gap-2 rounded-lg cursor-pointer transition-all duration-150',
@@ -253,9 +318,10 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
         isSelected && 'bg-accent/30',  // Softer highlight: 30% opacity for better readability
         !isSelected && 'hover:bg-muted/50',
         isProcessing && 'opacity-70', // Subtle processing feedback
-        // Drop zone visual feedback (not for All Files)
+        // Drop zone visual feedback
         !isAllFilesNode && node.state.isDragging && 'opacity-50', // Being dragged - fade out
-        !isAllFilesNode && node.willReceiveDrop && isFolder && 'bg-primary/10 ring-2 ring-primary/40', // Drop into folder - blue highlight
+        !isAllFilesNode && node.willReceiveDrop && isFolder && 'bg-primary/10 ring-2 ring-primary/40', // Drop into folder (internal react-arborist) - blue highlight
+        isOverExternal && 'bg-primary/20 ring-1 ring-primary/40', // Drop from external source (main view, breadcrumb) - works for All Files too!
       )}
       onClick={() => {
         if (isFolder) {
