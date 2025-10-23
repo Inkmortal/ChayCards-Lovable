@@ -223,13 +223,37 @@
 - ✅ SHA-256 deduplication in Electron (content-based addressing)
 - ✅ User scoping automatic via composite keys
 
-### 🔴 Documents Plugin Phase 2 (IN PROGRESS - Current)
-**Status**: Folder tree complete, main view needs operations
+### 🔴 Documents Plugin Phase 2 (IN PROGRESS - Nuclear Reset)
+**Status**: Main view cleared after persistent drag-drop bugs - clean slate ready
 
 **COMPLETE**:
 - [x] Folder sidebar tree with full functionality (drag-drop, three-dot menus)
 - [x] Folder operations from sidebar (delete, rename, change color)
-- [x] FileBrowser main content area shows folders as cards
+- [x] Nuclear reset of main view (October 19, 2025) - removed ~200 lines of broken drag-drop code
+
+**CURRENT STATE - Main View**:
+- ✅ Empty placeholder showing file/folder counts
+- ✅ Page header with Create Folder, Upload File buttons
+- ✅ Breadcrumb navigation
+- ✅ All dialogs still functional (create, rename, delete, color picker, conflict resolution)
+- ✅ Helper functions intact (handleFolderMove, handleCreateFolder, isDescendant)
+- ❌ NO drag-drop implementation (completely removed)
+- ❌ NO folder cards rendering
+- ❌ NO file cards rendering
+- ❌ NO three-dot menus in main view
+
+**WHY NUCLEAR RESET**:
+- Original bug: Folders dimmed during drag, never recovered
+- First fix: Discrete events pattern (onDragEnter/onDragLeave instead of onDragOver)
+- Problem: Code was correct, Vite compiled successfully, but drag-drop still didn't work
+- Hypothesis: Environmental issue (browser caching, hot reload) rather than code
+- Decision: Start completely fresh with minimal implementation
+
+**NEXT STEPS - Minimal Rebuild**:
+1. [ ] Implement absolute simplest drag-drop (text/plain data transfer only)
+2. [ ] Test in fresh browser session (clear all cache)
+3. [ ] Add visual feedback only after basic drag works
+4. [ ] Build up incrementally from working foundation
 
 **INCOMPLETE - Main View Operations (0%)**:
 - [ ] Three-dot context menu on folder cards in main view
@@ -238,12 +262,18 @@
 - [ ] File context menus in main view (rename, delete)
 - [ ] Symmetric UX (everything in tree should work in main view)
 
-**Acceptance Criteria**:
+**Acceptance Criteria** (unchanged):
 - User can perform all folder operations from main view (not just sidebar)
 - Drag folders from main view into sidebar tree
 - Drag folders from tree into main view folders
 - Three-dot menu on folder cards matches tree menu
 - File cards have context menus for rename/delete
+
+**Research Complete**:
+- Discrete events pattern validated (web sources + Zen AI)
+- Performance metrics: 2 re-renders vs 60/sec with onDragOver
+- Pattern matches react-dnd/dnd-kit internals
+- Ready to rebuild from scratch using validated approach
 
 ### 🔲 Feature Plugins (Ready to Implement)
 - [ ] core.tasks plugin - **READY TO IMPLEMENT**

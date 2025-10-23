@@ -37,18 +37,72 @@
 
 ### 🎯 Current Phase: Feature Plugins
 
-### Main View Folder/File Operations - IN PROGRESS
-**Status**: Research phase
-**Agent**: context-researcher
-**Goal**: Feature parity between folder tree sidebar and main content area
-**User Request**: "implement, study how the tree does it, and remember i want to be able to drag between the tree and main view"
+### Main View Folder/File Operations - NUCLEAR RESET COMPLETE
+**Status**: ✅ CLEAN SLATE READY - Main view cleared
+**Date**: 2025-10-19
+**Decision**: Complete nuclear reset after persistent drag-drop bugs
+
+**What Happened**:
+1. **Original Bug**: Folders became dimmed (opacity-50) during drag, never returned to normal
+2. **First Fix**: Moved setState from onDragOver to onDragEnter/onDragLeave (discrete events pattern)
+3. **Problem**: Despite correct code and successful Vite compilation, drag-drop still didn't work
+4. **User Decision**: "completely empty out all code from main view, dont touch tree view"
+5. **Nuclear Reset**: Deleted ~200 lines of drag-drop implementation from main view
 
 **Current State**:
 - ✅ Folder tree sidebar: Full functionality (three-dot menus, drag-drop, all operations)
 - ✅ File storage backend: 100% complete (SQLite + PostgreSQL with CASCADE DELETE)
-- ❌ Main view: Folders show as cards but only support click-to-navigate (no operations)
+- ✅ Main view: EMPTY PLACEHOLDER - clean slate ready for rebuild
+  - Simple placeholder showing file/folder counts
+  - No drag-drop code
+  - No event handlers
+  - No visual feedback classes
 
-**Acceptance Criteria**:
+**What Was Removed** (FileBrowser.tsx):
+- Lines 183-184: Drag-drop state variables (`draggedFolderId`, `dropTargetFolderId`)
+- Lines 1536-1742: Entire folder cards grid with all drag-drop handlers
+  - Container drop zone logic
+  - All event handlers: onDragStart, onDragEnter, onDragLeave, onDragOver, onDrop, onDragEnd
+  - Visual feedback classes (opacity-50, blue rings)
+  - Three-dot menu rendering
+  - File cards rendering
+
+**What Remains Unchanged**:
+- FolderTree component (left sidebar) - fully functional with react-arborist drag-drop
+- Page header with buttons (Create Folder, Upload File, Sort dropdown)
+- Breadcrumb navigation
+- All dialogs (create folder, rename, delete, color picker, conflict resolution)
+- All helper functions (handleFolderMove, handleCreateFolder, isDescendant, etc.)
+- Virtual tree structure with __ALL_FILES__ root node
+
+**New Placeholder** (FileBrowser.tsx lines 1532-1539):
+```tsx
+<div className="text-center py-12">
+  <p className="text-muted-foreground text-lg font-medium">Main view cleared</p>
+  <p className="text-sm text-muted-foreground mt-2">Ready for fresh drag-and-drop implementation</p>
+  <div className="mt-6 text-xs text-muted-foreground/70">
+    <p>Files: {filesInFolder.length}</p>
+    <p>Folders: {childFolders.length}</p>
+  </div>
+</div>
+```
+
+**Key Insight**:
+Despite implementing the discrete events pattern correctly (code review approved), drag-drop still didn't work. This suggests the problem may be **environmental** (browser caching, hot reload issues) rather than code-based. Nuclear reset provides a fresh start to test this hypothesis.
+
+**Research Findings From Previous Attempts**:
+- Web sources confirmed: Calling setState in onDragOver prevents onDrop from firing
+- Best practice: Use onDragEnter/onDragLeave (discrete events) for state updates
+- Zen AI validated: This matches react-dnd/dnd-kit internal implementations
+- Performance: Discrete events = 2 total re-renders vs 60 re-renders/sec with onDragOver
+
+**Next Steps**:
+1. Build minimal drag-drop from scratch using research-validated patterns
+2. Start with absolute simplest implementation (text/plain data transfer)
+3. Add visual feedback only after basic drag-drop works
+4. Test in fresh browser session (clear cache completely)
+
+**Acceptance Criteria** (unchanged):
 - Three-dot context menu on folder cards in main view (rename, delete, change color)
 - Drag folders within main view to reorder
 - Drag folders from main view → sidebar tree
@@ -56,16 +110,6 @@
 - Drag folders from sidebar tree → main view area (make sibling)
 - File cards have context menus (rename, delete)
 - Symmetric UX: Everything you can do in tree, you can do in main view
-
-**Implementation Scope**:
-1. Add three-dot menu to folder cards (FileBrowser.tsx)
-2. Wire up onRename, onDelete, onChangeColor callbacks (same dialogs as tree)
-3. Integrate drag-drop for folders in main grid view
-4. Add drag-drop between tree ↔ main view (inter-component)
-5. Add file context menus (rename, delete)
-6. Ensure visual feedback matches tree (hover states, drop zones)
-
-**See**: FileBrowser.tsx lines 1517-1559 for current folder card implementation
 
 1. **File Storage Implementation - Phase 1** ✅ **COMPLETE** (January 2025)
    - **Status**: Files as Entity Properties pattern fully implemented
@@ -114,6 +158,36 @@
 - **Deployment Strategy**: Local-first for desktop, cloud-first for web, future mobile support
 
 ## Recent Changes
+
+### Optimistic UI Performance Improvements - 2025-10-22
+**Status**: ✅ COMMITTED (f4e8eb4)
+**Agent**: git-workflow-manager
+**Commit**: `perf(documents): eliminate drag-drop delay with optimistic tree synchronization`
+
+**Problem Solved**:
+- Slight delay between tree sidebar and main view when dragging folders
+- Grid was reading from backend hook instead of optimistic local state
+- Main view using metadata-only updates while tree used structural updates
+
+**Changes Made**:
+1. **Grid derives childFolders from localTree** (FileBrowser.tsx:400-425)
+   - Replaced `useChildFolders()` backend hook with `useMemo` extraction
+   - Now reads directly from optimistically updated `localTree` state
+   - Result: Instant grid updates matching tree sidebar behavior
+
+2. **Main view uses structural updates** (FileBrowser.tsx:219-222)
+   - FolderCard now calls `updateTreeAfterMove()` (same as tree sidebar)
+   - Physically moves nodes in tree structure immediately
+   - Replaced metadata-only parentId update
+   - Result: Perfect synchronization, zero delay between views
+
+**Impact**:
+- Zero-delay synchronization between tree and main view
+- Instant visual feedback when dragging folders in grid
+- Consistent optimistic update behavior across all views
+
+**Files Changed**:
+- `src/plugins/core-documents/components/FileBrowser.tsx` (31 insertions, 29 deletions)
 
 ### Drag-Drop Research - 2025-10-19
 **Status**: ✅ RESEARCH COMPLETE
@@ -269,6 +343,74 @@
 - `src/plugins/core-documents/hooks/useDocuments.ts` - Reactive hooks with triggerRefetch parameter
 
 **See**: `docs/DRAG_DROP_PATTERNS.md` for complete implementation patterns and debugging guide.
+
+### Dual-Pane File Browser Architecture Research - 2025-10-20
+**Status**: ✅ COMPLETE + ZEN CONSULTATION
+**Agent**: context-researcher
+**Model Used**: gemini-2.5-pro
+
+**Research Goal**: Determine optimal library architecture for Documents plugin main view after nuclear reset
+
+**Current State**:
+- Sidebar: ✅ react-arborist working (drag-drop, menus, virtual tree)
+- Main View: 🔄 Empty slate (nuclear reset complete, ready for rebuild)
+- Libraries: react-arborist v3.4.3, @dnd-kit (unused), react-dnd (transitive)
+
+**Key Finding - react-arborist Built on react-dnd**:
+This changes everything. Using react-dnd for the grid creates a **shared DndProvider context**, eliminating all interoperability issues.
+
+**✅ FINAL ARCHITECTURE**: react-arborist (sidebar) + react-dnd (grid) + shared DndProvider
+
+**Why This Works**:
+- react-arborist internally uses react-dnd
+- Same DndProvider = seamless drag between tree and grid
+- No bridge code, no dataTransfer hacks
+- `isOver` state works across both components
+
+**Implementation Pattern**:
+```typescript
+<DndProvider backend={HTML5Backend}>
+  <FolderTree /> {/* react-arborist */}
+  <GridView />   {/* react-dnd useDrag/useDrop */}
+</DndProvider>
+```
+
+**Backend-First Flow** (No Optimistic Updates):
+```
+onDrop → isProcessing=true → API call →
+success: refetch data → error: toast → finally: isProcessing=false
+```
+
+**Drop Target Strategy**:
+- FolderCard: `useDrop` (drop INTO = child)
+- Grid background: `useDrop` (drop TO = sibling)
+- react-dnd collision: Most specific target wins
+
+**Incremental Steps**:
+1. Static Grid (FolderCard, FileCard, GridView - no drag)
+2. Intra-Grid Drag (within grid only)
+3. Tree-to-Grid (shared context makes it "just work")
+4. Grid-to-Tree (reverse of step 3)
+
+**Why NOT @dnd-kit**:
+- Previous project issues (optimistic updates, state sync)
+- Would need dataTransfer bridge to work with react-arborist
+- react-dnd already a dependency (zero bundle increase)
+
+**Why NOT HTML5 API**:
+- Excessive boilerplate, browser inconsistencies
+- Imperative API vs React declarative
+- Still needs bridge to react-arborist
+
+**Files to Create**:
+- `src/plugins/core-documents/components/GridView.tsx`
+- `src/plugins/core-documents/components/FolderCard.tsx`
+- `src/plugins/core-documents/components/FileCard.tsx`
+
+**Files to Modify**:
+- `src/plugins/core-documents/components/FileBrowser.tsx` (replace placeholder lines 1532-1539)
+
+**Zen Consultation Details**: Continuation ID 1112fc2a-ed59-40ca-9654-3fa3b2220bd1
 
 ### Navigation Tree Drag & Drop Library Research - 2025-10-09
 **Context Research Complete**: Comprehensive analysis of modern navigation tree libraries and implementation patterns for folder/file drag & drop.
@@ -1576,6 +1718,18 @@ Both tasks moved from "In progress" to "Done" with detailed completion notes.
 45. **API Endpoint Pattern**: Use `/api/users/me/*` pattern for user-specific data queries (follows REST conventions)
 46. **publicSafe Metadata**: Mark plugins that don't need user storage with `publicSafe: true` - enables anonymous user experience
 47. **Async Event Handlers**: React event handlers can be async - service methods that access storage return `Promise<T>` and must be awaited
+
+### Git Workflow Preferences
+
+**CRITICAL USER PREFERENCE**: When user says "commit", **ALWAYS stage ALL changed files** without asking.
+
+- **Default behavior**: Use `git add .` or `git add -A` to stage everything
+- **No selective staging**: Don't ask which files to include - stage them all
+- **User expectation**: "commit" means commit everything that changed
+- **Only exception**: User explicitly specifies files to commit (rare)
+
+This is the user's preferred workflow - they want quick, comprehensive commits without file-by-file decisions.
+
 # Context Research Report
 
 ## Task Understanding

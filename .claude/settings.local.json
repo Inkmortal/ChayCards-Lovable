@@ -130,7 +130,10 @@
       "WebFetch(domain:stackblitz.com)",
       "Bash(PGPASSWORD=postgres psql:*)",
       "mcp__puppeteer__puppeteer_hover",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(ss -tlnp)",
+      "Bash(git -C c:/Users/danhc/Documents/Projects/ChayCards-Lovable diff memory-bank/activeContext.md)",
+      "Bash(timeout 20 npx tsc:*)"
     ],
     "deny": []
   },

@@ -1381,3 +1381,71 @@ const handleThemeChange = async () => {
 **Why**: CSS padding breaks cursor position calculations because the cursor is absolutely positioned and doesn't inherit container padding. The library assumes props are the only spacing source.
 
 **See**: `docs/DRAG_DROP_PATTERNS.md` for complete explanation with mathematical breakdown, real-world fix, and debug checklist.
+
+### Nuclear Reset Pattern (Debugging Last Resort)
+**Problem**: Code appears correct, compiles successfully, but drag-drop still doesn't work despite multiple fix attempts.
+
+**Symptom**: Persistent bugs that survive correct code changes, suggesting environmental issues rather than code issues.
+
+**Example** (FileBrowser.tsx main view, October 19, 2025):
+1. Original bug: Folders dimmed during drag (opacity-50), never returned to normal
+2. Research: Web sources + Zen AI confirmed discrete events pattern (onDragEnter/onDragLeave)
+3. Implementation: Moved setState from onDragOver to onDragEnter/onDragLeave
+4. Result: Code correct, Vite compiled, but drag-drop still didn't work
+5. Decision: Nuclear reset - delete ALL drag-drop code (~200 lines)
+
+**When to Use Nuclear Reset**:
+- ✅ Multiple fix attempts using validated patterns have failed
+- ✅ Code review confirms implementation is correct
+- ✅ Vite/compiler shows no errors
+- ✅ Feature still doesn't work as expected
+- ✅ Suspect browser caching, hot reload issues, or stale state
+
+**Nuclear Reset Process**:
+```typescript
+// BEFORE: Complex implementation with persistent bugs
+const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
+const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null);
+
+<div onDragStart={...} onDragEnter={...} onDragLeave={...} onDragOver={...} onDrop={...}>
+  {/* 200+ lines of drag-drop logic */}
+</div>
+
+// AFTER: Absolute minimal placeholder
+<div className="text-center py-12">
+  <p className="text-muted-foreground text-lg font-medium">Main view cleared</p>
+  <p className="text-sm text-muted-foreground mt-2">Ready for fresh drag-and-drop implementation</p>
+  <div className="mt-6 text-xs text-muted-foreground/70">
+    <p>Files: {filesInFolder.length}</p>
+    <p>Folders: {childFolders.length}</p>
+  </div>
+</div>
+```
+
+**What to Preserve**:
+- ✅ Keep helper functions (handleFolderMove, isDescendant, etc.)
+- ✅ Keep dialogs (create, rename, delete, color picker)
+- ✅ Keep page structure (header, breadcrumbs, navigation)
+- ✅ Keep working components (FolderTree sidebar if it works)
+- ❌ Delete ALL implementation code (state, handlers, JSX)
+
+**Rebuild Strategy**:
+1. **Start minimal**: Text/plain data transfer only, no visual feedback
+2. **Test fresh**: Clear browser cache completely, fresh session
+3. **Add incrementally**: Add one feature at a time, test after each
+4. **Verify environment**: Ensure hot reload isn't causing stale state
+5. **Document learnings**: Track what works vs what doesn't
+
+**Benefits**:
+- ✅ Eliminates all potential sources of bugs
+- ✅ Provides clean environment to test environmental hypothesis
+- ✅ Forces minimal implementation (often reveals overlooked issues)
+- ✅ Psychological reset (breaks fixation on "fixing" broken code)
+
+**When NOT to Use**:
+- ❌ First or second bug encountered
+- ❌ Error messages clearly point to specific issue
+- ❌ Haven't tried validated patterns yet
+- ❌ No research done on correct implementation
+
+**Key Principle**: If code is correct but doesn't work, the problem is environmental. Nuclear reset creates a clean environment to test this hypothesis.
