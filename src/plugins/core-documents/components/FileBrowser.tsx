@@ -7,13 +7,14 @@
  * - File upload and management
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { FileText, FolderPlus, Upload, Folder, ChevronRight, PanelLeftClose, PanelLeft, ArrowUpDown, MoreVertical, Edit2, Palette, Trash2 } from 'lucide-react';
 import { HslColorPicker } from 'react-colorful';
 import { useDrag, useDrop } from 'react-dnd';
 import { PluginManager } from '@/shared/plugin-system';
-import { useDocumentStatistics, useUnifiedTree, useFilesInFolder, useChildFolders, useFolderPath, useSortBy } from '../hooks/useDocuments';
+import { useDocumentStatistics, useUnifiedTree, useFilesInFolder, useChildFolders, useFolderPath, useSortBy, useFileHandlers } from '../hooks/useDocuments';
 import { FolderTree } from './FolderTree';
+import { FileIconDisplay, FileTypeLabel, getFileDisplayName } from './FileDisplay';
 import { Input } from '@/renderer/components/ui/input';
 import { Label } from '@/renderer/components/ui/label';
 import { useToast } from '@/renderer/hooks/use-toast';
@@ -393,15 +394,41 @@ interface FileCardProps {
   file: any;
 }
 
-const FileCard: React.FC<FileCardProps> = ({ file }) => {
+const FileCard = React.forwardRef<HTMLDivElement, FileCardProps>(({ file }, forwardedRef) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Combine internal ref with forwarded ref
+  React.useEffect(() => {
+    if (forwardedRef) {
+      if (typeof forwardedRef === 'function') {
+        forwardedRef(ref.current);
+      } else {
+        forwardedRef.current = ref.current;
+      }
+    }
+  }, [forwardedRef]);
+
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  // useDrag hook - makes this file draggable
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'FILE',
+    item: { id: file.id, source: 'main-view' },
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  }), [file.id]);
+
+  // Only drag functionality
+  drag(ref);
+
   return (
     <div
+      ref={ref}
       className={cn(
         "group relative overflow-hidden cursor-pointer",
         // Base card with depth - TALLER aspect ratio (matching folders)
@@ -414,6 +441,8 @@ const FileCard: React.FC<FileCardProps> = ({ file }) => {
         "hover:border-primary/30",
         "hover:-translate-y-1",
         "transition-all duration-200",
+        // Drag states
+        isDragging && "opacity-50 scale-95",
         // Boxy layout - matching folders
         "flex flex-col justify-center aspect-[4/3]"
       )}
@@ -433,27 +462,29 @@ const FileCard: React.FC<FileCardProps> = ({ file }) => {
 
       {/* Main content - vertical centered layout like macOS */}
       <div className="flex-1 flex flex-col items-center justify-center gap-3 px-3 py-4">
-        {/* File icon - increased from w-14 to w-16 */}
+        {/* File icon - handler-specific icon with fallback */}
         <div className="flex-shrink-0">
-          <FileText className="w-16 h-16 text-muted-foreground drop-shadow-lg" />
+          <FileIconDisplay file={file} size="large" />
         </div>
 
         {/* Text content - centered below icon */}
         <div className="flex flex-col items-center gap-0.5 w-full">
-          {/* File name - increased from text-sm to text-base */}
+          {/* File name - without extension */}
           <h3 className="text-base font-semibold truncate w-full text-center px-2">
-            {file.filename}
+            {getFileDisplayName(file)}
           </h3>
 
-          {/* Metadata - single line */}
+          {/* Metadata - file type and size */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <FileTypeLabel file={file} />
+            <span>•</span>
             <span>{formatFileSize(file.size)}</span>
           </div>
         </div>
       </div>
     </div>
   );
-};
+});
 
 // ============ BreadcrumbFolder Component ============
 
@@ -691,6 +722,28 @@ export const FileBrowser: React.FC = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const filesInFolder = useFilesInFolder(selectedFolderId, treeRefetchKey);
 
+  // Listen for document changes from any plugin (flashcards, future plugins, etc.)
+  React.useEffect(() => {
+    const eventBus = PluginManager.getInstance().getEventBus();
+
+    const handleDocumentChange = () => {
+      setTreeRefetchKey(prev => prev + 1);
+    };
+
+    // Subscribe to all document mutation events
+    eventBus.on('document:created', handleDocumentChange);
+    eventBus.on('document:updated', handleDocumentChange);
+    eventBus.on('document:deleted', handleDocumentChange);
+    eventBus.on('file:created', handleDocumentChange); // Backward compatibility
+
+    return () => {
+      eventBus.off('document:created', handleDocumentChange);
+      eventBus.off('document:updated', handleDocumentChange);
+      eventBus.off('document:deleted', handleDocumentChange);
+      eventBus.off('file:created', handleDocumentChange);
+    };
+  }, []);
+
   // Extract child folders directly from localTree for instant optimistic updates
   const childFolders = React.useMemo(() => {
     const extractChildren = (nodes: any[], parentId: string | null): any[] => {
@@ -768,6 +821,38 @@ export const FileBrowser: React.FC = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [folderPlaceholder, setFolderPlaceholder] = useState('New Folder');
   const [createFolderError, setCreateFolderError] = useState('');
+
+  // Add File dropdown state
+  const [showAddFileDropdown, setShowAddFileDropdown] = useState(false);
+  const [fileTypeSearch, setFileTypeSearch] = useState('');
+
+  // Get registered file handlers from plugins
+  const registeredHandlers = useFileHandlers();
+
+  // Convert file handlers to dropdown format
+  const fileTypes = useMemo(() => {
+    const types = registeredHandlers.map(handler => ({
+      id: handler.id,
+      name: handler.name,
+      icon: handler.icon,
+      description: `Create a new ${handler.name.toLowerCase()}`,
+      favorited: false, // TODO: Load from user preferences
+      disabled: false,
+      pluginId: handler.pluginId
+    }));
+
+    // Add generic upload option (not a handler, but a UI action)
+    types.push({
+      id: 'upload',
+      name: 'Upload File',
+      icon: '📤',
+      description: 'Upload a file from your device (coming soon)',
+      favorited: false,
+      disabled: true // Coming soon
+    });
+
+    return types;
+  }, [registeredHandlers]);
 
   // Conflict resolution dialog state
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
@@ -1677,8 +1762,8 @@ export const FileBrowser: React.FC = () => {
 
   // Drop zone for main view background (drop into current folder level)
   const [{ isOverMainView }, dropMainView] = useDrop(() => ({
-    accept: 'FOLDER',
-    hover: (item: { id: string; source: string }, monitor) => {
+    accept: ['FOLDER', 'FILE'],
+    hover: (item: { id: string; source: string; type: 'FOLDER' | 'FILE' }, monitor) => {
       // Only process if hovering over container
       if (!monitor.isOver({ shallow: true })) {
         return;
@@ -1720,36 +1805,63 @@ export const FileBrowser: React.FC = () => {
         });
       }
     },
-    drop: (item: { id: string; source: string }) => {
+    drop: (item: { id: string; source: string; type?: string }, monitor) => {
       const draggedId = item.id;
+      const itemType = monitor.getItemType() as string;
+      const isFile = itemType === 'FILE';
 
       // Handle drop based on current dropState
       if (dropState.highlightedCardId) {
-        // Drop INTO a folder
+        // Drop INTO a folder (both files and folders can be moved into folders)
         if (draggedId !== dropState.highlightedCardId) {
           const prevTree = [...localTree];
 
-          // Move into the highlighted folder
-          const updatedTree = updateTreeAfterMove(prevTree, draggedId, dropState.highlightedCardId, 0);
-          setLocalTree(updatedTree);
-
-          documentsService.moveToPosition(draggedId, dropState.highlightedCardId, 0)
-            .then(result => {
-              if (!result.success) {
-                setLocalTree(prevTree);
-                toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
-              } else {
-                toast({ title: "Folder moved", description: `Moved into folder` });
-                setTreeRefetchKey(prev => prev + 1);
-              }
-            })
-            .catch(error => {
-              setLocalTree(prevTree);
-              toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
+          if (isFile) {
+            // TODO: Implement file move service method
+            console.log('[Drop] File move not yet implemented:', draggedId, '->', dropState.highlightedCardId);
+            toast({
+              title: "File movement coming soon",
+              description: "File drag-and-drop will be available in the next update"
             });
+          } else {
+            // Move folder into the highlighted folder
+            const updatedTree = updateTreeAfterMove(prevTree, draggedId, dropState.highlightedCardId, 0);
+            setLocalTree(updatedTree);
+
+            documentsService.moveToPosition(draggedId, dropState.highlightedCardId, 0)
+              .then(result => {
+                if (!result.success) {
+                  setLocalTree(prevTree);
+                  toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
+                } else {
+                  toast({ title: "Folder moved", description: `Moved into folder` });
+                  setTreeRefetchKey(prev => prev + 1);
+                }
+              })
+              .catch(error => {
+                setLocalTree(prevTree);
+                toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
+              });
+          }
         }
       } else if (dropState.insertionIndex !== null) {
-        // INSERT between folders
+        // INSERT between items (folders only for now, files TODO)
+        if (isFile) {
+          // TODO: Implement file reordering
+          console.log('[Drop] File reorder not yet implemented');
+          toast({
+            title: "File reordering coming soon",
+            description: "File drag-and-drop will be available in the next update"
+          });
+          // Clear state and return
+          setDropState({
+            cursorPosition: null,
+            highlightedCardId: null,
+            insertionIndex: null
+          });
+          return;
+        }
+
         const targetIndex = dropState.insertionIndex;
 
         // Helper: Find node in tree
@@ -1890,10 +2002,85 @@ export const FileBrowser: React.FC = () => {
                 <FolderPlus className="w-4 h-4 mr-2" />
                 New Folder
               </Button>
-              <Button variant="3d-primary">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload File
-              </Button>
+              <div className="relative">
+                <Button
+                  variant="3d-primary"
+                  onClick={() => setShowAddFileDropdown(!showAddFileDropdown)}
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Add File
+                </Button>
+                {showAddFileDropdown && (
+                  <div className="absolute right-0 mt-2 w-80 rounded-lg border bg-background shadow-lg z-50">
+                    <div className="p-2">
+                      {/* Search input */}
+                      <input
+                        type="text"
+                        placeholder="Search file types..."
+                        value={fileTypeSearch}
+                        onChange={(e) => setFileTypeSearch(e.target.value)}
+                        className="w-full px-3 py-2 text-sm rounded-md border bg-background mb-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+
+                      {/* File type options */}
+                      <div className="space-y-1">
+                        {fileTypes
+                          .filter(type =>
+                            type.name.toLowerCase().includes(fileTypeSearch.toLowerCase()) ||
+                            type.description.toLowerCase().includes(fileTypeSearch.toLowerCase())
+                          )
+                          .map((type) => (
+                            <button
+                              key={type.id}
+                              onClick={() => {
+                                if (!type.disabled) {
+                                  setShowAddFileDropdown(false);
+                                  setFileTypeSearch('');
+
+                                  // If this is a registered handler, emit event for plugin to handle
+                                  if ('pluginId' in type) {
+                                    const eventBus = PluginManager.getInstance().getEventBus();
+                                    eventBus.emit('file:create-requested', {
+                                      handlerId: type.id,
+                                      pluginId: type.pluginId,
+                                      folderId: selectedFolderId
+                                    });
+
+                                    toast({
+                                      title: `Creating ${type.name}`,
+                                      description: 'File creation in progress...'
+                                    });
+                                  } else {
+                                    // Generic upload action (not a handler)
+                                    console.log('Upload action requested');
+                                    toast({
+                                      title: `Creating ${type.name}`,
+                                      description: 'File creation coming soon'
+                                    });
+                                  }
+                                }
+                              }}
+                              disabled={type.disabled}
+                              className={`w-full text-left px-3 py-2.5 rounded-md transition-colors ${
+                                type.disabled
+                                  ? 'opacity-50 cursor-not-allowed'
+                                  : 'hover:bg-accent cursor-pointer'
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <span className="text-2xl flex-shrink-0">{type.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm">{type.name}</div>
+                                  <div className="text-xs text-muted-foreground mt-0.5">{type.description}</div>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           }
         />

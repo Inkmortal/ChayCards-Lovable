@@ -13,6 +13,7 @@ import { Tree, NodeApi, TreeApi, CursorProps } from 'react-arborist';
 import { useDrag, useDrop } from 'react-dnd';
 import { ChevronRight, ChevronDown, Folder, FileText, PanelLeftClose, MoreVertical, Edit2, Trash2, Palette, Plus } from 'lucide-react';
 import type { TreeNode } from '../types';
+import { FileIconDisplay, getFileDisplayName } from './FileDisplay';
 import { cn } from '@/shared/lib/utils';
 import { useToast } from '@/renderer/hooks/use-toast';
 import { PluginManager } from '@/shared/plugin-system/PluginManager';
@@ -656,7 +657,7 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
             style={{ color: data.color || 'hsl(var(--primary))' }}
           />
         ) : (
-          <FileText className="w-4 h-4 text-muted-foreground" />
+          <FileIconDisplay file={data} size="small" />
         )}
       </div>
 
@@ -665,7 +666,7 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
         'text-sm truncate flex-1',
         isSelected && 'font-medium'
       )}>
-        {isFolder ? data.name : data.filename}
+        {isFolder ? data.name : getFileDisplayName(data)}
       </span>
 
       {/* Add Folder Button (appears on hover, folders only) */}

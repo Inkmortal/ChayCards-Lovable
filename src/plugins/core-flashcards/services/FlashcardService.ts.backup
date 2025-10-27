@@ -1,0 +1,1077 @@
+/**
+ * FlashcardService
+ *
+ * Core service for managing flashcards, decks, and templates.
+ * Handles CRUD operations, spaced repetition scheduling, and study sessions.
+ */
+
+import type {
+  Card,
+  CardTemplate,
+  Deck,
+  DeckStats,
+  CardState,
+  StudySession,
+  CardReview,
+  UserStatistics,
+  FolderTreeNode,
+  FolderStats,
+} from '../types';
+import {
+  STORAGE_KEYS,
+  DEFAULT_CARD_STATE,
+  DEFAULT_DECK_STATS,
+  BUILT_IN_TEMPLATES,
+  SR_PRESETS,
+  SM2_DEFAULTS,
+} from '../constants';
+import { EventBus } from '@/services/eventBus';
+import type { PluginManager, StorageAdapter } from '@/shared/plugin-system/types';
+import type { DocumentsService, Folder } from '@/plugins/core-documents';
+
+export class FlashcardService {
+  private eventBus: EventBus;
+  private storage: StorageAdapter | null = null;
+  private manager: PluginManager | null = null;
+  private defaultFolderId: string | null = null;
+  private initialized = false;
+
+  constructor(eventBus: EventBus) {
+    this.eventBus = eventBus;
+  }
+
+  /**
+   * Initialize service with PluginManager and StorageAdapter
+   * Must be called after plugin onLoad
+   */
+  async initialize(manager: PluginManager, storage: StorageAdapter): Promise<void> {
+    if (this.initialized) {
+      console.log('[FlashcardService] Already initialized');
+      return;
+    }
+
+    this.manager = manager;
+    this.storage = storage;
+
+    // Get DocumentsService for folder management
+    const documentsService = manager.getService<DocumentsService>('core-documents/documentsService');
+
+    if (!documentsService) {
+      console.warn('[FlashcardService] DocumentsService not available - folder integration disabled');
+      this.initialized = true;
+      return;
+    }
+
+    // Check if "Flashcards" folder already exists (don't create it yet - lazy creation)
+    const folders = await documentsService.getFolders();
+    const flashcardsFolder = folders.find(
+      (f: Folder) => f.name === 'Flashcards' && f.parentId === null
+    );
+
+    if (flashcardsFolder) {
+      this.defaultFolderId = flashcardsFolder.id;
+      console.log('[FlashcardService] Found existing "Flashcards" folder:', this.defaultFolderId);
+    } else {
+      console.log('[FlashcardService] "Flashcards" folder will be created on first deck creation');
+    }
+
+    // Set up EventBus listener for folder deletion
+    this.eventBus.on('documents:folder:deleted', this.handleFolderDeleted.bind(this));
+
+    this.initialized = true;
+    console.log('[FlashcardService] Initialized successfully');
+  }
+
+  /**
+   * Handle folder deletion by moving orphaned decks to default folder
+   */
+  private async handleFolderDeleted(data: { folderId: string }): Promise<void> {
+    const { folderId } = data;
+
+    // Move orphaned decks to default folder
+    const decks = await this.getDecks();
+    const orphanedDecks = decks.filter(d => d.folderId === folderId);
+
+    if (orphanedDecks.length > 0) {
+      console.log(`[FlashcardService] Moving ${orphanedDecks.length} orphaned decks to default folder`);
+
+      // Ensure default folder exists before moving decks
+      const defaultFolderId = await this.ensureDefaultFolder();
+
+      for (const deck of orphanedDecks) {
+        await this.updateDeck(deck.id, { folderId: defaultFolderId });
+      }
+    }
+  }
+
+  /**
+   * Get the default "Flashcards" folder ID
+   */
+  getDefaultFolderId(): string | null {
+    return this.defaultFolderId;
+  }
+
+  /**
+   * Ensure default "Flashcards" folder exists
+   * Creates it lazily when first needed (when creating a deck without folder selection)
+   */
+  private async ensureDefaultFolder(): Promise<string | null> {
+    if (this.defaultFolderId) {
+      return this.defaultFolderId;
+    }
+
+    if (!this.manager) {
+      console.warn('[FlashcardService] Manager not initialized');
+      return null;
+    }
+
+    const documentsService = this.manager.getService<DocumentsService>('core-documents/documentsService');
+    if (!documentsService) {
+      console.warn('[FlashcardService] DocumentsService not available');
+      return null;
+    }
+
+    // Check again in case it was created by another call
+    const folders = await documentsService.getFolders();
+    const existingFolder = folders.find(
+      (f: Folder) => f.name === 'Flashcards' && f.parentId === null
+    );
+
+    if (existingFolder) {
+      this.defaultFolderId = existingFolder.id;
+      return this.defaultFolderId;
+    }
+
+    // Create default folder with theme color
+    console.log('[FlashcardService] Creating default "Flashcards" folder (first deck without folder)');
+    const result = await documentsService.createFolder({
+      name: 'Flashcards',
+      parentId: null,
+      color: 'hsl(var(--primary))', // Use theme primary color (purple in light mode, lighter purple in dark mode)
+    });
+
+    if (result.success && result.data) {
+      this.defaultFolderId = (result.data as Folder).id;
+      console.log('[FlashcardService] Created default folder:', this.defaultFolderId);
+      return this.defaultFolderId;
+    } else {
+      console.error('[FlashcardService] Failed to create default folder:', result.error);
+      return null;
+    }
+  }
+
+  // ==========================================================================
+  // DECK MANAGEMENT
+  // ==========================================================================
+
+  /**
+   * Get all decks
+   */
+  async getDecks(): Promise<Deck[]> {
+    if (isElectron()) {
+      const decksJson = await window.electronAPI.storage.get(STORAGE_KEYS.DECKS);
+      return decksJson ? JSON.parse(decksJson) : [];
+    } else {
+      // Web: fetch from Supabase
+      // TODO: Implement web storage
+      return [];
+    }
+  }
+
+  /**
+   * Get a single deck by ID
+   */
+  async getDeck(deckId: string): Promise<Deck | null> {
+    const decks = await this.getDecks();
+    return decks.find(d => d.id === deckId) || null;
+  }
+
+  /**
+   * Create a new deck
+   */
+  async createDeck(
+    name: string,
+    options: {
+      description?: string;
+      folderId?: string | null;
+      preset?: 'relaxed' | 'balanced' | 'intense';
+    } = {}
+  ): Promise<Deck> {
+    const now = Date.now();
+    const preset = options.preset || 'balanced';
+
+    // Default to "Flashcards" folder if no folder specified
+    // This will lazily create the folder on first use
+    let folderId: string | null;
+    if (options.folderId !== undefined) {
+      folderId = options.folderId;
+    } else {
+      folderId = await this.ensureDefaultFolder();
+    }
+
+    const deck: Deck = {
+      id: `deck-${now}-${Math.random().toString(36).substr(2, 9)}`,
+      name,
+      description: options.description,
+      folderId,
+      settings: {
+        algorithm: 'sm2',
+        preset,
+        ...SR_PRESETS[preset],
+      },
+      isActive: false,
+      stats: { ...DEFAULT_DECK_STATS },
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const decks = await this.getDecks();
+    decks.push(deck);
+    await this.saveDecks(decks);
+
+    this.eventBus.emit('flashcards:deck:created', { deck });
+    return deck;
+  }
+
+  /**
+   * Update a deck
+   */
+  async updateDeck(deckId: string, updates: Partial<Deck>): Promise<Deck> {
+    const decks = await this.getDecks();
+    const index = decks.findIndex(d => d.id === deckId);
+
+    if (index === -1) {
+      throw new Error(`Deck not found: ${deckId}`);
+    }
+
+    decks[index] = {
+      ...decks[index],
+      ...updates,
+      id: deckId, // Prevent ID change
+      updatedAt: Date.now(),
+    };
+
+    await this.saveDecks(decks);
+    this.eventBus.emit('flashcards:deck:updated', { deck: decks[index] });
+
+    return decks[index];
+  }
+
+  /**
+   * Delete a deck and all its cards
+   */
+  async deleteDeck(deckId: string): Promise<void> {
+    // Delete all cards in the deck
+    const cards = await this.getCards(deckId);
+    for (const card of cards) {
+      await this.deleteCard(card.id);
+    }
+
+    // Delete the deck
+    const decks = await this.getDecks();
+    const filtered = decks.filter(d => d.id !== deckId);
+    await this.saveDecks(filtered);
+
+    this.eventBus.emit('flashcards:deck:deleted', { deckId });
+  }
+
+  /**
+   * Update deck statistics after study session
+   */
+  async updateDeckStats(deckId: string): Promise<void> {
+    const cards = await this.getCards(deckId);
+
+    const stats: DeckStats = {
+      totalCards: cards.length,
+      newCards: cards.filter(c => c.state.stage === 'new').length,
+      learningCards: cards.filter(c => c.state.stage === 'learning' || c.state.stage === 'relearning').length,
+      reviewCards: cards.filter(c => c.state.stage === 'review').length,
+      dueToday: cards.filter(c => c.state.dueDate <= Date.now()).length,
+      masteredCards: cards.filter(c => c.state.interval > 21).length,
+      averageRetention: this.calculateAverageRetention(cards),
+      averageEase: this.calculateAverageEase(cards),
+      totalStudyTime: 0, // Updated from sessions
+      currentStreak: 0, // Updated from user stats
+      longestStreak: 0, // Updated from user stats
+    };
+
+    await this.updateDeck(deckId, { stats });
+  }
+
+  /**
+   * Get all decks in a specific folder
+   */
+  async getDecksInFolder(folderId: string | null, options?: { recursive?: boolean }): Promise<Deck[]> {
+    const allDecks = await this.getDecks();
+
+    if (!options?.recursive) {
+      // Non-recursive: only direct children
+      return allDecks.filter(d => d.folderId === folderId);
+    }
+
+    // Recursive: get all descendant folders and their decks
+    if (!this.manager) {
+      console.warn('[FlashcardService] Manager not initialized - recursive query not available');
+      return allDecks.filter(d => d.folderId === folderId);
+    }
+
+    const documentsService = this.manager.getService<DocumentsService>('core-documents/documentsService');
+    if (!documentsService) {
+      return allDecks.filter(d => d.folderId === folderId);
+    }
+
+    // Get all descendant folder IDs
+    const descendantIds = await this.getDescendantFolderIds(folderId, documentsService);
+    descendantIds.add(folderId); // Include the folder itself
+
+    // Filter decks that belong to any of these folders
+    return allDecks.filter(d => descendantIds.has(d.folderId));
+  }
+
+  /**
+   * Get all descendant folder IDs recursively
+   */
+  private async getDescendantFolderIds(
+    folderId: string | null,
+    documentsService: DocumentsService
+  ): Promise<Set<string | null>> {
+    const descendants = new Set<string | null>();
+    const allFolders = await documentsService.getFolders();
+
+    const traverse = (parentId: string | null) => {
+      const children = allFolders.filter((f: Folder) => f.parentId === parentId);
+      for (const child of children) {
+        descendants.add(child.id);
+        traverse(child.id); // Recurse into children
+      }
+    };
+
+    traverse(folderId);
+    return descendants;
+  }
+
+  /**
+   * Get folder tree with deck counts (for Browse Decks view)
+   * Integrates with Documents folder structure
+   */
+  async getFlashcardFolderTree(): Promise<FolderTreeNode[]> {
+    if (!this.manager) {
+      console.warn('[FlashcardService] Manager not initialized - folder tree not available');
+      return [];
+    }
+
+    const documentsService = this.manager.getService<DocumentsService>('core-documents/documentsService');
+    if (!documentsService) {
+      console.warn('[FlashcardService] DocumentsService not available');
+      return [];
+    }
+
+    // Get folders and decks
+    const allFolders = await documentsService.getFolders();
+    const allDecks = await this.getDecks();
+
+    // Build tree with deck counts
+    const buildTree = (parentId: string | null): FolderTreeNode[] => {
+      return allFolders
+        .filter((f: Folder) => f.parentId === parentId)
+        .map((folder: Folder) => {
+          const deckCount = allDecks.filter(d => d.folderId === folder.id).length;
+          const children = buildTree(folder.id);
+
+          return {
+            ...folder,
+            children,
+            fileCount: deckCount,
+            isExpanded: false,
+          };
+        })
+        .sort((a, b) => a.order - b.order);
+    };
+
+    return buildTree(null);
+  }
+
+  /**
+   * Get aggregate statistics for a folder (including all descendants)
+   */
+  async getFolderStats(folderId: string | null, options?: { recursive?: boolean }): Promise<FolderStats> {
+    const decks = await this.getDecksInFolder(folderId, options);
+
+    // Aggregate stats from all decks
+    const stats: FolderStats = {
+      totalDecks: decks.length,
+      totalCards: 0,
+      newCards: 0,
+      learningCards: 0,
+      reviewCards: 0,
+      dueToday: 0,
+      masteredCards: 0,
+      averageRetention: 0,
+      averageEase: 0,
+    };
+
+    if (decks.length === 0) {
+      return stats;
+    }
+
+    // Sum up deck statistics
+    for (const deck of decks) {
+      stats.totalCards += deck.stats.totalCards;
+      stats.newCards += deck.stats.newCards;
+      stats.learningCards += deck.stats.learningCards;
+      stats.reviewCards += deck.stats.reviewCards;
+      stats.dueToday += deck.stats.dueToday;
+      stats.masteredCards += deck.stats.masteredCards;
+      stats.averageRetention += deck.stats.averageRetention;
+      stats.averageEase += deck.stats.averageEase;
+    }
+
+    // Calculate averages
+    stats.averageRetention /= decks.length;
+    stats.averageEase /= decks.length;
+
+    return stats;
+  }
+
+  // ==========================================================================
+  // CARD MANAGEMENT
+  // ==========================================================================
+
+  /**
+   * Get all cards in a deck
+   */
+  async getCards(deckId: string): Promise<Card[]> {
+    if (isElectron()) {
+      const cardsJson = await window.electronAPI.storage.get(STORAGE_KEYS.CARDS);
+      const allCards: Card[] = cardsJson ? JSON.parse(cardsJson) : [];
+      return allCards.filter(c => c.deckId === deckId);
+    } else {
+      // Web: fetch from Supabase
+      return [];
+    }
+  }
+
+  /**
+   * Get a single card by ID
+   */
+  async getCard(cardId: string): Promise<Card | null> {
+    if (isElectron()) {
+      const cardsJson = await window.electronAPI.storage.get(STORAGE_KEYS.CARDS);
+      const allCards: Card[] = cardsJson ? JSON.parse(cardsJson) : [];
+      return allCards.find(c => c.id === cardId) || null;
+    } else {
+      return null;
+    }
+  }
+
+  /**
+   * Create a new card
+   */
+  async createCard(
+    deckId: string,
+    templateId: string,
+    fields: Record<string, string | number | boolean | string[] | null>,
+    options: {
+      tags?: string[];
+      mediaFiles?: Record<string, string>;
+    } = {}
+  ): Promise<Card> {
+    const now = Date.now();
+
+    const card: Card = {
+      id: `card-${now}-${Math.random().toString(36).substr(2, 9)}`,
+      deckId,
+      templateId,
+      fields,
+      mediaFiles: options.mediaFiles,
+      state: { ...DEFAULT_CARD_STATE },
+      tags: options.tags || [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const allCards = await this.getAllCards();
+    allCards.push(card);
+    await this.saveCards(allCards);
+
+    // Update deck stats
+    await this.updateDeckStats(deckId);
+
+    this.eventBus.emit('flashcards:card:created', { card });
+    return card;
+  }
+
+  /**
+   * Update a card
+   */
+  async updateCard(cardId: string, updates: Partial<Card>): Promise<Card> {
+    const allCards = await this.getAllCards();
+    const index = allCards.findIndex(c => c.id === cardId);
+
+    if (index === -1) {
+      throw new Error(`Card not found: ${cardId}`);
+    }
+
+    const oldDeckId = allCards[index].deckId;
+
+    allCards[index] = {
+      ...allCards[index],
+      ...updates,
+      id: cardId, // Prevent ID change
+      updatedAt: Date.now(),
+    };
+
+    await this.saveCards(allCards);
+
+    // Update deck stats for both old and new deck (if deck changed)
+    await this.updateDeckStats(oldDeckId);
+    if (updates.deckId && updates.deckId !== oldDeckId) {
+      await this.updateDeckStats(updates.deckId);
+    }
+
+    this.eventBus.emit('flashcards:card:updated', { card: allCards[index] });
+    return allCards[index];
+  }
+
+  /**
+   * Delete a card and its media files
+   */
+  async deleteCard(cardId: string): Promise<void> {
+    const card = await this.getCard(cardId);
+    if (!card) return;
+
+    // Delete media files
+    if (card.mediaFiles && isElectron()) {
+      for (const [fieldName, storageKey] of Object.entries(card.mediaFiles)) {
+        try {
+          await window.electronAPI.storage.delete(storageKey);
+        } catch (error) {
+          console.error(`Failed to delete media file ${storageKey}:`, error);
+        }
+      }
+    }
+
+    // Delete the card
+    const allCards = await this.getAllCards();
+    const filtered = allCards.filter(c => c.id !== cardId);
+    await this.saveCards(filtered);
+
+    // Update deck stats
+    await this.updateDeckStats(card.deckId);
+
+    this.eventBus.emit('flashcards:card:deleted', { cardId });
+  }
+
+  /**
+   * Upload media file for a card field
+   */
+  async uploadMediaFile(
+    cardId: string,
+    fieldName: string,
+    file: File
+  ): Promise<string> {
+    const storageKey = `${STORAGE_KEYS.MEDIA_PREFIX}:card-${cardId}:${fieldName}`;
+
+    if (isElectron()) {
+      // Convert file to base64
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          ''
+        )
+      );
+
+      const fileData = {
+        data: base64,
+        mimeType: file.type,
+        fileName: file.name,
+        size: file.size,
+      };
+
+      await window.electronAPI.storage.set(storageKey, JSON.stringify(fileData));
+    } else {
+      // Web: upload to Supabase storage
+      // TODO: Implement web storage
+    }
+
+    // Update card's mediaFiles record
+    const card = await this.getCard(cardId);
+    if (card) {
+      const mediaFiles = { ...card.mediaFiles, [fieldName]: storageKey };
+      await this.updateCard(cardId, { mediaFiles });
+    }
+
+    return storageKey;
+  }
+
+  // ==========================================================================
+  // TEMPLATE MANAGEMENT
+  // ==========================================================================
+
+  /**
+   * Get all templates (built-in + custom)
+   */
+  async getTemplates(): Promise<CardTemplate[]> {
+    if (isElectron()) {
+      const templatesJson = await window.electronAPI.storage.get(STORAGE_KEYS.TEMPLATES);
+      const customTemplates: CardTemplate[] = templatesJson ? JSON.parse(templatesJson) : [];
+      return [...BUILT_IN_TEMPLATES, ...customTemplates];
+    } else {
+      return BUILT_IN_TEMPLATES;
+    }
+  }
+
+  /**
+   * Get a single template by ID
+   */
+  async getTemplate(templateId: string): Promise<CardTemplate | null> {
+    const templates = await this.getTemplates();
+    return templates.find(t => t.id === templateId) || null;
+  }
+
+  /**
+   * Create a custom template
+   */
+  async createTemplate(template: Omit<CardTemplate, 'id' | 'createdAt' | 'updatedAt' | 'isBuiltIn'>): Promise<CardTemplate> {
+    const now = Date.now();
+
+    const newTemplate: CardTemplate = {
+      ...template,
+      id: `template-${now}-${Math.random().toString(36).substr(2, 9)}`,
+      isBuiltIn: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const customTemplates = await this.getCustomTemplates();
+    customTemplates.push(newTemplate);
+    await this.saveCustomTemplates(customTemplates);
+
+    this.eventBus.emit('flashcards:template:created', { template: newTemplate });
+    return newTemplate;
+  }
+
+  /**
+   * Update a custom template
+   */
+  async updateTemplate(templateId: string, updates: Partial<CardTemplate>): Promise<CardTemplate> {
+    const customTemplates = await this.getCustomTemplates();
+    const index = customTemplates.findIndex(t => t.id === templateId);
+
+    if (index === -1) {
+      throw new Error(`Template not found or is built-in: ${templateId}`);
+    }
+
+    customTemplates[index] = {
+      ...customTemplates[index],
+      ...updates,
+      id: templateId,
+      isBuiltIn: false,
+      updatedAt: Date.now(),
+    };
+
+    await this.saveCustomTemplates(customTemplates);
+    this.eventBus.emit('flashcards:template:updated', { template: customTemplates[index] });
+
+    return customTemplates[index];
+  }
+
+  /**
+   * Delete a custom template
+   */
+  async deleteTemplate(templateId: string): Promise<void> {
+    const template = await this.getTemplate(templateId);
+    if (!template || template.isBuiltIn) {
+      throw new Error('Cannot delete built-in template');
+    }
+
+    // Check if any cards use this template
+    const allCards = await this.getAllCards();
+    const cardsUsingTemplate = allCards.filter(c => c.templateId === templateId);
+
+    if (cardsUsingTemplate.length > 0) {
+      throw new Error(`Cannot delete template: ${cardsUsingTemplate.length} cards use it`);
+    }
+
+    const customTemplates = await this.getCustomTemplates();
+    const filtered = customTemplates.filter(t => t.id !== templateId);
+    await this.saveCustomTemplates(filtered);
+
+    this.eventBus.emit('flashcards:template:deleted', { templateId });
+  }
+
+  // ==========================================================================
+  // SPACED REPETITION (SM-2 Algorithm)
+  // ==========================================================================
+
+  /**
+   * Get due cards for study session
+   */
+  async getDueCards(deckId: string, limit?: number): Promise<Card[]> {
+    const deck = await this.getDeck(deckId);
+    if (!deck) return [];
+
+    const cards = await this.getCards(deckId);
+    const now = Date.now();
+
+    // Filter cards due for review
+    let dueCards = cards.filter(c => c.state.dueDate <= now);
+
+    // Apply daily limits
+    const newCards = dueCards.filter(c => c.state.stage === 'new').slice(0, deck.settings.newCardsPerDay);
+    const reviewCards = dueCards.filter(c => c.state.stage !== 'new').slice(0, deck.settings.reviewsPerDay);
+
+    dueCards = [...newCards, ...reviewCards];
+
+    // Randomize order if enabled
+    if (deck.settings.randomizeCardOrder) {
+      dueCards = this.shuffleArray(dueCards);
+    }
+
+    // Apply limit
+    if (limit) {
+      dueCards = dueCards.slice(0, limit);
+    }
+
+    return dueCards;
+  }
+
+  /**
+   * Grade a card and update its state using SM-2 algorithm
+   */
+  async gradeCard(cardId: string, grade: 1 | 2 | 3 | 4, timeSpent: number): Promise<CardState> {
+    const card = await this.getCard(cardId);
+    if (!card) throw new Error(`Card not found: ${cardId}`);
+
+    const deck = await this.getDeck(card.deckId);
+    if (!deck) throw new Error(`Deck not found: ${card.deckId}`);
+
+    const oldState = { ...card.state };
+    const newState = this.calculateNextState(oldState, grade, deck.settings);
+
+    await this.updateCard(cardId, { state: newState });
+
+    // Record review
+    this.eventBus.emit('flashcards:card:reviewed', {
+      cardId,
+      grade,
+      timeSpent,
+      oldState,
+      newState,
+    });
+
+    return newState;
+  }
+
+  /**
+   * Calculate next card state using SM-2 algorithm
+   */
+  private calculateNextState(
+    state: CardState,
+    grade: 1 | 2 | 3 | 4,
+    settings: Deck['settings']
+  ): CardState {
+    const now = Date.now();
+    const newState = { ...state };
+
+    newState.reviewCount++;
+    newState.lastReviewedAt = now;
+    newState.lastGrade = grade;
+
+    // Grade 1 (Again) = Lapse
+    if (grade === 1) {
+      newState.lapseCount++;
+      newState.stage = 'relearning';
+      newState.learningStep = 0;
+      newState.easeFactor = Math.max(
+        SM2_DEFAULTS.MIN_EASE,
+        state.easeFactor + SM2_DEFAULTS.EASE_AGAIN_PENALTY
+      );
+
+      // Reset interval based on lapse settings
+      newState.interval = Math.max(
+        settings.minimumInterval,
+        Math.floor(state.interval * (settings.newInterval / 100))
+      );
+
+      // Apply first relearning step
+      newState.dueDate = now + (settings.relearningSteps[0] * 60 * 1000);
+
+      return newState;
+    }
+
+    // New or relearning cards
+    if (state.stage === 'new' || state.stage === 'relearning') {
+      const steps = state.stage === 'new' ? settings.newCardSteps : settings.relearningSteps;
+
+      if (grade === 4) {
+        // Easy = Graduate immediately
+        newState.stage = 'review';
+        newState.interval = settings.easyInterval;
+        newState.dueDate = now + (settings.easyInterval * 24 * 60 * 60 * 1000);
+        newState.easeFactor = Math.min(5.0, state.easeFactor + SM2_DEFAULTS.EASE_EASY_BONUS);
+      } else if (grade === 3) {
+        // Good = Progress through steps
+        if (state.learningStep < steps.length - 1) {
+          newState.learningStep++;
+          newState.dueDate = now + (steps[newState.learningStep] * 60 * 1000);
+        } else {
+          // Graduate
+          newState.stage = 'review';
+          newState.interval = settings.graduatingInterval;
+          newState.dueDate = now + (settings.graduatingInterval * 24 * 60 * 60 * 1000);
+        }
+      } else if (grade === 2) {
+        // Hard = Repeat current step
+        newState.dueDate = now + (steps[state.learningStep] * 60 * 1000);
+        newState.easeFactor = Math.max(
+          SM2_DEFAULTS.MIN_EASE,
+          state.easeFactor + SM2_DEFAULTS.EASE_HARD_PENALTY
+        );
+      }
+
+      return newState;
+    }
+
+    // Review cards (SM-2 algorithm)
+    if (state.stage === 'review') {
+      let intervalMultiplier: number;
+
+      if (grade === 2) {
+        // Hard
+        intervalMultiplier = settings.hardInterval / 100;
+        newState.easeFactor = Math.max(
+          SM2_DEFAULTS.MIN_EASE,
+          state.easeFactor + SM2_DEFAULTS.EASE_HARD_PENALTY
+        );
+      } else if (grade === 3) {
+        // Good
+        intervalMultiplier = state.easeFactor * (settings.intervalModifier / 100);
+      } else {
+        // Easy
+        intervalMultiplier = state.easeFactor * (settings.intervalModifier / 100) * (settings.easyBonus / 100);
+        newState.easeFactor = Math.min(5.0, state.easeFactor + SM2_DEFAULTS.EASE_EASY_BONUS);
+      }
+
+      newState.interval = Math.min(
+        settings.maxInterval,
+        Math.max(
+          state.interval + 1,
+          Math.floor(state.interval * intervalMultiplier)
+        )
+      );
+
+      newState.dueDate = now + (newState.interval * 24 * 60 * 60 * 1000);
+    }
+
+    return newState;
+  }
+
+  // ==========================================================================
+  // STUDY SESSIONS
+  // ==========================================================================
+
+  /**
+   * Start a new study session
+   */
+  async startStudySession(deckId: string, mode: StudySession['mode']): Promise<StudySession> {
+    const session: StudySession = {
+      id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      deckId,
+      startTime: Date.now(),
+      mode,
+      cardsReviewed: [],
+      totalCards: 0,
+      correctCards: 0,
+      againCount: 0,
+      hardCount: 0,
+      goodCount: 0,
+      easyCount: 0,
+      totalTime: 0,
+      averageTimePerCard: 0,
+    };
+
+    this.eventBus.emit('flashcards:session:started', { session });
+    return session;
+  }
+
+  /**
+   * End a study session and save statistics
+   */
+  async endStudySession(session: StudySession): Promise<void> {
+    session.endTime = Date.now();
+    session.totalTime = session.endTime - session.startTime;
+    session.averageTimePerCard = session.totalCards > 0 ? session.totalTime / session.totalCards : 0;
+
+    // Save session to history
+    if (isElectron()) {
+      const sessionsJson = await window.electronAPI.storage.get(STORAGE_KEYS.SESSIONS);
+      const sessions: StudySession[] = sessionsJson ? JSON.parse(sessionsJson) : [];
+      sessions.push(session);
+      await window.electronAPI.storage.set(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
+    }
+
+    // Update deck stats
+    await this.updateDeckStats(session.deckId);
+
+    // Update user statistics
+    await this.updateUserStatistics(session);
+
+    this.eventBus.emit('flashcards:session:ended', { session });
+  }
+
+  // ==========================================================================
+  // STATISTICS
+  // ==========================================================================
+
+  /**
+   * Get user statistics
+   */
+  async getUserStatistics(): Promise<UserStatistics> {
+    if (isElectron()) {
+      const statsJson = await window.electronAPI.storage.get(STORAGE_KEYS.USER_STATS);
+      if (statsJson) return JSON.parse(statsJson);
+    }
+
+    // Return default stats
+    return {
+      userId: 'local',
+      totalDecks: 0,
+      totalCards: 0,
+      masteredCards: 0,
+      cardsStudiedToday: 0,
+      currentStreak: 0,
+      longestStreak: 0,
+      dailyReviews: {},
+      totalReviews: 0,
+      averageRetention: 0,
+      totalStudyTime: 0,
+      deckStats: {},
+    };
+  }
+
+  /**
+   * Update user statistics after study session
+   */
+  private async updateUserStatistics(session: StudySession): Promise<void> {
+    const stats = await this.getUserStatistics();
+    const today = new Date().toISOString().split('T')[0];
+
+    // Update daily reviews
+    stats.dailyReviews[today] = (stats.dailyReviews[today] || 0) + session.totalCards;
+
+    // Update totals
+    stats.totalReviews += session.totalCards;
+    stats.totalStudyTime += session.totalTime;
+    stats.cardsStudiedToday = stats.dailyReviews[today];
+
+    // Update streaks
+    stats.currentStreak = this.calculateCurrentStreak(stats.dailyReviews);
+    stats.longestStreak = Math.max(stats.longestStreak, stats.currentStreak);
+
+    // Update deck counts
+    const decks = await this.getDecks();
+    const allCards = await this.getAllCards();
+    stats.totalDecks = decks.length;
+    stats.totalCards = allCards.length;
+    stats.masteredCards = allCards.filter(c => c.state.interval > 21).length;
+
+    // Calculate average retention
+    const correctCards = session.goodCount + session.easyCount;
+    const retention = session.totalCards > 0 ? (correctCards / session.totalCards) * 100 : 0;
+    stats.averageRetention =
+      (stats.averageRetention * (stats.totalReviews - session.totalCards) + retention * session.totalCards) /
+      stats.totalReviews;
+
+    if (isElectron()) {
+      await window.electronAPI.storage.set(STORAGE_KEYS.USER_STATS, JSON.stringify(stats));
+    }
+  }
+
+  // ==========================================================================
+  // HELPER METHODS
+  // ==========================================================================
+
+  private async getAllCards(): Promise<Card[]> {
+    if (isElectron()) {
+      const cardsJson = await window.electronAPI.storage.get(STORAGE_KEYS.CARDS);
+      return cardsJson ? JSON.parse(cardsJson) : [];
+    }
+    return [];
+  }
+
+  private async saveCards(cards: Card[]): Promise<void> {
+    if (isElectron()) {
+      await window.electronAPI.storage.set(STORAGE_KEYS.CARDS, JSON.stringify(cards));
+    }
+  }
+
+  private async saveDecks(decks: Deck[]): Promise<void> {
+    if (isElectron()) {
+      await window.electronAPI.storage.set(STORAGE_KEYS.DECKS, JSON.stringify(decks));
+    }
+  }
+
+  private async getCustomTemplates(): Promise<CardTemplate[]> {
+    if (isElectron()) {
+      const templatesJson = await window.electronAPI.storage.get(STORAGE_KEYS.TEMPLATES);
+      return templatesJson ? JSON.parse(templatesJson) : [];
+    }
+    return [];
+  }
+
+  private async saveCustomTemplates(templates: CardTemplate[]): Promise<void> {
+    if (isElectron()) {
+      await window.electronAPI.storage.set(STORAGE_KEYS.TEMPLATES, JSON.stringify(templates));
+    }
+  }
+
+  private calculateAverageRetention(cards: Card[]): number {
+    const reviewedCards = cards.filter(c => c.state.reviewCount > 0);
+    if (reviewedCards.length === 0) return 0;
+
+    // Estimate retention based on ease factors
+    const totalEase = reviewedCards.reduce((sum, c) => sum + c.state.easeFactor, 0);
+    const avgEase = totalEase / reviewedCards.length;
+
+    // Convert ease to retention percentage (rough estimate)
+    return Math.min(100, (avgEase - 1.3) * 40);
+  }
+
+  private calculateAverageEase(cards: Card[]): number {
+    const reviewedCards = cards.filter(c => c.state.reviewCount > 0);
+    if (reviewedCards.length === 0) return SM2_DEFAULTS.STARTING_EASE;
+
+    const totalEase = reviewedCards.reduce((sum, c) => sum + c.state.easeFactor, 0);
+    return totalEase / reviewedCards.length;
+  }
+
+  private calculateCurrentStreak(dailyReviews: Record<string, number>): number {
+    const today = new Date();
+    let streak = 0;
+
+    for (let i = 0; i < 365; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      if (dailyReviews[dateStr] && dailyReviews[dateStr] > 0) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+
+    return streak;
+  }
+
+  private shuffleArray<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
+}

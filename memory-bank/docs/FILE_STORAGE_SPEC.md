@@ -313,30 +313,36 @@ await storage.delete('documents:doc-123');
 
 ## Implementation Phases
 
-### Phase 1: Core Implementation - NOT YET IMPLEMENTED
+### Phase 1: Core Implementation - ✅ COMPLETE
 
 **Goal:** Implement Files as Entity Properties in storage adapters
 
-**Status:** ❌ Planned
+**Status:** ✅ Complete
 
 **Tasks:**
-1. ⬜ Extend `StorageAdapter` interface with files parameter
-2. ⬜ Add `files` table to SQLite schema with FK to `storage(key, user_id)`
-3. ⬜ Add `files` table to PostgreSQL schema with FK to `storage(key, user_id)`
-4. ⬜ Update `storage:set` IPC handler to accept files parameter
-5. ⬜ Update `storage:get` IPC handler to return `{ data, files }`
-6. ⬜ Update `storage:delete` IPC handler to cascade delete files
-7. ⬜ Update `PUT /api/storage/:key` endpoint to accept files
-8. ⬜ Update `GET /api/storage/:key` endpoint to return `{ data, files }`
-9. ⬜ Update `DELETE /api/storage/:key` endpoint to cascade delete files
-10. ⬜ Implement file methods in `SQLiteAdapter`
-11. ⬜ Implement file methods in `PostgreSQLAdapter`
+1. ✅ Extend `StorageAdapter` interface with files parameter
+2. ✅ Add `files` table to SQLite schema with FK to `storage(key, user_id)`
+3. ✅ Add `files` table to PostgreSQL schema with FK to `storage(key, user_id)`
+4. ✅ Update `storage:set` IPC handler to accept files parameter
+5. ✅ Update `storage:get` IPC handler to return `{ data, files }`
+6. ✅ Update `storage:delete` IPC handler to cascade delete files
+7. ✅ Update `PUT /api/storage/:key` endpoint to accept files
+8. ✅ Update `GET /api/storage/:key` endpoint to return `{ data, files }`
+9. ✅ Update `DELETE /api/storage/:key` endpoint to cascade delete files
+10. ✅ Implement file methods in `SQLiteAdapter`
+11. ✅ Implement file methods in `PostgreSQLAdapter`
 
 **Deliverables:**
-- Files stored WITH entities in single atomic operation
-- Database FK prevents orphans (CASCADE DELETE)
-- User scoping via composite keys prevents cross-user access
-- Works in both Electron (filesystem + SQLite) and web (PostgreSQL BYTEA)
+- ✅ Files stored WITH entities in single atomic operation
+- ✅ Database FK prevents orphans (CASCADE DELETE)
+- ✅ User scoping via composite keys prevents cross-user access
+- ✅ Works in both Electron (filesystem + SQLite) and web (PostgreSQL BYTEA)
+
+**Implementation Details:**
+- **StorageAdapter Interface**: [src/shared/storage/StorageAdapter.ts](../../src/shared/storage/StorageAdapter.ts#L25-L34)
+- **Electron Implementation**: [electron/ipc/storageHandlers.cjs](../../electron/ipc/storageHandlers.cjs#L56-L117)
+- **PostgreSQL Implementation**: [src/shared/storage/PostgreSQLAdapter.ts](../../src/shared/storage/PostgreSQLAdapter.ts#L140-L203)
+- **Database Schema**: [electron/database.cjs](../../electron/database.cjs#L111-L134), [server/index.js](../../server/index.js#L131-L150)
 
 ### Phase 2: Payment Plan Quotas - FUTURE
 

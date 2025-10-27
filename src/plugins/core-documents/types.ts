@@ -85,6 +85,15 @@ export interface Folder {
 }
 
 /**
+ * Icon types for FileHandlers - discriminated union for type safety
+ * Plugins can use emojis, Lucide icons, or custom components
+ */
+export type FileHandlerIcon =
+  | { type: 'emoji'; emoji: string }           // e.g., { type: 'emoji', emoji: '🎴' }
+  | { type: 'lucide'; name: string }           // e.g., { type: 'lucide', name: 'Brain' }
+  | { type: 'component'; name: string };       // e.g., { type: 'component', name: 'plugin-id/IconComponent' }
+
+/**
  * FileHandler registration for plugin extensibility
  * Plugins register handlers to provide custom viewers/editors for file types
  */
@@ -104,8 +113,8 @@ export interface FileHandler {
   /** Supported MIME types (e.g., ['text/markdown']) */
   mimeTypes: string[];
 
-  /** Icon for this file type */
-  icon: string;
+  /** Icon for this file type - supports emoji, Lucide icons, or custom components */
+  icon: FileHandlerIcon;
 
   /** Optional preview component (namespaced: 'plugin-id/ComponentName') */
   previewComponent?: string;
