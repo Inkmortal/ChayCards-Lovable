@@ -159,6 +159,53 @@ Despite implementing the discrete events pattern correctly (code review approved
 
 ## Recent Changes
 
+### Tree-to-Grid Drag-Drop Double Execution Fix - 2025-10-26
+**Status**: ✅ COMPLETE
+**Problem**: Dragging folders from tree to grid executed drop handler twice with different parameters
+**Root Cause**: Both FolderCard drop handler AND Container drop handler executing simultaneously
+**Solution**: Added mutual exclusion guards based on hover state
+**Impact**: Tree-to-grid drag-drop now works correctly and consistently
+
+**Changes Made**:
+1. **FolderCard Drop Handler Guard** (FileBrowser.tsx:279-284)
+   - Added check: `if (dropIndicatorRef.current !== 'into') return;`
+   - Only executes when user hovers INTO folder (blue ring visible)
+   - Prevents execution during before/after hover states
+
+2. **Container Drop Handler Guard** (FileBrowser.tsx:1733-1739)
+   - Added check: `if (containerInsertionIndex === null) return;`
+   - Only executes when before/after insertion indicator visible
+   - Prevents execution when hovering into folders
+
+**Files Modified**:
+- `src/plugins/core-documents/components/FileBrowser.tsx` (2 guard additions)
+
+**Testing Results**:
+- ✅ Tree-to-grid drops work correctly
+- ✅ No more flashing behavior
+- ✅ Folders go to correct parent
+- ✅ Single backend call per drop operation
+
+**Remaining Drag-Drop Issues** (User Feedback):
+1. **Grid horizontal insertion UX**: "left and right insert cursor for grid view sucks ass"
+   - Horizontal insertion indicators need refinement
+   - Current implementation functional but poor user experience
+
+2. **Tree vertical insertion UX**: "cursor up down insert for filetree sucks fucking ass"
+   - Vertical insertion indicators need refinement
+   - Current implementation functional but poor user experience
+
+3. **Grid-to-tree drag-drop**: "filegrid to filetree sucks fucking ass"
+   - MAJOR ISSUES - opposite direction from tree-to-grid
+   - Likely similar double-execution or indicator problems
+   - High priority fix needed
+
+**Overall Drag-Drop Status**:
+- ✅ Tree-to-grid: WORKING
+- ⚠️ Grid horizontal insertion: Needs UX improvement
+- ⚠️ Tree vertical insertion: Needs UX improvement
+- ❌ Grid-to-tree: BROKEN/poor UX
+
 ### Optimistic UI Performance Improvements - 2025-10-22
 **Status**: ✅ COMMITTED (f4e8eb4)
 **Agent**: git-workflow-manager

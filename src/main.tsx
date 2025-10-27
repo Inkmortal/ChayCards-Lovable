@@ -1,6 +1,4 @@
 import { createRoot } from 'react-dom/client'
-import { DndProvider } from 'react-dnd'
-import { HTML5Backend } from 'react-dnd-html5-backend'
 import App from './App.tsx'
 import './index.css'
 import { PluginManager } from './shared/plugin-system'
@@ -19,22 +17,14 @@ async function startApp() {
       await pluginManager.loadPublicSafePlugins();
 
       // Start React app with plugins available
-      createRoot(document.getElementById("root")!).render(
-        <DndProvider backend={HTML5Backend}>
-          <App />
-        </DndProvider>
-      );
+      createRoot(document.getElementById("root")!).render(<App />);
       return;
     }
 
     // For app pages: check auth first, let AppShell handle redirect if needed
     // Don't load plugins yet - AppShell will load them after auth check
     console.log('App page detected - starting React, AppShell will handle auth and plugins');
-    createRoot(document.getElementById("root")!).render(
-      <DndProvider backend={HTML5Backend}>
-        <App />
-      </DndProvider>
-    );
+    createRoot(document.getElementById("root")!).render(<App />);
 
   } catch (error) {
     console.error('Failed to initialize ChayCards:', error);

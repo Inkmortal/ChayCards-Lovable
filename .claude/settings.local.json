@@ -133,7 +133,11 @@
       "Bash(echo:*)",
       "Bash(ss -tlnp)",
       "Bash(git -C c:/Users/danhc/Documents/Projects/ChayCards-Lovable diff memory-bank/activeContext.md)",
-      "Bash(timeout 20 npx tsc:*)"
+      "Bash(timeout 20 npx tsc:*)",
+      "Bash(timeout 15 npx tsc:*)",
+      "Bash(timeout 5 tail:*)",
+      "Bash(./scripts/start-servers-tmux.sh:*)",
+      "Bash(bash:*)"
     ],
     "deny": []
   },

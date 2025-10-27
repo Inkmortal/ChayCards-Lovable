@@ -60,6 +60,7 @@ export class DocumentsService {
     // Run migrations
     await this.migrateToV3();
     await this.migrateToV4();
+    await this.migrateToV5();
 
     this.initialized = true;
 
@@ -1639,6 +1640,44 @@ export class DocumentsService {
     await this.storage.set(STORAGE_KEYS.SCHEMA_VERSION, 4);
 
     console.log('[DocumentsService] Migrated to schema v4');
+  }
+
+  /**
+   * Migrate to v5: Fix corrupted __REACT_ARBORIST_INTERNAL_ROOT__ parentIds
+   * React-arborist's internal root ID was leaking through before proper translation
+   * This migration converts those to proper null values
+   */
+  private async migrateToV5(): Promise<void> {
+    if (!this.storage) return;
+
+    const versionResult = await this.storage.get<number>(STORAGE_KEYS.SCHEMA_VERSION);
+    const version = versionResult?.data;
+
+    if (version === 5) return; // Already migrated to v5
+
+    console.log('[DocumentsService] Migrating to schema v5 (fixing __REACT_ARBORIST_INTERNAL_ROOT__ corruption)...');
+
+    const foldersResult = await this.storage.get<Folder[]>(this.FOLDERS_KEY);
+    const folders = foldersResult?.data || [];
+
+    let fixedCount = 0;
+    for (const folder of folders) {
+      if (folder.parentId === '__REACT_ARBORIST_INTERNAL_ROOT__') {
+        folder.parentId = null;
+        folder.updatedAt = Date.now();
+        fixedCount++;
+      }
+    }
+
+    if (fixedCount > 0) {
+      await this.storage.set(this.FOLDERS_KEY, folders);
+      console.log(`[DocumentsService] Fixed ${fixedCount} folders with corrupted __REACT_ARBORIST_INTERNAL_ROOT__ parentId`);
+    }
+
+    // Save schema version
+    await this.storage.set(STORAGE_KEYS.SCHEMA_VERSION, 5);
+
+    console.log('[DocumentsService] Migrated to schema v5');
   }
 
   // ==================== FileHandler Registry ====================

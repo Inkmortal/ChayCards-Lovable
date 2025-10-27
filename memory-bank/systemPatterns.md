@@ -1449,3 +1449,91 @@ const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null
 - ❌ No research done on correct implementation
 
 **Key Principle**: If code is correct but doesn't work, the problem is environmental. Nuclear reset creates a clean environment to test this hypothesis.
+
+### Mutual Exclusion Guard Pattern (Multi-Drop Handler Prevention)
+**Problem**: When multiple drop handlers can receive the same drop event, both execute simultaneously with different parameters, causing double backend calls and incorrect behavior.
+
+**Example Scenario** (FileBrowser.tsx, October 26, 2025):
+- Dragging folder from tree to main grid view
+- Two possible drop handlers:
+  1. FolderCard drop handler (drop INTO folder - makes child)
+  2. Container drop handler (drop BEFORE/AFTER - makes sibling)
+- Without guards: BOTH handlers execute, causing:
+  - Two backend calls with conflicting parameters
+  - Flashing behavior as folder moves twice
+  - Wrong parent assignment
+
+**Solution**: Add mutual exclusion guards based on UI state:
+```typescript
+// FolderCard Drop Handler (FileBrowser.tsx:279-284)
+const handleDrop = async (item: DragItem, monitor: DropTargetMonitor) => {
+  // Guard: Only execute when hover state indicates "drop INTO folder"
+  if (dropIndicatorRef.current !== 'into') {
+    return; // Exit early - not our drop zone
+  }
+
+  // Safe to execute - user hovered INTO this folder (blue ring visible)
+  await handleFolderMove(item.id, {
+    parentId: folder.id,
+    index: 0
+  });
+};
+
+// Container Drop Handler (FileBrowser.tsx:1733-1739)
+const handleContainerDrop = async (item: DragItem) => {
+  // Guard: Only execute when insertion indicator visible
+  if (containerInsertionIndex === null) {
+    return; // Exit early - not dropping between folders
+  }
+
+  // Safe to execute - user dropped between folders (insertion line visible)
+  await handleFolderMove(item.id, {
+    parentId: currentFolderId,
+    index: containerInsertionIndex
+  });
+};
+```
+
+**Key Principles**:
+1. **Single Source of Truth**: Use UI state (refs, state variables) to determine which handler should execute
+2. **Early Exit**: Guard at the top of handler, return immediately if not applicable
+3. **Visual Feedback Alignment**: Guard condition matches what user sees (blue ring = into, line = between)
+4. **No Shared State**: Handlers don't communicate - they check independent UI state
+
+**Guard Types**:
+- **Ref-based**: `if (dropIndicatorRef.current !== 'into') return;`
+- **State-based**: `if (containerInsertionIndex === null) return;`
+- **Position-based**: `if (cursorPosition < 0.33 || cursorPosition > 0.66) return;`
+
+**Benefits**:
+- ✅ Prevents double execution
+- ✅ Ensures correct handler executes for user intent
+- ✅ No backend race conditions
+- ✅ Visual feedback matches behavior
+
+**When to Use**:
+- Multiple drop handlers on same component hierarchy
+- Overlapping drop zones (folder INTO vs BETWEEN)
+- Complex drag-drop with multiple target types
+- Any scenario where same drop event reaches multiple handlers
+
+**Anti-Pattern** (Don't Do This):
+```typescript
+// ❌ BAD: Shared flag to prevent double execution
+let dropHandled = false;
+
+const handler1 = () => {
+  if (dropHandled) return;
+  dropHandled = true;
+  // ...
+};
+
+const handler2 = () => {
+  if (dropHandled) return;
+  dropHandled = true;
+  // ...
+};
+```
+This creates race conditions and shared state. Use independent UI state guards instead.
+
+**Key Principle**: Guard conditions should match visual feedback - if user sees the indicator, that handler should execute. If they don't see it, guard should return early.

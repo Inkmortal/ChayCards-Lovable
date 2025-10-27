@@ -190,7 +190,7 @@ interface FolderCardProps {
   setTreeRefetchKey: React.Dispatch<React.SetStateAction<number>>;
 }
 
-const FolderCard: React.FC<FolderCardProps> = ({
+const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
   folder,
   folders,
   setFolders,
@@ -203,12 +203,27 @@ const FolderCard: React.FC<FolderCardProps> = ({
   onDelete,
   isDescendant,
   setTreeRefetchKey
-}) => {
+}, forwardedRef) => {
   const manager = PluginManager.getInstance();
   const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
   const DropdownMenuItem = manager.getComponent('core-ui/DropdownMenuItem');
 
   const ref = useRef<HTMLDivElement>(null);
+
+  // Combine internal ref with forwarded ref
+  React.useEffect(() => {
+    if (forwardedRef) {
+      if (typeof forwardedRef === 'function') {
+        forwardedRef(ref.current);
+      } else {
+        forwardedRef.current = ref.current;
+      }
+    }
+  }, [forwardedRef]);
+
+  // Drop indicator ref (for drop logic) and state (for visuals)
+  const dropIndicatorRef = useRef<'before' | 'into' | 'after' | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<'before' | 'into' | 'after' | null>(null);
 
   // useDrag hook - makes this folder draggable
   const [{ isDragging }, drag] = useDrag(() => ({
@@ -219,10 +234,55 @@ const FolderCard: React.FC<FolderCardProps> = ({
     }),
   }), [folder.id]);
 
-  // useDrop hook - makes this folder accept drops
+  // useDrop hook - makes this folder accept drops (with before/into/after positioning)
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'FOLDER',
-    drop: async (item: { id: string; source: string }) => {
+    hover: (item: { id: string; source: string }, monitor) => {
+      if (!ref.current) return;
+
+      // Don't show indicators for self or descendants
+      if (item.id === folder.id || isDescendant(folder.id, item.id)) {
+        dropIndicatorRef.current = null;
+        setDropIndicator(null);
+        return;
+      }
+
+      // Get cursor position relative to card
+      const hoverBoundingRect = ref.current.getBoundingClientRect();
+      const clientOffset = monitor.getClientOffset();
+
+      if (!clientOffset) {
+        dropIndicatorRef.current = null;
+        setDropIndicator(null);
+        return;
+      }
+
+      // Calculate relative X position (0 = left edge, 1 = right edge)
+      const hoverClientX = clientOffset.x - hoverBoundingRect.left;
+      const hoverWidth = hoverBoundingRect.right - hoverBoundingRect.left;
+      const relativeX = hoverClientX / hoverWidth;
+
+      // Only accept drops in the middle 60% of the card
+      // Left 20% and right 20% are "gap zones" handled by container
+      if (relativeX < 0.2 || relativeX > 0.8) {
+        dropIndicatorRef.current = null;
+        setDropIndicator(null);
+        return;
+      }
+
+      // FolderCard only handles "drop INTO folder" to make child
+      // Container handles "insert between" positioning in gap zones
+      dropIndicatorRef.current = 'into';
+      setDropIndicator('into');
+    },
+    drop: (item: { id: string; source: string }) => {
+      // GUARD: Only execute if this FolderCard is the active drop target
+      // Prevents double execution when both FolderCard and container drops would fire
+      if (dropIndicatorRef.current !== 'into') {
+        console.log('[FolderCard] Skipping drop - not active target');
+        return;
+      }
+
       const draggedId = item.id;
 
       // Don't drop on self
@@ -264,49 +324,51 @@ const FolderCard: React.FC<FolderCardProps> = ({
       const draggedFolder = findNode(folders, draggedId);
       if (!draggedFolder) return;
 
-      // Get target folder's children, sorted by order (matching backend)
-      const targetChildren = getChildren(folders, folder.id)
-        .filter((n: any) => n.id !== draggedId)
-        .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+      // FolderCard only handles "drop INTO folder" to make child
+      // Container handles "insert between" positioning
+      const targetParentId = folder.id;
+      const targetIndex = 0; // Drop at beginning of children
 
-      // Calculate where this folder belongs based on its order value
-      const draggedOrder = draggedFolder.order || 0;
-      let correctIndex = targetChildren.findIndex((child: any) => (child.order || 0) > draggedOrder);
-      if (correctIndex === -1) correctIndex = targetChildren.length;
-
-      const updatedFolders = updateTreeAfterMove(prevFolders, draggedId, folder.id, correctIndex);
+      const updatedFolders = updateTreeAfterMove(prevFolders, draggedId, targetParentId, targetIndex);
       setFolders(updatedFolders);
 
-      try {
-        // Backend validation
-        const result = await documentsService.updateFolder(draggedId, { parentId: folder.id });
+      // Clear drop indicator (both ref and state)
+      dropIndicatorRef.current = null;
+      setDropIndicator(null);
 
-        if (!result.success) {
-          // REVERT on validation error (same as FolderTree!)
+      // Fire backend call without awaiting - React-DnD clears isDragging immediately
+      documentsService.moveToPosition(draggedId, targetParentId, targetIndex)
+        .then(result => {
+          if (!result.success) {
+            // REVERT on validation error
+            setFolders(prevFolders);
+            toast({
+              title: "Move failed",
+              description: result.error?.message || "Failed to move folder",
+              variant: "destructive"
+            });
+          } else {
+            toast({
+              title: "Folder moved",
+              description: `Moved to ${folder.name}`,
+            });
+            // Trigger tree refetch to sync with backend
+            setTreeRefetchKey(prev => prev + 1);
+          }
+        })
+        .catch(error => {
+          // REVERT on network error
           setFolders(prevFolders);
+          console.error('[FolderCard] Drop failed:', error);
           toast({
             title: "Move failed",
-            description: result.error?.message || "Failed to move folder",
+            description: "An error occurred while moving the folder",
             variant: "destructive"
           });
-        } else {
-          toast({
-            title: "Folder moved",
-            description: `Moved to ${folder.name}`,
-          });
-          // Trigger tree refetch to sync with backend
-          setTreeRefetchKey(prev => prev + 1);
-        }
-      } catch (error) {
-        // REVERT on network error
-        setFolders(prevFolders);
-        console.error('[FolderCard] Drop failed:', error);
-        toast({
-          title: "Move failed",
-          description: "An error occurred while moving the folder",
-          variant: "destructive"
         });
-      }
+
+      // Return object to prevent drop event from bubbling to container
+      return { id: draggedId, targetParent: folder.id };
     },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
@@ -315,6 +377,14 @@ const FolderCard: React.FC<FolderCardProps> = ({
 
   // Combine drag and drop refs
   drag(drop(ref));
+
+  // Clear drop indicator when not hovering (both ref and state)
+  React.useEffect(() => {
+    if (!isOver) {
+      dropIndicatorRef.current = null;
+      setDropIndicator(null);
+    }
+  }, [isOver]);
 
   const handleClick = (e: React.MouseEvent) => {
     // Only navigate if not clicking on the menu
@@ -345,19 +415,27 @@ const FolderCard: React.FC<FolderCardProps> = ({
   }, [folders, folder.id]);
 
   return (
-    <div
-      ref={ref}
-      onClick={handleClick}
-      className={cn(
-        "group relative overflow-hidden cursor-pointer",
-        // Base card with depth - TALLER aspect ratio (more vertical)
-        "p-4 rounded-2xl",
-        "bg-gradient-to-br from-card to-card/90",
-        "border-2 border-border/50",
-        "shadow-lg shadow-black/5",
-        // Hover effects
-        "hover:shadow-xl hover:shadow-black/10",
-        "hover:border-primary/30",
+    <div className="relative">
+      {/* Drop indicator - LEFT of card (before in grid order) */}
+      {dropIndicator === 'before' && (
+        <div className="absolute -left-2 top-0 bottom-0 w-1 bg-primary rounded-full z-10 shadow-lg shadow-primary/50" />
+      )}
+
+      <div
+        ref={ref}
+        onClick={handleClick}
+        className={cn(
+          "group relative overflow-hidden cursor-pointer",
+          // Base card with depth - TALLER aspect ratio (more vertical)
+          "p-4 rounded-2xl",
+          "bg-gradient-to-br from-card to-card/90",
+          "border-2 border-border/50",
+          "shadow-lg shadow-black/5",
+          // Hover effects
+          "hover:shadow-xl hover:shadow-black/10",
+          "hover:border-primary/30",
+          // Highlight when dropping 'into'
+          dropIndicator === 'into' && "ring-2 ring-primary ring-inset bg-primary/5",
         "hover:-translate-y-1",
         "transition-all duration-200",
         // Drag states
@@ -459,9 +537,15 @@ const FolderCard: React.FC<FolderCardProps> = ({
           )}
         </div>
       )}
+      </div>
+
+      {/* Drop indicator - RIGHT of card (after in grid order) */}
+      {dropIndicator === 'after' && (
+        <div className="absolute -right-2 top-0 bottom-0 w-1 bg-primary rounded-full z-10 shadow-lg shadow-primary/50" />
+      )}
     </div>
   );
-};
+});
 
 // ============ FileCard Component ============
 
@@ -653,19 +737,17 @@ const ParentNavigationCard: React.FC<ParentNavigationCardProps> = ({
         .filter(n => n.id !== draggedId)  // Exclude the item being moved
         .sort((a, b) => (a.order || 0) - (b.order || 0));
 
-      // Calculate correct index based on order value (matches backend sort)
-      const draggedOrder = draggedFolder.order || 0;
-      let correctIndex = parentChildren.findIndex(child => (child.order || 0) > draggedOrder);
-      if (correctIndex === -1) correctIndex = parentChildren.length;
+      // Drop at beginning when dropped on parent nav card (no cursor position)
+      const correctIndex = 0;
 
-      // OPTIMISTIC UPDATE - Use correct index based on order
+      // OPTIMISTIC UPDATE - Use correct index
       const prevFolders = [...localTree];
       const updatedFolders = updateTreeAfterMove(prevFolders, draggedId, parentFolderId, correctIndex);
       setLocalTree(updatedFolders);
 
       try {
-        // Backend validation
-        const result = await documentsService.updateFolder(draggedId, { parentId: parentFolderId });
+        // Backend validation with index for consistent positioning
+        const result = await documentsService.moveToPosition(draggedId, parentFolderId, correctIndex);
 
         if (!result.success) {
           // REVERT on validation error
@@ -796,7 +878,29 @@ export const FileBrowser: React.FC = () => {
     return folders.sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [localTree, selectedFolderId]);
 
-  const folderPath = useFolderPath(selectedFolderId, treeRefetchKey);
+  // Calculate folder path from localTree (not from storage!) for instant updates
+  const folderPath = React.useMemo(() => {
+    if (!selectedFolderId) return null;
+
+    const findPath = (nodes: any[], targetId: string, path: any[] = []): any[] | null => {
+      for (const node of nodes) {
+        if (node.type === 'folder') {
+          if (node.id === targetId) {
+            // Found target - return accumulated path including this node
+            return [...path, node];
+          }
+          // Search in children
+          if (node.children) {
+            const found = findPath(node.children, targetId, [...path, node]);
+            if (found) return found;
+          }
+        }
+      }
+      return null;
+    };
+
+    return findPath(localTree, selectedFolderId);
+  }, [localTree, selectedFolderId]);
 
   // Sidebar collapse state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -805,6 +909,12 @@ export const FileBrowser: React.FC = () => {
   const [sortMode, setSortMode] = useState<SortMode>('manual');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const { sortBy } = useSortBy();
+
+  // Container-based insertion state for grid view
+  const [containerInsertionIndex, setContainerInsertionIndex] = useState<number | null>(null);
+  const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null); // Track dragged item for cursor rendering
+  const folderCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const gridContainerRef = useRef<HTMLDivElement>(null);
 
   // Folder creation dialog state
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
@@ -1504,7 +1614,21 @@ export const FileBrowser: React.FC = () => {
   };
 
   // Build breadcrumb trail
-  const breadcrumbs = ['All Documents', ...folderPath.map(f => f.name)];
+  const breadcrumbs = ['All Documents', ...(folderPath || []).map(f => f.name)];
+
+  // Calculate parent info with better null handling for parent navigation card
+  const parentInfo = React.useMemo(() => {
+    if (!selectedFolderId) return null; // Viewing root, no parent
+    if (!folderPath || folderPath.length === 0) return null; // No path data yet
+
+    // If we have a folderPath with at least 1 item, we can show parent navigation
+    // - For top-level folders: parent is "All Files" (null)
+    // - For nested folders: parent is the folder one level up
+    return {
+      id: folderPath.length > 1 ? folderPath[folderPath.length - 2]?.id : null,
+      folder: folderPath.length > 1 ? folderPath[folderPath.length - 2] : null
+    };
+  }, [selectedFolderId, folderPath]);
 
   // Create virtual tree with "All Files" as root node
   const virtualTree = React.useMemo(() => {
@@ -1517,6 +1641,182 @@ export const FileBrowser: React.FC = () => {
       order: 0
     }];
   }, [localTree]);
+
+  // Drop zone for main view background (drop into current folder level)
+  const [{ isOverMainView }, dropMainView] = useDrop(() => ({
+    accept: 'FOLDER',
+    hover: (item: { id: string; source: string }, monitor) => {
+      // Track the dragged item ID for cursor rendering
+      setDraggedFolderId(item.id);
+
+      // Only calculate insertion position when hovering over container (not cards)
+      if (!monitor.isOver({ shallow: true })) {
+        setContainerInsertionIndex(null);
+        return;
+      }
+
+      const clientOffset = monitor.getClientOffset();
+      if (!clientOffset) {
+        setContainerInsertionIndex(null);
+        return;
+      }
+
+      // Helper to get children at a level
+      const getChildren = (tree: any[], parentId: string | null): any[] => {
+        if (parentId === null) {
+          return tree.filter((n: any) => (n.parentId === null || !n.parentId));
+        }
+        const findNode = (nodes: any[], id: string): any => {
+          for (const node of nodes) {
+            if (node.id === id) return node;
+            if (node.type === 'folder' && node.children) {
+              const found = findNode(node.children, id);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        const parent = findNode(tree, parentId);
+        return parent?.type === 'folder' ? parent.children : [];
+      };
+
+      // Get sorted folders at current level
+      const currentLevelFolders = getChildren(localTree, selectedFolderId);
+      if (currentLevelFolders.length === 0) {
+        setContainerInsertionIndex(null);
+        return;
+      }
+
+      // Filter out the dragged item to get the reduced array (what drop handlers expect)
+      const draggedId = item.id;
+      const siblings = currentLevelFolders.filter((f: any) => f.id !== draggedId);
+
+      if (siblings.length === 0) {
+        // Empty level after removing dragged item - insert at position 0
+        setContainerInsertionIndex(0);
+        return;
+      }
+
+      // Calculate which grid slot the cursor is over (using reduced array)
+      let closestIndex = 0;
+      let minDistance = Infinity;
+
+      siblings.forEach((folder: any, siblingIndex: number) => {
+        const cardElement = folderCardRefs.current.get(folder.id);
+        if (!cardElement) return;
+
+        const rect = cardElement.getBoundingClientRect();
+        const cardCenterX = rect.left + rect.width / 2;
+        const cardCenterY = rect.top + rect.height / 2;
+
+        // Calculate distance from cursor to card center
+        const distance = Math.sqrt(
+          Math.pow(clientOffset.x - cardCenterX, 2) +
+          Math.pow(clientOffset.y - cardCenterY, 2)
+        );
+
+        if (distance < minDistance) {
+          minDistance = distance;
+
+          // Determine if cursor is before or after this sibling
+          // Index is in the reduced array, which is what drop handlers expect
+          if (clientOffset.x < cardCenterX) {
+            closestIndex = siblingIndex; // Insert before this sibling
+          } else {
+            closestIndex = siblingIndex + 1; // Insert after this sibling
+          }
+        }
+      });
+
+      setContainerInsertionIndex(closestIndex);
+    },
+    drop: (item: { id: string; source: string }) => {
+      // GUARD: Only execute if this container is the active drop target
+      // Prevents double execution when both FolderCard and container drops would fire
+      if (containerInsertionIndex === null) {
+        console.log('[Container] Skipping drop - not active target');
+        return;
+      }
+
+      const draggedId = item.id;
+
+      // Helper: Find node in tree
+      const findNode = (nodes: any[], id: string): any => {
+        for (const node of nodes) {
+          if (node.id === id) return node;
+          if (node.type === 'folder' && node.children) {
+            const found = findNode(node.children, id);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      // Don't drop if folder not found
+      const draggedFolder = findNode(localTree, draggedId);
+      if (!draggedFolder) return;
+
+      // Normalize both IDs for comparison (null vs undefined)
+      const normalizeId = (id: string | null | undefined) => id === null || id === undefined ? null : id;
+      const originalParentId = normalizeId(draggedFolder.parentId);
+      const targetParentId = normalizeId(selectedFolderId);
+      const targetIndex = containerInsertionIndex ?? 0;
+
+      // Check for no-op drop (same parent, same position)
+      if (originalParentId === targetParentId) {
+        // Build siblings array (dragged item excluded, same as hover calculation)
+        const siblings = childFolders.filter(f => f.id !== draggedId);
+
+        // Get the folders that would be on either side after the drop
+        const leftSibling = targetIndex > 0 ? siblings[targetIndex - 1] : null;
+        const rightSibling = targetIndex < siblings.length ? siblings[targetIndex] : null;
+
+        // Get the current neighbors of the dragged folder
+        const draggedIndexInFull = childFolders.findIndex(f => f.id === draggedId);
+        const currentLeft = draggedIndexInFull > 0 ? childFolders[draggedIndexInFull - 1] : null;
+        const currentRight = draggedIndexInFull < childFolders.length - 1 ? childFolders[draggedIndexInFull + 1] : null;
+
+        // If the neighbors would be the same, it's a no-op
+        if (leftSibling?.id === currentLeft?.id && rightSibling?.id === currentRight?.id) {
+          setContainerInsertionIndex(null);
+          setDraggedFolderId(null);
+          return;
+        }
+      }
+
+      const prevTree = [...localTree];
+
+      // Clear insertion indicator and dragged item tracking
+      setContainerInsertionIndex(null);
+      setDraggedFolderId(null);
+
+      const updatedTree = updateTreeAfterMove(prevTree, draggedId, selectedFolderId, targetIndex);
+      setLocalTree(updatedTree);
+
+      // Fire backend call without awaiting - React-DnD clears isDragging immediately
+      documentsService.moveToPosition(draggedId, selectedFolderId, targetIndex)
+        .then(result => {
+          if (!result.success) {
+            setLocalTree(prevTree);
+            toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
+          } else {
+            const levelName = selectedFolderId ? "this folder" : "root level";
+            toast({ title: "Folder moved", description: `Moved to ${levelName}` });
+            setTreeRefetchKey(prev => prev + 1);
+          }
+        })
+        .catch(error => {
+          setLocalTree(prevTree);
+          toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
+        });
+
+      // Return object to signal drop was handled
+      return { id: draggedId, targetParent: selectedFolderId, index: targetIndex };
+    },
+    collect: (monitor) => ({
+      isOverMainView: monitor.isOver()
+    })
+  }), [localTree, selectedFolderId, documentsService, toast, setTreeRefetchKey, containerInsertionIndex]);
 
   return (
     <div className="file-browser h-full flex flex-col p-8 space-y-6">
@@ -1601,15 +1901,14 @@ export const FileBrowser: React.FC = () => {
               .filter((n: any) => (n.parentId === null || !n.parentId) && n.id !== draggedId)
               .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
-            const draggedOrder = draggedFolder.order || 0;
-            let correctIndex = rootChildren.findIndex((child: any) => (child.order || 0) > draggedOrder);
-            if (correctIndex === -1) correctIndex = rootChildren.length;
+            // Drop at beginning when dropped on breadcrumb (no cursor position)
+            const correctIndex = 0;
 
             const updatedTree = updateTreeAfterMove(prevTree, draggedId, null, correctIndex);
             setLocalTree(updatedTree);
 
             try {
-              const result = await documentsService.updateFolder(draggedId, { parentId: null });
+              const result = await documentsService.moveToPosition(draggedId, null, correctIndex);
               if (!result.success) {
                 setLocalTree(prevTree);
                 toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
@@ -1662,15 +1961,14 @@ export const FileBrowser: React.FC = () => {
                   .filter((n: any) => n.id !== draggedId)
                   .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
-                const draggedOrder = draggedFolder.order || 0;
-                let correctIndex = parentChildren.findIndex((child: any) => (child.order || 0) > draggedOrder);
-                if (correctIndex === -1) correctIndex = parentChildren.length;
+                // Drop at beginning when dropped on breadcrumb (no cursor position)
+                const correctIndex = 0;
 
                 const updatedTree = updateTreeAfterMove(prevTree, draggedId, folder.id, correctIndex);
                 setLocalTree(updatedTree);
 
                 try {
-                  const result = await documentsService.updateFolder(draggedId, { parentId: folder.id });
+                  const result = await documentsService.moveToPosition(draggedId, folder.id, correctIndex);
                   if (!result.success) {
                     setLocalTree(prevTree);
                     toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
@@ -2209,16 +2507,14 @@ export const FileBrowser: React.FC = () => {
 
         {/* Right Area: Folders + Files */}
         <div className="flex-1 p-6 overflow-y-auto relative">
-          {childFolders.length === 0 && filesInFolder.length === 0 ? (
+          {/* Always show grid layout when inside a folder (to show parent nav card) */}
+          {/* For root level with no content, show empty state */}
+          {!selectedFolderId && childFolders.length === 0 && filesInFolder.length === 0 ? (
             EmptyState ? (
               <EmptyState
                 icon={FileText}
-                title={selectedFolderId ? "Empty folder" : "No content yet"}
-                description={
-                  selectedFolderId
-                    ? "Create subfolders or upload files to organize your content"
-                    : "Start by creating folders or uploading files"
-                }
+                title="No content yet"
+                description="Start by creating folders or uploading files"
               >
                 <div className="mt-4 text-sm text-muted-foreground space-y-1">
                   <p><strong>Workspace Statistics:</strong></p>
@@ -2231,18 +2527,23 @@ export const FileBrowser: React.FC = () => {
               </EmptyState>
             ) : (
               <div className="text-center py-8">
-                <p className="text-muted-foreground">
-                  {selectedFolderId ? "Empty folder" : "No content yet"}
-                </p>
+                <p className="text-muted-foreground">No content yet</p>
               </div>
             )
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-              {/* Parent folder navigation card (only shown when inside a folder) */}
-              {selectedFolderId && folderPath && folderPath.length > 0 && (
+            <div
+              ref={(node) => {
+                gridContainerRef.current = node;
+                dropMainView(node);
+              }}
+              className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
+            >
+              {/* Parent folder navigation card - shown when inside a folder with a parent */}
+              {/* Uses parentInfo instead of direct folderPath to avoid null reference errors during state transitions */}
+              {parentInfo && (
                 <ParentNavigationCard
-                  parentFolder={folderPath[folderPath.length - 2]}
-                  parentFolderId={folderPath[folderPath.length - 2] ? folderPath[folderPath.length - 2].id : null}
+                  parentFolder={parentInfo.folder}
+                  parentFolderId={parentInfo.id}
                   localTree={localTree}
                   setLocalTree={setLocalTree}
                   updateTreeAfterMove={updateTreeAfterMove}
@@ -2250,30 +2551,110 @@ export const FileBrowser: React.FC = () => {
                   toast={toast}
                   setTreeRefetchKey={setTreeRefetchKey}
                   onNavigate={() => {
-                    const parentFolderId = folderPath[folderPath.length - 2] ? folderPath[folderPath.length - 2].id : null;
-                    setSelectedFolderId(parentFolderId);
+                    setSelectedFolderId(parentInfo.id);
                   }}
                 />
               )}
 
               {/* Folders */}
-              {childFolders.map(folder => (
+              {childFolders.map((folder, index) => (
                 <FolderCard
                   key={folder.id}
-                  folder={folder}
-                  folders={localTree}
-                  setFolders={setLocalTree}
-                  updateTreeAfterMove={updateTreeAfterMove}
-                  documentsService={documentsService}
-                  toast={toast}
-                  onFolderSelect={setSelectedFolderId}
-                  onRename={handleDirectRename}
-                  onChangeColor={handleChangeColor}
-                  onDelete={handleFolderDelete}
-                  isDescendant={(sourceId, targetId) => isDescendant(sourceId, targetId, localTree)}
-                  setTreeRefetchKey={setTreeRefetchKey}
-                />
+                    ref={(el: HTMLDivElement | null) => {
+                      if (el) {
+                        folderCardRefs.current.set(folder.id, el);
+                      } else {
+                        folderCardRefs.current.delete(folder.id);
+                      }
+                    }}
+                    folder={folder}
+                    folders={localTree}
+                    setFolders={setLocalTree}
+                    updateTreeAfterMove={updateTreeAfterMove}
+                    documentsService={documentsService}
+                    toast={toast}
+                    onFolderSelect={setSelectedFolderId}
+                    onRename={handleDirectRename}
+                    onChangeColor={handleChangeColor}
+                    onDelete={handleFolderDelete}
+                    isDescendant={(sourceId, targetId) => isDescendant(sourceId, targetId, localTree)}
+                    setTreeRefetchKey={setTreeRefetchKey}
+                  />
               ))}
+
+              {/* Vertical insertion cursor in gap between cards */}
+              {containerInsertionIndex !== null && draggedFolderId && (() => {
+                // containerInsertionIndex is an index in the SIBLINGS array (dragged item excluded)
+                // Build the same siblings array to correctly map index to visual cards
+                const siblings = childFolders.filter(f => f.id !== draggedFolderId);
+
+                const leftIndex = containerInsertionIndex - 1;
+                const rightIndex = containerInsertionIndex;
+
+                // Use siblings array (dragged item excluded) to get the correct cards
+                const leftCard = leftIndex >= 0 ? folderCardRefs.current.get(siblings[leftIndex]?.id) : null;
+                const rightCard = rightIndex < siblings.length ? folderCardRefs.current.get(siblings[rightIndex]?.id) : null;
+
+                if (!leftCard && !rightCard) return null;
+
+                // Calculate cursor position based on card positions
+                const containerRect = gridContainerRef.current?.getBoundingClientRect();
+                if (!containerRect) return null;
+
+                let cursorX = 0;
+                let cursorY = 0;
+                let cursorHeight = 120; // Default card height
+
+                if (leftCard && rightCard) {
+                  // Cursor is between two cards - position in the gap
+                  const leftRect = leftCard.getBoundingClientRect();
+                  const rightRect = rightCard.getBoundingClientRect();
+
+                  // Check if cards are on the same row
+                  if (Math.abs(leftRect.top - rightRect.top) < 10) {
+                    // Same row - position at left edge of gap (flexbox centers visual element)
+                    cursorX = leftRect.right - containerRect.left;
+                    cursorY = leftRect.top - containerRect.top;
+                    cursorHeight = leftRect.height;
+                  } else {
+                    // Different rows - position at right edge of gap (flexbox centers visual element)
+                    cursorX = rightRect.left - containerRect.left;
+                    cursorY = rightRect.top - containerRect.top;
+                    cursorHeight = rightRect.height;
+                  }
+                } else if (leftCard) {
+                  // Only left card - cursor at left edge of gap (flexbox centers visual element)
+                  const leftRect = leftCard.getBoundingClientRect();
+                  cursorX = leftRect.right - containerRect.left;
+                  cursorY = leftRect.top - containerRect.top;
+                  cursorHeight = leftRect.height;
+                } else if (rightCard) {
+                  // Only right card - cursor at right edge of gap (flexbox centers visual element)
+                  const rightRect = rightCard.getBoundingClientRect();
+                  cursorX = rightRect.left - containerRect.left;
+                  cursorY = rightRect.top - containerRect.top;
+                  cursorHeight = rightRect.height;
+                }
+
+                return (
+                  <div
+                    className="absolute flex flex-col items-center pointer-events-none"
+                    style={{
+                      left: `${cursorX}px`,
+                      top: `${cursorY}px`,
+                      height: `${cursorHeight}px`,
+                      zIndex: 10,
+                    }}
+                  >
+                    {/* Top circle */}
+                    <div className="w-1 h-1 bg-primary rounded-full flex-shrink-0" style={{ boxShadow: '0 0 0 3px #3b82f6' }} />
+                    {/* Vertical line */}
+                    <div className="w-0.5 flex-1 bg-primary rounded-full" />
+                    {/* Bottom circle */}
+                    <div className="w-1 h-1 bg-primary rounded-full flex-shrink-0" style={{ boxShadow: '0 0 0 3px #3b82f6' }} />
+                  </div>
+                );
+              })()}
 
               {/* Files */}
               {filesInFolder.map(file => (
@@ -2282,6 +2663,15 @@ export const FileBrowser: React.FC = () => {
                   file={file}
                 />
               ))}
+
+              {/* Empty folder message - shown after parent nav card */}
+              {selectedFolderId && childFolders.length === 0 && filesInFolder.length === 0 && (
+                <div className="col-span-full text-center py-8">
+                  <p className="text-muted-foreground text-sm">
+                    This folder is empty. Create subfolders or upload files to get started.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
