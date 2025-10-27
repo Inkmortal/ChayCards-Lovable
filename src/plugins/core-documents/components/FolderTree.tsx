@@ -363,7 +363,7 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
       }
 
       const hoverBoundingRect = nodeRef.current.getBoundingClientRect();
-      const height = hoverBoundingRect.height;
+      const totalHeight = hoverBoundingRect.height; // Includes visual + padding
       const clientOffset = monitor.getClientOffset();
 
       if (!clientOffset) {
@@ -375,16 +375,23 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
       const y = clientOffset.y - hoverBoundingRect.top;
       const x = clientOffset.x - hoverBoundingRect.left;
 
+      // ZONE OWNERSHIP: Node visual is 36px (h-9), padding is 24px (pb-6), total = 60px
+      const VISUAL_HEIGHT = 36; // h-9 = 36px
+      const PADDING_BOTTOM = 24; // pb-6 = 24px
+
       // Arborist-style hover detection
       const indentPerLevel = 16;
       const basePadding = isAllFilesNode ? 4 : 8;
       // Use Math.floor() not Math.round() - snap at indent boundaries, not halfway through
       const hoverLevel = Math.floor(Math.max(0, x - basePadding) / indentPerLevel);
 
-      // Top 25%, middle 50%, bottom 25%
-      const pad = height / 4;
-      const inMiddle = y > pad && y < height - pad;
-      const atTop = !inMiddle && y < height / 2;
+      // Detect zones: top 25% of VISUAL, middle 50% of VISUAL, bottom 25% of VISUAL + PADDING
+      const topThreshold = VISUAL_HEIGHT * 0.25;
+      const bottomThreshold = VISUAL_HEIGHT * 0.75;
+
+      const atTop = y < topThreshold;
+      const inMiddle = y >= topThreshold && y <= bottomThreshold;
+      const inBottomOrPadding = y > bottomThreshold; // Bottom 25% of visual + all padding
 
       // Hovering over middle of ANY folder? Highlight it.
       // Following arborist pattern: just check isInternal (folder) && inMiddle
@@ -528,7 +535,7 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
       className={cn(
         'group relative rounded-lg transition-all duration-150',
         'flex gap-2 cursor-pointer',
-        'h-9 py-2',
+        'h-9 py-2', // Standard height and padding - no tricks that break layout
         isAllFilesNode ? 'pl-1' : 'pl-2', // Less padding for All Files to align it flush left
         isSelected && 'bg-accent/30',  // Softer highlight: 30% opacity for better readability
         !isSelected && 'hover:bg-muted/50',
@@ -596,7 +603,13 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
           <div
             className="absolute flex items-center pointer-events-none"
             style={{
-              ...(dropCursor.position === 'top' ? { top: '-2px' } : { bottom: '-2px' }),
+              // ZONE OWNERSHIP CURSOR POSITIONING:
+              // - top: Keep at -2px (minimal gap above node)
+              // - bottom: Position in middle of 24px padding = -12px from visual bottom
+              ...(dropCursor.position === 'top'
+                ? { top: '-2px' }
+                : { bottom: '-12px' } // Middle of 24px padding (pb-6)
+              ),
               left: `${(isAllFilesNode ? 4 : 8) + (dropCursor.level * 16)}px`,
               right: '16px',
               zIndex: 10,

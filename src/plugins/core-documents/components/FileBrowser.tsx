@@ -7,7 +7,7 @@
  * - File upload and management
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { FileText, FolderPlus, Upload, Folder, ChevronRight, PanelLeftClose, PanelLeft, ArrowUpDown, MoreVertical, Edit2, Palette, Trash2 } from 'lucide-react';
 import { HslColorPicker } from 'react-colorful';
 import { useDrag, useDrop } from 'react-dnd';
@@ -188,6 +188,7 @@ interface FolderCardProps {
   onDelete: (folderId: string) => void;
   isDescendant: (sourceId: string, targetId: string) => boolean;
   setTreeRefetchKey: React.Dispatch<React.SetStateAction<number>>;
+  highlightType: 'into' | null;
 }
 
 const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
@@ -202,7 +203,8 @@ const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
   onChangeColor,
   onDelete,
   isDescendant,
-  setTreeRefetchKey
+  setTreeRefetchKey,
+  highlightType
 }, forwardedRef) => {
   const manager = PluginManager.getInstance();
   const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
@@ -221,10 +223,6 @@ const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
     }
   }, [forwardedRef]);
 
-  // Drop indicator ref (for drop logic) and state (for visuals)
-  const dropIndicatorRef = useRef<'before' | 'into' | 'after' | null>(null);
-  const [dropIndicator, setDropIndicator] = useState<'before' | 'into' | 'after' | null>(null);
-
   // useDrag hook - makes this folder draggable
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'FOLDER',
@@ -234,157 +232,8 @@ const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
     }),
   }), [folder.id]);
 
-  // useDrop hook - makes this folder accept drops (with before/into/after positioning)
-  const [{ isOver }, drop] = useDrop(() => ({
-    accept: 'FOLDER',
-    hover: (item: { id: string; source: string }, monitor) => {
-      if (!ref.current) return;
-
-      // Don't show indicators for self or descendants
-      if (item.id === folder.id || isDescendant(folder.id, item.id)) {
-        dropIndicatorRef.current = null;
-        setDropIndicator(null);
-        return;
-      }
-
-      // Get cursor position relative to card
-      const hoverBoundingRect = ref.current.getBoundingClientRect();
-      const clientOffset = monitor.getClientOffset();
-
-      if (!clientOffset) {
-        dropIndicatorRef.current = null;
-        setDropIndicator(null);
-        return;
-      }
-
-      // Calculate relative X position (0 = left edge, 1 = right edge)
-      const hoverClientX = clientOffset.x - hoverBoundingRect.left;
-      const hoverWidth = hoverBoundingRect.right - hoverBoundingRect.left;
-      const relativeX = hoverClientX / hoverWidth;
-
-      // Only accept drops in the middle 60% of the card
-      // Left 20% and right 20% are "gap zones" handled by container
-      if (relativeX < 0.2 || relativeX > 0.8) {
-        dropIndicatorRef.current = null;
-        setDropIndicator(null);
-        return;
-      }
-
-      // FolderCard only handles "drop INTO folder" to make child
-      // Container handles "insert between" positioning in gap zones
-      dropIndicatorRef.current = 'into';
-      setDropIndicator('into');
-    },
-    drop: (item: { id: string; source: string }) => {
-      // GUARD: Only execute if this FolderCard is the active drop target
-      // Prevents double execution when both FolderCard and container drops would fire
-      if (dropIndicatorRef.current !== 'into') {
-        console.log('[FolderCard] Skipping drop - not active target');
-        return;
-      }
-
-      const draggedId = item.id;
-
-      // Don't drop on self
-      if (draggedId === folder.id) return;
-
-      // Check for circular reference
-      if (isDescendant(folder.id, draggedId)) {
-        toast({
-          title: "Cannot move folder",
-          description: "Cannot move folder into itself or its descendants",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // OPTIMISTIC UPDATE - Calculate correct index based on order property (matching backend sort)
-      const prevFolders = [...folders];
-
-      // Find dragged folder and its order value
-      const findNode = (nodes: any[], id: string): any => {
-        for (const node of nodes) {
-          if (node.id === id) return node;
-          if (node.type === 'folder' && node.children) {
-            const found = findNode(node.children, id);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-
-      const getChildren = (tree: any[], parentId: string | null): any[] => {
-        if (parentId === null) {
-          return tree.filter((n: any) => (n.parentId === null || !n.parentId));
-        }
-        const parent = findNode(tree, parentId);
-        return parent?.type === 'folder' ? parent.children : [];
-      };
-
-      const draggedFolder = findNode(folders, draggedId);
-      if (!draggedFolder) return;
-
-      // FolderCard only handles "drop INTO folder" to make child
-      // Container handles "insert between" positioning
-      const targetParentId = folder.id;
-      const targetIndex = 0; // Drop at beginning of children
-
-      const updatedFolders = updateTreeAfterMove(prevFolders, draggedId, targetParentId, targetIndex);
-      setFolders(updatedFolders);
-
-      // Clear drop indicator (both ref and state)
-      dropIndicatorRef.current = null;
-      setDropIndicator(null);
-
-      // Fire backend call without awaiting - React-DnD clears isDragging immediately
-      documentsService.moveToPosition(draggedId, targetParentId, targetIndex)
-        .then(result => {
-          if (!result.success) {
-            // REVERT on validation error
-            setFolders(prevFolders);
-            toast({
-              title: "Move failed",
-              description: result.error?.message || "Failed to move folder",
-              variant: "destructive"
-            });
-          } else {
-            toast({
-              title: "Folder moved",
-              description: `Moved to ${folder.name}`,
-            });
-            // Trigger tree refetch to sync with backend
-            setTreeRefetchKey(prev => prev + 1);
-          }
-        })
-        .catch(error => {
-          // REVERT on network error
-          setFolders(prevFolders);
-          console.error('[FolderCard] Drop failed:', error);
-          toast({
-            title: "Move failed",
-            description: "An error occurred while moving the folder",
-            variant: "destructive"
-          });
-        });
-
-      // Return object to prevent drop event from bubbling to container
-      return { id: draggedId, targetParent: folder.id };
-    },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-    }),
-  }), [folder.id, folders, isDescendant, documentsService, toast, setFolders, setTreeRefetchKey]);
-
-  // Combine drag and drop refs
-  drag(drop(ref));
-
-  // Clear drop indicator when not hovering (both ref and state)
-  React.useEffect(() => {
-    if (!isOver) {
-      dropIndicatorRef.current = null;
-      setDropIndicator(null);
-    }
-  }, [isOver]);
+  // Only drag functionality - no drop logic
+  drag(ref);
 
   const handleClick = (e: React.MouseEvent) => {
     // Only navigate if not clicking on the menu
@@ -416,11 +265,7 @@ const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
 
   return (
     <div className="relative">
-      {/* Drop indicator - LEFT of card (before in grid order) */}
-      {dropIndicator === 'before' && (
-        <div className="absolute -left-2 top-0 bottom-0 w-1 bg-primary rounded-full z-10 shadow-lg shadow-primary/50" />
-      )}
-
+      {/* Only 'into' highlight is handled by FolderCard - cursors are rendered by container */}
       <div
         ref={ref}
         onClick={handleClick}
@@ -435,12 +280,11 @@ const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
           "hover:shadow-xl hover:shadow-black/10",
           "hover:border-primary/30",
           // Highlight when dropping 'into'
-          dropIndicator === 'into' && "ring-2 ring-primary ring-inset bg-primary/5",
+          highlightType === 'into' && "ring-2 ring-primary ring-inset bg-primary/5",
         "hover:-translate-y-1",
         "transition-all duration-200",
         // Drag states
         isDragging && "opacity-50 scale-95",
-        isOver && "ring-2 ring-primary/40 bg-primary/10 border-primary/50",
         // Boxy layout - more square like macOS/Google Drive
         "flex flex-col justify-center aspect-[4/3]"
       )}
@@ -539,10 +383,6 @@ const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
       )}
       </div>
 
-      {/* Drop indicator - RIGHT of card (after in grid order) */}
-      {dropIndicator === 'after' && (
-        <div className="absolute -right-2 top-0 bottom-0 w-1 bg-primary rounded-full z-10 shadow-lg shadow-primary/50" />
-      )}
     </div>
   );
 });
@@ -910,9 +750,16 @@ export const FileBrowser: React.FC = () => {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const { sortBy } = useSortBy();
 
-  // Container-based insertion state for grid view
-  const [containerInsertionIndex, setContainerInsertionIndex] = useState<number | null>(null);
-  const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null); // Track dragged item for cursor rendering
+  // Container-based drop state for grid view
+  const [dropState, setDropState] = useState<{
+    cursorPosition: { x: number; y: number; height: number } | null;
+    highlightedCardId: string | null;
+    insertionIndex: number | null;
+  }>({
+    cursorPosition: null,
+    highlightedCardId: null,
+    insertionIndex: null
+  });
   const folderCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
@@ -1642,30 +1489,270 @@ export const FileBrowser: React.FC = () => {
     }];
   }, [localTree]);
 
+  // Calculate drop zone based on cursor position
+  const calculateDropZone = useCallback((clientOffset: { x: number; y: number }, draggedId: string) => {
+    if (!gridContainerRef.current) return null;
+
+    const containerRect = gridContainerRef.current.getBoundingClientRect();
+    const relativeX = clientOffset.x - containerRect.left;
+    const relativeY = clientOffset.y - containerRect.top;
+
+    // Get all folders at current level
+    const childFolders = localTree.filter((f: any) =>
+      f.type === 'folder' && f.parentId === selectedFolderId
+    );
+
+    // Get all card positions at once
+    const cardData = childFolders.map((folder: any, originalIndex: number) => {
+      const element = folderCardRefs.current.get(folder.id);
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return {
+        id: folder.id,
+        originalIndex,
+        left: rect.left - containerRect.left,
+        right: rect.right - containerRect.left,
+        top: rect.top - containerRect.top,
+        bottom: rect.bottom - containerRect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: (rect.left + rect.right) / 2 - containerRect.left,
+        centerY: (rect.top + rect.bottom) / 2 - containerRect.top
+      };
+    }).filter(Boolean) as Array<{
+      id: string;
+      originalIndex: number;
+      left: number;
+      right: number;
+      top: number;
+      bottom: number;
+      width: number;
+      height: number;
+      centerX: number;
+      centerY: number;
+    }>;
+
+    // Remove dragged item from active cards
+    const activeCards = cardData.filter(c => c.id !== draggedId);
+
+    if (activeCards.length === 0) {
+      // Empty folder - cursor at start
+      return {
+        type: 'insert' as const,
+        index: 0,
+        cursorX: 16,
+        cursorY: 16,
+        height: 120,
+        cardId: null
+      };
+    }
+
+    // Find closest card and determine drop type
+    let closestCard: typeof activeCards[0] | null = null;
+    let minDistance = Infinity;
+
+    for (const card of activeCards) {
+      const distance = Math.sqrt(
+        Math.pow(relativeX - card.centerX, 2) +
+        Math.pow(relativeY - card.centerY, 2)
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestCard = card;
+      }
+    }
+
+    if (!closestCard) return null;
+
+    // Check if we're over the card
+    const overCard = relativeX >= closestCard.left &&
+                     relativeX <= closestCard.right &&
+                     relativeY >= closestCard.top &&
+                     relativeY <= closestCard.bottom;
+
+    if (overCard) {
+      // Calculate position within card
+      const relativeCardX = (relativeX - closestCard.left) / closestCard.width;
+
+      if (relativeCardX < 0.3) {
+        // Left 30% - insert before
+        const index = activeCards.indexOf(closestCard);
+        return {
+          type: 'insert' as const,
+          index,
+          cursorX: closestCard.left - 8,
+          cursorY: closestCard.top,
+          height: closestCard.height,
+          cardId: null
+        };
+      } else if (relativeCardX > 0.7) {
+        // Right 30% - insert after
+        const index = activeCards.indexOf(closestCard) + 1;
+        return {
+          type: 'insert' as const,
+          index,
+          cursorX: closestCard.right + 8,
+          cursorY: closestCard.top,
+          height: closestCard.height,
+          cardId: null
+        };
+      } else {
+        // Middle 40% - drop into folder
+        return {
+          type: 'into' as const,
+          cardId: closestCard.id,
+          index: null,
+          cursorX: null,
+          cursorY: null,
+          height: null
+        };
+      }
+    }
+
+    // Not over a card - find insertion point based on position
+    // Check if before first card
+    const firstCard = activeCards[0];
+    if (firstCard && relativeX < firstCard.left) {
+      return {
+        type: 'insert' as const,
+        index: 0,
+        cursorX: firstCard.left - 8,
+        cursorY: firstCard.top,
+        height: firstCard.height,
+        cardId: null
+      };
+    }
+
+    // Check if after last card
+    const lastCard = activeCards[activeCards.length - 1];
+    if (lastCard && relativeX > lastCard.right) {
+      return {
+        type: 'insert' as const,
+        index: activeCards.length,
+        cursorX: lastCard.right + 8,
+        cursorY: lastCard.top,
+        height: lastCard.height,
+        cardId: null
+      };
+    }
+
+    // Find gap between cards
+    for (let i = 0; i < activeCards.length - 1; i++) {
+      const current = activeCards[i];
+      const next = activeCards[i + 1];
+
+      // Check if in horizontal gap
+      if (relativeX > current.right && relativeX < next.left) {
+        // Check if same row
+        if (Math.abs(current.top - next.top) < 10) {
+          // Same row - place in middle of gap
+          return {
+            type: 'insert' as const,
+            index: i + 1,
+            cursorX: (current.right + next.left) / 2,
+            cursorY: current.top,
+            height: current.height,
+            cardId: null
+          };
+        }
+      }
+    }
+
+    // Default to closest position
+    const index = relativeX < closestCard.centerX
+      ? activeCards.indexOf(closestCard)
+      : activeCards.indexOf(closestCard) + 1;
+
+    return {
+      type: 'insert' as const,
+      index,
+      cursorX: relativeX < closestCard.centerX
+        ? closestCard.left - 8
+        : closestCard.right + 8,
+      cursorY: closestCard.top,
+      height: closestCard.height,
+      cardId: null
+    };
+  }, [localTree, selectedFolderId, folderCardRefs]);
+
   // Drop zone for main view background (drop into current folder level)
   const [{ isOverMainView }, dropMainView] = useDrop(() => ({
     accept: 'FOLDER',
     hover: (item: { id: string; source: string }, monitor) => {
-      // Track the dragged item ID for cursor rendering
-      setDraggedFolderId(item.id);
-
-      // Only calculate insertion position when hovering over container (not cards)
+      // Only process if hovering over container
       if (!monitor.isOver({ shallow: true })) {
-        setContainerInsertionIndex(null);
         return;
       }
 
       const clientOffset = monitor.getClientOffset();
       if (!clientOffset) {
-        setContainerInsertionIndex(null);
         return;
       }
 
-      // Helper to get children at a level
-      const getChildren = (tree: any[], parentId: string | null): any[] => {
-        if (parentId === null) {
-          return tree.filter((n: any) => (n.parentId === null || !n.parentId));
+      // Calculate drop zone using centralized algorithm
+      const dropZone = calculateDropZone(clientOffset, item.id);
+
+      if (dropZone) {
+        // Update state atomically based on drop zone type
+        if (dropZone.type === 'insert') {
+          setDropState({
+            cursorPosition: dropZone.cursorX !== undefined ? {
+              x: dropZone.cursorX,
+              y: dropZone.cursorY || 0,
+              height: dropZone.cursorHeight || 144
+            } : null,
+            highlightedCardId: null,
+            insertionIndex: dropZone.index
+          });
+        } else if (dropZone.type === 'into') {
+          setDropState({
+            cursorPosition: null,
+            highlightedCardId: dropZone.cardId || null,
+            insertionIndex: null
+          });
         }
+      } else {
+        // No valid drop zone - clear state
+        setDropState({
+          cursorPosition: null,
+          highlightedCardId: null,
+          insertionIndex: null
+        });
+      }
+    },
+    drop: (item: { id: string; source: string }) => {
+      const draggedId = item.id;
+
+      // Handle drop based on current dropState
+      if (dropState.highlightedCardId) {
+        // Drop INTO a folder
+        if (draggedId !== dropState.highlightedCardId) {
+          const prevTree = [...localTree];
+
+          // Move into the highlighted folder
+          const updatedTree = updateTreeAfterMove(prevTree, draggedId, dropState.highlightedCardId, 0);
+          setLocalTree(updatedTree);
+
+          documentsService.moveToPosition(draggedId, dropState.highlightedCardId, 0)
+            .then(result => {
+              if (!result.success) {
+                setLocalTree(prevTree);
+                toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
+              } else {
+                toast({ title: "Folder moved", description: `Moved into folder` });
+                setTreeRefetchKey(prev => prev + 1);
+              }
+            })
+            .catch(error => {
+              setLocalTree(prevTree);
+              toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
+            });
+        }
+      } else if (dropState.insertionIndex !== null) {
+        // INSERT between folders
+        const targetIndex = dropState.insertionIndex;
+
+        // Helper: Find node in tree
         const findNode = (nodes: any[], id: string): any => {
           for (const node of nodes) {
             if (node.id === id) return node;
@@ -1676,147 +1763,88 @@ export const FileBrowser: React.FC = () => {
           }
           return null;
         };
-        const parent = findNode(tree, parentId);
-        return parent?.type === 'folder' ? parent.children : [];
-      };
 
-      // Get sorted folders at current level
-      const currentLevelFolders = getChildren(localTree, selectedFolderId);
-      if (currentLevelFolders.length === 0) {
-        setContainerInsertionIndex(null);
-        return;
-      }
+        // Don't drop if folder not found
+        const draggedFolder = findNode(localTree, draggedId);
+        if (!draggedFolder) return;
 
-      // Filter out the dragged item to get the reduced array (what drop handlers expect)
-      const draggedId = item.id;
-      const siblings = currentLevelFolders.filter((f: any) => f.id !== draggedId);
+        // Check for no-op (same position)
+        const normalizeId = (id: string | null | undefined) => id === null || id === undefined ? null : id;
+        const originalParentId = normalizeId(draggedFolder.parentId);
+        const targetParentId = normalizeId(selectedFolderId);
 
-      if (siblings.length === 0) {
-        // Empty level after removing dragged item - insert at position 0
-        setContainerInsertionIndex(0);
-        return;
-      }
+        if (originalParentId === targetParentId) {
+          // Build siblings array (excluding dragged item)
+          const siblings = childFolders.filter(f => f.id !== draggedId);
 
-      // Calculate which grid slot the cursor is over (using reduced array)
-      let closestIndex = 0;
-      let minDistance = Infinity;
+          // Get the folders that would be on either side after the drop
+          const leftSibling = targetIndex > 0 ? siblings[targetIndex - 1] : null;
+          const rightSibling = targetIndex < siblings.length ? siblings[targetIndex] : null;
 
-      siblings.forEach((folder: any, siblingIndex: number) => {
-        const cardElement = folderCardRefs.current.get(folder.id);
-        if (!cardElement) return;
+          // Get the current neighbors of the dragged folder
+          const draggedIndexInFull = childFolders.findIndex(f => f.id === draggedId);
+          const currentLeft = draggedIndexInFull > 0 ? childFolders[draggedIndexInFull - 1] : null;
+          const currentRight = draggedIndexInFull < childFolders.length - 1 ? childFolders[draggedIndexInFull + 1] : null;
 
-        const rect = cardElement.getBoundingClientRect();
-        const cardCenterX = rect.left + rect.width / 2;
-        const cardCenterY = rect.top + rect.height / 2;
-
-        // Calculate distance from cursor to card center
-        const distance = Math.sqrt(
-          Math.pow(clientOffset.x - cardCenterX, 2) +
-          Math.pow(clientOffset.y - cardCenterY, 2)
-        );
-
-        if (distance < minDistance) {
-          minDistance = distance;
-
-          // Determine if cursor is before or after this sibling
-          // Index is in the reduced array, which is what drop handlers expect
-          if (clientOffset.x < cardCenterX) {
-            closestIndex = siblingIndex; // Insert before this sibling
-          } else {
-            closestIndex = siblingIndex + 1; // Insert after this sibling
+          // If the neighbors would be the same, it's a no-op
+          if (leftSibling?.id === currentLeft?.id && rightSibling?.id === currentRight?.id) {
+            // Clear state and return
+            setDropState({
+              cursorPosition: null,
+              highlightedCardId: null,
+              insertionIndex: null
+            });
+            return;
           }
         }
+
+        const prevTree = [...localTree];
+        const updatedTree = updateTreeAfterMove(prevTree, draggedId, selectedFolderId, targetIndex);
+        setLocalTree(updatedTree);
+
+        documentsService.moveToPosition(draggedId, selectedFolderId, targetIndex)
+          .then(result => {
+            if (!result.success) {
+              setLocalTree(prevTree);
+              toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
+            } else {
+              const levelName = selectedFolderId ? "this folder" : "root level";
+              toast({ title: "Folder moved", description: `Moved to ${levelName}` });
+              setTreeRefetchKey(prev => prev + 1);
+            }
+          })
+          .catch(error => {
+            setLocalTree(prevTree);
+            toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
+          });
+      }
+
+      // Clear drop state after drop
+      setDropState({
+        cursorPosition: null,
+        highlightedCardId: null,
+        insertionIndex: null
       });
 
-      setContainerInsertionIndex(closestIndex);
-    },
-    drop: (item: { id: string; source: string }) => {
-      // GUARD: Only execute if this container is the active drop target
-      // Prevents double execution when both FolderCard and container drops would fire
-      if (containerInsertionIndex === null) {
-        console.log('[Container] Skipping drop - not active target');
-        return;
-      }
-
-      const draggedId = item.id;
-
-      // Helper: Find node in tree
-      const findNode = (nodes: any[], id: string): any => {
-        for (const node of nodes) {
-          if (node.id === id) return node;
-          if (node.type === 'folder' && node.children) {
-            const found = findNode(node.children, id);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-
-      // Don't drop if folder not found
-      const draggedFolder = findNode(localTree, draggedId);
-      if (!draggedFolder) return;
-
-      // Normalize both IDs for comparison (null vs undefined)
-      const normalizeId = (id: string | null | undefined) => id === null || id === undefined ? null : id;
-      const originalParentId = normalizeId(draggedFolder.parentId);
-      const targetParentId = normalizeId(selectedFolderId);
-      const targetIndex = containerInsertionIndex ?? 0;
-
-      // Check for no-op drop (same parent, same position)
-      if (originalParentId === targetParentId) {
-        // Build siblings array (dragged item excluded, same as hover calculation)
-        const siblings = childFolders.filter(f => f.id !== draggedId);
-
-        // Get the folders that would be on either side after the drop
-        const leftSibling = targetIndex > 0 ? siblings[targetIndex - 1] : null;
-        const rightSibling = targetIndex < siblings.length ? siblings[targetIndex] : null;
-
-        // Get the current neighbors of the dragged folder
-        const draggedIndexInFull = childFolders.findIndex(f => f.id === draggedId);
-        const currentLeft = draggedIndexInFull > 0 ? childFolders[draggedIndexInFull - 1] : null;
-        const currentRight = draggedIndexInFull < childFolders.length - 1 ? childFolders[draggedIndexInFull + 1] : null;
-
-        // If the neighbors would be the same, it's a no-op
-        if (leftSibling?.id === currentLeft?.id && rightSibling?.id === currentRight?.id) {
-          setContainerInsertionIndex(null);
-          setDraggedFolderId(null);
-          return;
-        }
-      }
-
-      const prevTree = [...localTree];
-
-      // Clear insertion indicator and dragged item tracking
-      setContainerInsertionIndex(null);
-      setDraggedFolderId(null);
-
-      const updatedTree = updateTreeAfterMove(prevTree, draggedId, selectedFolderId, targetIndex);
-      setLocalTree(updatedTree);
-
-      // Fire backend call without awaiting - React-DnD clears isDragging immediately
-      documentsService.moveToPosition(draggedId, selectedFolderId, targetIndex)
-        .then(result => {
-          if (!result.success) {
-            setLocalTree(prevTree);
-            toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
-          } else {
-            const levelName = selectedFolderId ? "this folder" : "root level";
-            toast({ title: "Folder moved", description: `Moved to ${levelName}` });
-            setTreeRefetchKey(prev => prev + 1);
-          }
-        })
-        .catch(error => {
-          setLocalTree(prevTree);
-          toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
-        });
-
       // Return object to signal drop was handled
-      return { id: draggedId, targetParent: selectedFolderId, index: targetIndex };
+      return { id: draggedId };
     },
-    collect: (monitor) => ({
-      isOverMainView: monitor.isOver()
-    })
-  }), [localTree, selectedFolderId, documentsService, toast, setTreeRefetchKey, containerInsertionIndex]);
+    collect: (monitor) => {
+      // Clear drop state when no item is being dragged
+      if (!monitor.getItem()) {
+        if (dropState.cursorPosition || dropState.highlightedCardId || dropState.insertionIndex !== null) {
+          setDropState({
+            cursorPosition: null,
+            highlightedCardId: null,
+            insertionIndex: null
+          });
+        }
+      }
+      return {
+        isOverMainView: monitor.isOver()
+      };
+    }
+  }), [localTree, selectedFolderId, documentsService, toast, setTreeRefetchKey, dropState, calculateDropZone, childFolders]);
 
   return (
     <div className="file-browser h-full flex flex-col p-8 space-y-6">
@@ -2579,70 +2607,20 @@ export const FileBrowser: React.FC = () => {
                     onDelete={handleFolderDelete}
                     isDescendant={(sourceId, targetId) => isDescendant(sourceId, targetId, localTree)}
                     setTreeRefetchKey={setTreeRefetchKey}
+                    highlightType={dropState.highlightedCardId === folder.id ? 'into' : null}
                   />
               ))}
 
-              {/* Vertical insertion cursor in gap between cards */}
-              {containerInsertionIndex !== null && draggedFolderId && (() => {
-                // containerInsertionIndex is an index in the SIBLINGS array (dragged item excluded)
-                // Build the same siblings array to correctly map index to visual cards
-                const siblings = childFolders.filter(f => f.id !== draggedFolderId);
-
-                const leftIndex = containerInsertionIndex - 1;
-                const rightIndex = containerInsertionIndex;
-
-                // Use siblings array (dragged item excluded) to get the correct cards
-                const leftCard = leftIndex >= 0 ? folderCardRefs.current.get(siblings[leftIndex]?.id) : null;
-                const rightCard = rightIndex < siblings.length ? folderCardRefs.current.get(siblings[rightIndex]?.id) : null;
-
-                if (!leftCard && !rightCard) return null;
-
-                // Calculate cursor position based on card positions
-                const containerRect = gridContainerRef.current?.getBoundingClientRect();
-                if (!containerRect) return null;
-
-                let cursorX = 0;
-                let cursorY = 0;
-                let cursorHeight = 120; // Default card height
-
-                if (leftCard && rightCard) {
-                  // Cursor is between two cards - position in the gap
-                  const leftRect = leftCard.getBoundingClientRect();
-                  const rightRect = rightCard.getBoundingClientRect();
-
-                  // Check if cards are on the same row
-                  if (Math.abs(leftRect.top - rightRect.top) < 10) {
-                    // Same row - position at left edge of gap (flexbox centers visual element)
-                    cursorX = leftRect.right - containerRect.left;
-                    cursorY = leftRect.top - containerRect.top;
-                    cursorHeight = leftRect.height;
-                  } else {
-                    // Different rows - position at right edge of gap (flexbox centers visual element)
-                    cursorX = rightRect.left - containerRect.left;
-                    cursorY = rightRect.top - containerRect.top;
-                    cursorHeight = rightRect.height;
-                  }
-                } else if (leftCard) {
-                  // Only left card - cursor at left edge of gap (flexbox centers visual element)
-                  const leftRect = leftCard.getBoundingClientRect();
-                  cursorX = leftRect.right - containerRect.left;
-                  cursorY = leftRect.top - containerRect.top;
-                  cursorHeight = leftRect.height;
-                } else if (rightCard) {
-                  // Only right card - cursor at right edge of gap (flexbox centers visual element)
-                  const rightRect = rightCard.getBoundingClientRect();
-                  cursorX = rightRect.left - containerRect.left;
-                  cursorY = rightRect.top - containerRect.top;
-                  cursorHeight = rightRect.height;
-                }
-
+              {/* Vertical insertion cursor - rendered from dropState */}
+              {dropState.cursorPosition && (() => {
+                // Container has calculated exactly where to put the cursor
                 return (
                   <div
-                    className="absolute flex flex-col items-center pointer-events-none"
+                    className="absolute flex flex-col items-center pointer-events-none transition-all duration-150 ease-out"
                     style={{
-                      left: `${cursorX}px`,
-                      top: `${cursorY}px`,
-                      height: `${cursorHeight}px`,
+                      left: `${dropState.cursorPosition.x}px`,
+                      top: `${dropState.cursorPosition.y}px`,
+                      height: `${dropState.cursorPosition.height}px`,
                       zIndex: 10,
                     }}
                   >
