@@ -359,7 +359,7 @@ export interface BreadcrumbItem {
  */
 export interface TabHistoryEntry {
   /** Type of view this entry represents */
-  type: 'grid' | 'document';
+  type: 'grid' | 'document' | 'component';
 
   /** Timestamp when entry was created */
   timestamp: number;
@@ -369,6 +369,12 @@ export interface TabHistoryEntry {
 
   /** For document entries: which file was open */
   fileId?: string;
+
+  /** For component entries: which component to render (e.g., 'core-flashcards/CardEditor') */
+  component?: string;
+
+  /** For component entries: props to pass to the component */
+  componentProps?: Record<string, any>;
 
   /** Saved scroll position to restore */
   scrollPosition?: number;

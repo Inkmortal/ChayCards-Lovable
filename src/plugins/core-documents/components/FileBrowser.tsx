@@ -716,8 +716,9 @@ export const FileBrowser: React.FC = () => {
   const childFolders = React.useMemo(() => {
     const extractChildren = (nodes: any[], parentId: string | null): any[] => {
       if (parentId === null) {
-        // Root level: return top-level folders (no parentId or parentId === null)
-        return nodes.filter(n => n.type === 'folder' && (!n.parentId || n.parentId === null));
+        // Root level: folders at top-level array ARE root folders
+        // Trust array position as source of truth (don't check parentId property)
+        return nodes.filter(n => n.type === 'folder');
       }
 
       // Find the parent folder and return its children
@@ -1034,16 +1035,39 @@ export const FileBrowser: React.FC = () => {
       return;
     }
 
-    // CHECK FOR DUPLICATE NAMES BEFORE OPTIMISTIC UPDATE
-    // Get the dragged folder's name
-    const draggedFolder = await documentsService.getFolder(draggedId);
-    if (!draggedFolder) {
-      console.error('Dragged folder not found:', draggedId);
+    // CHECK FOR DUPLICATE NAMES USING localTree (synchronous, instant)
+    // Helper: Find node in tree
+    const findNode = (nodes: typeof localTree, id: string): typeof localTree[0] | null => {
+      for (const node of nodes) {
+        if (node.id === id) return node;
+        if (node.type === 'folder') {
+          const found = findNode(node.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    // Get the dragged folder from localTree
+    const draggedFolder = findNode(localTree, draggedId);
+    if (!draggedFolder || draggedFolder.type !== 'folder') {
+      console.error('Dragged folder not found in localTree:', draggedId);
       return;
     }
 
-    // Get folders at the target location
-    const targetFolders = await documentsService.listFolders(actualParentId);
+    // Helper: Get folders at target location from localTree
+    const getTargetFolders = (tree: typeof localTree, parentId: string | null): typeof localTree => {
+      if (parentId === null) {
+        // Root level - return all root folders
+        return tree.filter(n => n.type === 'folder');
+      }
+      // Find parent and return its folder children
+      const parent = findNode(tree, parentId);
+      if (!parent || parent.type !== 'folder') return [];
+      return parent.children.filter(c => c.type === 'folder');
+    };
+
+    const targetFolders = getTargetFolders(localTree, actualParentId);
 
     // Check if a folder with the same name already exists (case-insensitive)
     const conflict = targetFolders.find((f: any) =>
@@ -1064,10 +1088,10 @@ export const FileBrowser: React.FC = () => {
       return; // Don't proceed with move until user chooses an action
     }
 
-    // No conflict - proceed with optimistic update
+    // No conflict - proceed with IMMEDIATE optimistic update
     setLocalTree(currentTree => updateTreeAfterMove(currentTree, draggedId, actualParentId, operation.index));
 
-    // Persist to backend using the simple API
+    // Persist to backend AFTER UI update (for instant feedback)
     try {
       const result = await documentsService.moveToPosition(draggedId, actualParentId, operation.index);
 

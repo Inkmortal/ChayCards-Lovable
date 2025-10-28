@@ -37,6 +37,7 @@ import type {
   Folder,
   FileHandler
 } from '../types';
+import type { NavigationItem } from '../context/DocumentViewerContext';
 import { DocumentsService } from '../services/DocumentsService';
 
 const STORAGE_KEY = 'chaycards:documents:tabs';
@@ -132,7 +133,7 @@ export interface UseDocumentTabsReturn {
   goForward: (tabId: string) => Promise<void>;
   canGoBack: (tabId: string) => boolean;
   canGoForward: (tabId: string) => boolean;
-  navigateInTab: (tabId: string, entry: Omit<TabHistoryEntry, 'timestamp'>) => void;
+  navigateInTab: (tabId: string, item: NavigationItem) => void;
 
   // Helper to open file in current tab
   openFileInCurrentTab: (file: StoredFile) => Promise<void>;
@@ -343,7 +344,7 @@ export const useDocumentTabs = (
       title: getFileDisplayName(file),
       fileId: file.id,
       handler,
-      pluginRoute: handler.getViewerRoute(file.id),
+      pluginRoute: undefined, // TODO: Remove pluginRoute or implement getViewerRoute in FileHandler
       breadcrumb,
       closeable: true,
       isDirty: false,
@@ -479,16 +480,44 @@ export const useDocumentTabs = (
    */
   const navigateInTab = useCallback((
     tabId: string,
-    entry: Omit<TabHistoryEntry, 'timestamp'>
+    item: NavigationItem
   ) => {
-    setTabs(tabs.map(tab => {
+    // FIX: Use functional updater to avoid stale state
+    setTabs(prevTabs => prevTabs.map(tab => {
       if (tab.id !== tabId) return tab;
+
+      // Convert NavigationItem to TabHistoryEntry
+      let entry: TabHistoryEntry;
+      if (item.type === 'file') {
+        entry = {
+          type: 'document',
+          fileId: item.fileId,
+          scrollPosition: 0,
+          timestamp: Date.now()
+        };
+      } else if (item.type === 'folder') {
+        entry = {
+          type: 'grid',
+          folderId: item.folderId,
+          scrollPosition: 0,
+          timestamp: Date.now()
+        };
+      } else {
+        // type === 'component'
+        entry = {
+          type: 'component',
+          component: item.component,
+          componentProps: item.props,
+          scrollPosition: 0,
+          timestamp: Date.now()
+        };
+      }
 
       const newHistory = [
         // Keep all history up to current index
         ...tab.history.slice(0, tab.historyIndex + 1),
         // Add new entry (truncates "future")
-        { ...entry, timestamp: Date.now() }
+        entry
       ];
 
       return {
@@ -497,7 +526,7 @@ export const useDocumentTabs = (
         historyIndex: newHistory.length - 1
       };
     }));
-  }, [tabs]);
+  }, []); // Remove tabs dependency since we use functional updater
 
   /**
    * Restore UI state from history entry
@@ -633,8 +662,16 @@ export const useDocumentTabs = (
    * Open file in current tab (adds to history)
    */
   const openFileInCurrentTab = useCallback(async (file: StoredFile) => {
+    console.log('[useDocumentTabs] openFileInCurrentTab called', { fileId: file.id, filename: file.filename });
+
     const activeTab = tabs.find(t => t.id === activeTabId);
     if (!activeTab) return;
+
+    console.log('[useDocumentTabs] Active tab before update:', {
+      type: activeTab.type,
+      historyLength: activeTab.history.length,
+      historyIndex: activeTab.historyIndex
+    });
 
     // Save current scroll position
     updateCurrentHistoryEntry(activeTabId);
@@ -646,18 +683,24 @@ export const useDocumentTabs = (
       return;
     }
 
+    console.log('[useDocumentTabs] Handler found:', {
+      handlerId: handler.id,
+      viewerComponent: handler.viewerComponent
+    });
+
     // Add to history
+    console.log('[useDocumentTabs] Calling navigateInTab with type:file');
     navigateInTab(activeTabId, {
-      type: 'document',
-      fileId: file.id,
-      scrollPosition: 0,
-      cursorPosition: 0
+      type: 'file',
+      fileId: file.id
     });
 
     // Update tab to document type
     const breadcrumb = await generateBreadcrumb(file.folderId, documentsService);
 
-    setTabs(tabs.map(t => {
+    console.log('[useDocumentTabs] Updating tab metadata to document type');
+    // FIX: Use functional updater to avoid stale state
+    setTabs(prevTabs => prevTabs.map(t => {
       if (t.id !== activeTabId) return t;
       return {
         ...t,
@@ -669,6 +712,8 @@ export const useDocumentTabs = (
         isDirty: false
       } as DocumentTab;
     }));
+
+    console.log('[useDocumentTabs] openFileInCurrentTab completed');
   }, [tabs, activeTabId, documentsService, navigate, navigateInTab, updateCurrentHistoryEntry]);
 
   /**
@@ -676,8 +721,21 @@ export const useDocumentTabs = (
    * OPTIMIZED: Uses localTree for instant navigation (no async DB calls)
    */
   const navigateToFolder = useCallback((folderId: string | null) => {
+    // DEBUG: Track who's calling navigateToFolder
+    console.log('[useDocumentTabs] navigateToFolder called', {
+      folderId,
+      activeTabId,
+      stack: new Error().stack
+    });
+
     const activeTab = tabs.find(t => t.id === activeTabId);
     if (!activeTab) return;
+
+    console.log('[useDocumentTabs] navigateToFolder - active tab before:', {
+      type: activeTab.type,
+      historyLength: activeTab.history.length,
+      historyIndex: activeTab.historyIndex
+    });
 
     // Find folder in local tree (instant, no async)
     const folder = folderId ? findInTree(localTree, folderId) : null;

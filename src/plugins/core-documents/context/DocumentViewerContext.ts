@@ -21,6 +21,14 @@
 import { createContext } from 'react';
 
 /**
+ * Navigation item types for Documents tab navigation
+ */
+export type NavigationItem =
+  | { type: 'file'; fileId: string }
+  | { type: 'folder'; folderId: string | null }
+  | { type: 'component'; component: string; props?: Record<string, any> };
+
+/**
  * Context provided to plugin viewers for detecting embedding
  * and controlling tab behavior
  */
@@ -53,9 +61,19 @@ export interface DocumentViewerContextValue {
 
   /**
    * Navigate within current tab (adds to history)
-   * @param fileId - File to open in current tab
+   * Supports file, folder, and component navigation
+   * @param item - Navigation target
+   * @example
+   * // Navigate to file
+   * navigateInTab({ type: 'file', fileId: 'abc123' })
+   *
+   * // Navigate to folder
+   * navigateInTab({ type: 'folder', folderId: null })
+   *
+   * // Navigate to component
+   * navigateInTab({ type: 'component', component: 'core-flashcards/CardEditor', props: { deckId: '123' } })
    */
-  navigateInTab?: (fileId: string) => void;
+  navigateInTab?: (item: NavigationItem) => void;
 }
 
 /**
