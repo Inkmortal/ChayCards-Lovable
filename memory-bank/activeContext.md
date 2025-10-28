@@ -2,26 +2,43 @@
 
 ## Current Work Focus
 
-### 🎯 Current Phase: Plugin Storage Architecture
+### ✅ Completed: Documents Tab System - Routing Architecture Removed
 
-**Status**: Investigating documented storage integration patterns
+**Status**: ✅ COMPLETE - Fixed navigation bug, removed unnecessary routing infrastructure
 **Date**: 2025-10-27
 
-**Current Investigation**:
-User requested review of how the Documents plugin was designed to integrate with other plugins from a storage perspective. Research findings show a discrepancy between current implementation and documented architecture:
+**Major Architecture Fix**: Removed incorrect routing layer from tab system
 
-**Documented Pattern** (from DOCUMENTS_PLUGIN_SPEC.md):
-- Plugins should store FULL content as files in Documents
-- Documents owns all file storage
-- Plugins read/write through DocumentsService APIs
-- Single source of truth in DocumentsService
+During implementation, discovered **architectural mismatch** between documentation and actual requirements:
+- **Documentation claimed**: Dual access pattern with URL routing, shareable links, DocumentRouter/DocumentViewerWrapper
+- **Actual requirement**: Tab-based rendering with per-tab history, NO URL routing
 
-**Current Implementation**:
-- Flashcard decks stored separately in FlashcardService
-- Minimal "virtual file" created in Documents with linking metadata
-- Two separate storage entries requiring manual synchronization
+**Architecture Correction - Pure Tab-Based Rendering**:
+- ❌ **WRONG (never needed)**: URL routing, DocumentRouter, DocumentViewerWrapper, getViewerRoute()
+- ✅ **CORRECT (now implemented)**: Tab-based component rendering, stays at /app/documents
 
-**Next Decision**: Align implementation with documented pattern or update documentation to reflect dual-storage approach.
+**Core Design Decisions (Updated)**:
+1. **localStorage tab state** - Persistent tabs across sessions
+2. **Component-based rendering** - PluginManager.getComponent(), NOT React Router
+3. **Per-tab history** - Each tab has independent navigation stack with breadcrumb back/forward
+4. **Documents stays at /app/documents** - No URL navigation, tabs render plugin viewers directly
+5. **Zero plugin burden** - Plugins provide ONE viewer component, no routes needed
+
+**What Was Fixed**:
+- ✅ Removed navigation bug in useDocumentTabs.tsx (navigate() call causing page navigation)
+- ✅ Deleted DocumentRouter.tsx (not needed for tab rendering)
+- ✅ Deleted DocumentViewerWrapper.tsx (context provided in FileBrowser)
+- ✅ Removed getViewerRoute() from FileHandler interface
+- ✅ Updated systemPatterns.md (removed 400+ lines of incorrect routing docs)
+- ✅ Updated core-documents/CLAUDE.md (simplified plugin integration guide)
+
+**Infrastructure Status**:
+- ✅ `DocumentViewerContext.ts` - Context interface complete
+- ✅ `useDocumentTabs.tsx` - Tab state management with localStorage complete
+- ✅ `TabBar.tsx` - Tab UI component complete
+- ✅ `types.ts` - DocumentTab interfaces (no pluginRoute field)
+- ✅ `FileBrowser.tsx` - Renders plugin viewers in tabs via PluginManager
+- ✅ Per-tab history with back/forward controls in breadcrumb
 
 ### Documents Plugin - Drag-Drop Refinements Needed
 
@@ -47,6 +64,37 @@ User requested review of how the Documents plugin was designed to integrate with
 ---
 
 ## Recent Changes
+
+### Documents Tab System Architecture - October 27, 2025
+
+**Major architectural decision documented** for the Documents plugin tab system. This is a foundational change that affects how users interact with documents and how plugins integrate their viewers.
+
+**What was documented**:
+
+1. **Tab System Pattern** (`systemPatterns.md`):
+   - Complete 400+ line documentation of tab system architecture
+   - Tab types (grid vs document), state structure, lifecycle management
+   - localStorage persistence strategy with validation on restore
+   - FileHandler extensions with `getViewerRoute()` method
+   - Dual access pattern (embedded vs standalone)
+   - Context detection system with DocumentViewerContext
+   - Four-location context menu pattern
+   - Plugin developer guide with code examples
+
+2. **Plugin Developer Guide** (`core-documents/CLAUDE.md`):
+   - Complete 500+ line guide for plugin developers
+   - Step-by-step plugin integration guide
+   - Context menu patterns and drag-drop system
+   - Common patterns and pitfalls to avoid
+   - Testing checklist
+
+**Key Design Decisions**:
+- **localStorage over URL params** - Clean URLs, persistent state, industry standard
+- **Grid view always in tab** - Consistent UX
+- **File tree outside tabs** - Always visible
+- **Dual access pattern** - Embedded OR standalone
+
+**Implementation Status**: ✅ DOCUMENTED, ⏳ READY TO IMPLEMENT
 
 ### Files as Entity Properties Implementation (2025-10-27)
 **Status**: ✅ COMPLETE

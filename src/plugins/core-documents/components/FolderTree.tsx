@@ -11,7 +11,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Tree, NodeApi, TreeApi, CursorProps } from 'react-arborist';
 import { useDrag, useDrop } from 'react-dnd';
-import { ChevronRight, ChevronDown, Folder, FileText, PanelLeftClose, MoreVertical, Edit2, Trash2, Palette, Plus } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, FileText, PanelLeftClose, MoreVertical, Edit2, Trash2, Palette, Plus, ExternalLink } from 'lucide-react';
 import type { TreeNode } from '../types';
 import { FileIconDisplay, getFileDisplayName } from './FileDisplay';
 import { cn } from '@/shared/lib/utils';
@@ -75,6 +75,7 @@ interface FolderTreeProps {
   onDelete?: (folderId: string) => void;
   onRename?: (folderId: string) => void;
   onChangeColor?: (folderId: string) => void;
+  onOpenInNewTab?: (folderId: string) => void;
 }
 
 export const FolderTree: React.FC<FolderTreeProps> = ({
@@ -86,7 +87,8 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   onCreate,
   onDelete,
   onRename,
-  onChangeColor
+  onChangeColor,
+  onOpenInNewTab
 }) => {
   const { toast } = useToast();
   const [processingNodeId, setProcessingNodeId] = useState<string | null>(null);
@@ -259,6 +261,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
                 onDelete={onDelete}
                 onRename={onRename}
                 onChangeColor={onChangeColor}
+                onOpenInNewTab={onOpenInNewTab}
               />
             )}
           </Tree>
@@ -303,6 +306,7 @@ interface TreeNodeRendererProps {
   onDelete?: (folderId: string) => void;
   onRename?: (folderId: string) => void;
   onChangeColor?: (folderId: string) => void;
+  onOpenInNewTab?: (folderId: string) => void;
 }
 
 const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
@@ -315,7 +319,8 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
   onCreate,
   onDelete,
   onRename,
-  onChangeColor
+  onChangeColor,
+  onOpenInNewTab
 }) => {
   const manager = PluginManager.getInstance();
   const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
@@ -471,12 +476,26 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
       // Detect drag direction: if dragged item is sibling above target, we're dragging downward
       const draggedIndex = siblings.findIndex(child => child.id === item.id);
       const isDraggingDownward = draggedIndex !== -1 && draggedIndex < targetIndex;
+      const isDraggingUpward = draggedIndex !== -1 && draggedIndex > targetIndex;
 
       // For downward drags, don't add 1 (compensates for array shift after removal)
       // For upward drags or new parent, add 1 to drop after target
       const dropIndex = isDraggingDownward ? targetIndex : targetIndex + 1;
 
-      setDropCursor({ type: 'line', level: boundedLevel, position: atTop ? 'top' : 'bottom' });
+      // Cursor position logic:
+      // - When dragging UP: always position cursor at 'top' to show between nodes
+      // - When dragging DOWN or from different parent: use hover position
+      // - atTop means hovering in top half of node
+      let cursorPosition: 'top' | 'bottom';
+      if (isDraggingUpward && !atTop) {
+        // Dragging UP from below - force 'top' to position between nodes
+        cursorPosition = 'top';
+      } else {
+        // Normal positioning based on hover location
+        cursorPosition = atTop ? 'top' : 'bottom';
+      }
+
+      setDropCursor({ type: 'line', level: boundedLevel, position: cursorPosition });
       setComputedDrop({
         parentId,
         index: dropIndex,
@@ -710,6 +729,12 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
               </button>
             }
           >
+            {onOpenInNewTab && (
+              <DropdownMenuItem onClick={() => onOpenInNewTab(data.id)}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open in New Tab
+              </DropdownMenuItem>
+            )}
             {onRename && (
               <DropdownMenuItem onClick={() => onRename(data.id)}>
                 <Edit2 className="mr-2 h-4 w-4" />

@@ -18,7 +18,6 @@ import { FileBrowser } from './components/FileBrowser';
 // Phase 2: Additional components
 // import { FolderTree } from './components/FolderTree';
 // import { FileCard } from './components/FileCard';
-// import { FileViewer } from './components/FileViewer';
 
 export const CoreDocumentsPlugin: Plugin = {
   id: 'core-documents',
@@ -35,7 +34,6 @@ export const CoreDocumentsPlugin: Plugin = {
     // Phase 2: Additional UI components
     // 'FolderTree': FolderTree,
     // 'FileCard': FileCard,
-    // 'FileViewer': FileViewer,
   },
 
   // Services (auto-namespaced to 'core-documents/serviceName')
@@ -47,7 +45,7 @@ export const CoreDocumentsPlugin: Plugin = {
   routes: [
     {
       path: '/app/documents',
-      component: 'core-documents/FileBrowser', // Will be created in Phase 2
+      component: 'core-documents/FileBrowser',
       label: 'Documents',
       icon: 'FileText',
       showInNav: true,

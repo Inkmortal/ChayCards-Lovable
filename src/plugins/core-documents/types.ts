@@ -130,6 +130,13 @@ export interface FileHandler {
 
   /** Custom validation function */
   canHandle?: (file: StoredFile) => boolean;
+
+  /**
+   * Optional settings component for this file type
+   * Shown in tab context menu under "Settings"
+   * @example 'core-flashcards/DeckSettings'
+   */
+  settingsComponent?: string;
 }
 
 /**
@@ -331,4 +338,121 @@ export interface FolderOperationResult {
     message: string;
     details?: any;
   };
+}
+
+/**
+ * Breadcrumb item for navigation trail
+ */
+export interface BreadcrumbItem {
+  /** Unique identifier (folder ID or special value like 'root') */
+  id: string;
+
+  /** Display name */
+  name: string;
+
+  /** Folder ID to navigate to (null = root) */
+  folderId: string | null;
+}
+
+/**
+ * Tab history entry for per-tab back/forward navigation
+ */
+export interface TabHistoryEntry {
+  /** Type of view this entry represents */
+  type: 'grid' | 'document';
+
+  /** Timestamp when entry was created */
+  timestamp: number;
+
+  /** For grid entries: which folder was shown (null = root) */
+  folderId?: string | null;
+
+  /** For document entries: which file was open */
+  fileId?: string;
+
+  /** Saved scroll position to restore */
+  scrollPosition?: number;
+
+  /** For text editors: saved cursor position */
+  cursorPosition?: number;
+}
+
+/**
+ * Grid tab showing folder contents
+ */
+export interface GridTab {
+  /** Unique tab identifier */
+  id: string;
+
+  /** Tab type discriminator */
+  type: 'grid';
+
+  /** Tab title (folder name or "All Files") */
+  title: string;
+
+  /** Breadcrumb navigation path */
+  breadcrumb: BreadcrumbItem[];
+
+  /** Whether tab can be closed (first grid tab = false) */
+  closeable: boolean;
+
+  /** Current folder being shown (null = root) */
+  folderId: string | null;
+
+  /** Navigation history stack */
+  history: TabHistoryEntry[];
+
+  /** Current position in history (0-based) */
+  historyIndex: number;
+}
+
+/**
+ * Document tab showing plugin viewer/editor
+ */
+export interface DocumentTab {
+  /** Unique tab identifier */
+  id: string;
+
+  /** Tab type discriminator */
+  type: 'document';
+
+  /** Tab title (file display name) */
+  title: string;
+
+  /** File being viewed */
+  fileId: string;
+
+  /** FileHandler for this file type */
+  handler: FileHandler;
+
+  /** Breadcrumb showing where file lives */
+  breadcrumb: BreadcrumbItem[];
+
+  /** Always closeable */
+  closeable: boolean;
+
+  /** Has unsaved changes? */
+  isDirty: boolean;
+
+  /** Navigation history stack */
+  history: TabHistoryEntry[];
+
+  /** Current position in history (0-based) */
+  historyIndex: number;
+}
+
+/**
+ * Union type for all tab types
+ */
+export type DocumentTabType = GridTab | DocumentTab;
+
+/**
+ * Tab state persisted to localStorage
+ */
+export interface TabState {
+  /** Ordered array of tabs */
+  tabs: DocumentTabType[];
+
+  /** Currently active tab ID */
+  activeTabId: string;
 }

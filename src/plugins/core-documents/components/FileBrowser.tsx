@@ -13,13 +13,16 @@ import { HslColorPicker } from 'react-colorful';
 import { useDrag, useDrop } from 'react-dnd';
 import { PluginManager } from '@/shared/plugin-system';
 import { useDocumentStatistics, useUnifiedTree, useFilesInFolder, useChildFolders, useFolderPath, useSortBy, useFileHandlers } from '../hooks/useDocuments';
+import { useDocumentTabs } from '../hooks/useDocumentTabs';
 import { FolderTree } from './FolderTree';
+import { TabBar } from './TabBar';
 import { FileIconDisplay, FileTypeLabel, getFileDisplayName } from './FileDisplay';
 import { Input } from '@/renderer/components/ui/input';
 import { Label } from '@/renderer/components/ui/label';
 import { useToast } from '@/renderer/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
-import type { SortMode } from '../types';
+import { DocumentViewerContext } from '../context/DocumentViewerContext';
+import type { SortMode, StoredFile } from '../types';
 
 /**
  * Convert HSL string to object for react-colorful
@@ -211,18 +214,7 @@ const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
   const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
   const DropdownMenuItem = manager.getComponent('core-ui/DropdownMenuItem');
 
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Combine internal ref with forwarded ref
-  React.useEffect(() => {
-    if (forwardedRef) {
-      if (typeof forwardedRef === 'function') {
-        forwardedRef(ref.current);
-      } else {
-        forwardedRef.current = ref.current;
-      }
-    }
-  }, [forwardedRef]);
+  const internalRef = useRef<HTMLDivElement>(null);
 
   // useDrag hook - makes this folder draggable
   const [{ isDragging }, drag] = useDrag(() => ({
@@ -233,8 +225,23 @@ const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
     }),
   }), [folder.id]);
 
-  // Only drag functionality - no drop logic
-  drag(ref);
+  // Callback ref to handle both forwarding and drag connection
+  const setRefs = React.useCallback((node: HTMLDivElement | null) => {
+    // Store in internal ref
+    internalRef.current = node;
+
+    // Handle forwarded ref
+    if (forwardedRef) {
+      if (typeof forwardedRef === 'function') {
+        forwardedRef(node);
+      } else {
+        forwardedRef.current = node;
+      }
+    }
+
+    // Connect drag functionality
+    drag(node);
+  }, [forwardedRef, drag]);
 
   const handleClick = (e: React.MouseEvent) => {
     // Only navigate if not clicking on the menu
@@ -268,7 +275,7 @@ const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
     <div className="relative">
       {/* Only 'into' highlight is handled by FolderCard - cursors are rendered by container */}
       <div
-        ref={ref}
+        ref={setRefs}
         onClick={handleClick}
         className={cn(
           "group relative overflow-hidden cursor-pointer",
@@ -392,21 +399,11 @@ const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
 
 interface FileCardProps {
   file: any;
+  onClick?: () => void;
 }
 
-const FileCard = React.forwardRef<HTMLDivElement, FileCardProps>(({ file }, forwardedRef) => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Combine internal ref with forwarded ref
-  React.useEffect(() => {
-    if (forwardedRef) {
-      if (typeof forwardedRef === 'function') {
-        forwardedRef(ref.current);
-      } else {
-        forwardedRef.current = ref.current;
-      }
-    }
-  }, [forwardedRef]);
+const FileCard = React.forwardRef<HTMLDivElement, FileCardProps>(({ file, onClick }, forwardedRef) => {
+  const internalRef = useRef<HTMLDivElement>(null);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
@@ -423,12 +420,28 @@ const FileCard = React.forwardRef<HTMLDivElement, FileCardProps>(({ file }, forw
     }),
   }), [file.id]);
 
-  // Only drag functionality
-  drag(ref);
+  // Callback ref to handle both forwarding and drag connection
+  const setRefs = React.useCallback((node: HTMLDivElement | null) => {
+    // Store in internal ref
+    internalRef.current = node;
+
+    // Handle forwarded ref
+    if (forwardedRef) {
+      if (typeof forwardedRef === 'function') {
+        forwardedRef(node);
+      } else {
+        forwardedRef.current = node;
+      }
+    }
+
+    // Connect drag functionality
+    drag(node);
+  }, [forwardedRef, drag]);
 
   return (
     <div
-      ref={ref}
+      ref={setRefs}
+      onClick={onClick}
       className={cn(
         "group relative overflow-hidden cursor-pointer",
         // Base card with depth - TALLER aspect ratio (matching folders)
@@ -501,7 +514,7 @@ const BreadcrumbFolder: React.FC<BreadcrumbFolderProps> = ({
   onClick,
   onDrop
 }) => {
-  const ref = useRef<HTMLButtonElement>(null);
+  const internalRef = useRef<HTMLButtonElement>(null);
 
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'FOLDER',
@@ -523,11 +536,18 @@ const BreadcrumbFolder: React.FC<BreadcrumbFolderProps> = ({
     }),
   }), [folder, onDrop]);
 
-  drop(ref);
+  // Callback ref to handle drop connection
+  const setRefs = React.useCallback((node: HTMLButtonElement | null) => {
+    // Store in internal ref
+    internalRef.current = node;
+
+    // Connect drop functionality
+    drop(node);
+  }, [drop]);
 
   return (
     <button
-      ref={ref}
+      ref={setRefs}
       onClick={onClick}
       className={cn(
         "text-sm font-medium transition-all px-2 py-1 rounded",
@@ -558,7 +578,7 @@ interface ParentNavigationCardProps {
   onNavigate: () => void;
 }
 
-const ParentNavigationCard: React.FC<ParentNavigationCardProps> = ({
+const ParentNavigationCard = React.forwardRef<HTMLDivElement, ParentNavigationCardProps>(({
   parentFolder,
   parentFolderId,
   localTree,
@@ -568,8 +588,8 @@ const ParentNavigationCard: React.FC<ParentNavigationCardProps> = ({
   toast,
   setTreeRefetchKey,
   onNavigate
-}) => {
-  const ref = useRef<HTMLDivElement>(null);
+}, ref) => {
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // useDrop hook - makes parent card accept folder drops
   const [{ isOver }, drop] = useDrop(() => ({
@@ -652,12 +672,15 @@ const ParentNavigationCard: React.FC<ParentNavigationCardProps> = ({
     }),
   }), [parentFolderId, localTree, documentsService, toast, setLocalTree, setTreeRefetchKey, parentFolder?.name, updateTreeAfterMove]);
 
-  // Attach drop ref
-  drop(ref);
+  // Attach drop ref and forward external ref
+  drop(cardRef);
+
+  // Use imperative handle to expose the inner div ref
+  React.useImperativeHandle(ref, () => cardRef.current as HTMLDivElement);
 
   return (
     <div
-      ref={ref}
+      ref={cardRef}
       onClick={onNavigate}
       className={cn(
         "group relative overflow-hidden cursor-pointer",
@@ -701,25 +724,46 @@ const ParentNavigationCard: React.FC<ParentNavigationCardProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export const FileBrowser: React.FC = () => {
   const manager = PluginManager.getInstance();
   const stats = useDocumentStatistics();
   const { toast } = useToast();
 
+  // Get DocumentsService
+  const documentsService = manager.getService('core-documents/documentsService');
+
   // Local tree state for optimistic updates
   const [treeRefetchKey, setTreeRefetchKey] = useState(0);
   const fetchedTree = useUnifiedTree(treeRefetchKey);
   const [localTree, setLocalTree] = useState<typeof fetchedTree>(fetchedTree);
+
+  // Tab system state (with localTree for instant navigation)
+  const {
+    tabs,
+    activeTabId,
+    activeTab,
+    addGridTab,
+    addDocumentTab,
+    closeTab,
+    switchTab,
+    setTabDirty,
+    goBack,
+    goForward,
+    canGoBack,
+    canGoForward,
+    openFileInCurrentTab,
+    navigateToFolder
+  } = useDocumentTabs(documentsService, localTree);
 
   // Sync local tree when fetched tree changes
   React.useEffect(() => {
     setLocalTree(fetchedTree);
   }, [fetchedTree]);
 
-  // Selected folder state
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  // Get current folder from active tab
+  const selectedFolderId = activeTab?.type === 'grid' ? activeTab.folderId : null;
   const filesInFolder = useFilesInFolder(selectedFolderId, treeRefetchKey);
 
   // Listen for document changes from any plugin (flashcards, future plugins, etc.)
@@ -814,6 +858,8 @@ export const FileBrowser: React.FC = () => {
     insertionIndex: null
   });
   const folderCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Ref for parent navigation card (needs separate tracking as it's a different component)
+  const parentNavCardRef = useRef<HTMLDivElement | null>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   // Folder creation dialog state
@@ -938,9 +984,6 @@ export const FileBrowser: React.FC = () => {
   const Popover = manager.getComponent('core-ui/Popover');
   const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
   const DropdownMenuItem = manager.getComponent('core-ui/DropdownMenuItem');
-
-  // Get DocumentsService for operations
-  const documentsService = manager.getService('core-documents/documentsService');
 
   // Calculate placeholder preview when dialog opens
   React.useEffect(() => {
@@ -1582,29 +1625,36 @@ export const FileBrowser: React.FC = () => {
     const relativeX = clientOffset.x - containerRect.left;
     const relativeY = clientOffset.y - containerRect.top;
 
-    // Get all folders at current level
-    const childFolders = localTree.filter((f: any) =>
-      f.type === 'folder' && f.parentId === selectedFolderId
-    );
+    // Get all folders at current level - must match the logic in childFolders useMemo
+    // This extracts from nested tree structure, not flat filtering
+    const extractChildren = (nodes: any[], parentId: string | null): any[] => {
+      if (parentId === null) {
+        // Root level: return top-level folders (no parentId or parentId === null)
+        return nodes.filter(n => n.type === 'folder' && (!n.parentId || n.parentId === null));
+      }
 
-    // Get all card positions at once
-    const cardData = childFolders.map((folder: any, originalIndex: number) => {
-      const element = folderCardRefs.current.get(folder.id);
-      if (!element) return null;
-      const rect = element.getBoundingClientRect();
-      return {
-        id: folder.id,
-        originalIndex,
-        left: rect.left - containerRect.left,
-        right: rect.right - containerRect.left,
-        top: rect.top - containerRect.top,
-        bottom: rect.bottom - containerRect.top,
-        width: rect.width,
-        height: rect.height,
-        centerX: (rect.left + rect.right) / 2 - containerRect.left,
-        centerY: (rect.top + rect.bottom) / 2 - containerRect.top
-      };
-    }).filter(Boolean) as Array<{
+      // Find the parent folder and return its children
+      for (const node of nodes) {
+        if (node.type === 'folder') {
+          if (node.id === parentId) {
+            // Found parent - return its folder children
+            return node.children.filter((c: any) => c.type === 'folder');
+          }
+          // Recursively search in children
+          if (node.children) {
+            const found = extractChildren(node.children, parentId);
+            if (found.length > 0) return found;
+          }
+        }
+      }
+      return [];
+    };
+
+    const childFolders = extractChildren(localTree, selectedFolderId)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    // Build card data array including parent nav card if present
+    const cardDataArray: Array<{
       id: string;
       originalIndex: number;
       left: number;
@@ -1615,18 +1665,71 @@ export const FileBrowser: React.FC = () => {
       height: number;
       centerX: number;
       centerY: number;
-    }>;
+      isParentNav?: boolean;
+    }> = [];
+
+    // Add parent navigation card if it exists (always at index -1)
+    if (parentNavCardRef.current && selectedFolderId) {
+      const parentRect = parentNavCardRef.current.getBoundingClientRect();
+      cardDataArray.push({
+        id: '__parent_nav__',
+        originalIndex: -1,  // Special index for parent card
+        left: parentRect.left - containerRect.left,
+        right: parentRect.right - containerRect.left,
+        top: parentRect.top - containerRect.top,
+        bottom: parentRect.bottom - containerRect.top,
+        width: parentRect.width,
+        height: parentRect.height,
+        centerX: (parentRect.left + parentRect.right) / 2 - containerRect.left,
+        centerY: (parentRect.top + parentRect.bottom) / 2 - containerRect.top,
+        isParentNav: true
+      });
+    }
+
+    // Add all regular folder cards
+    childFolders.forEach((folder: any, originalIndex: number) => {
+      const element = folderCardRefs.current.get(folder.id);
+      if (!element) return;
+      const rect = element.getBoundingClientRect();
+      cardDataArray.push({
+        id: folder.id,
+        originalIndex,
+        left: rect.left - containerRect.left,
+        right: rect.right - containerRect.left,
+        top: rect.top - containerRect.top,
+        bottom: rect.bottom - containerRect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: (rect.left + rect.right) / 2 - containerRect.left,
+        centerY: (rect.top + rect.bottom) / 2 - containerRect.top
+      });
+    });
+
+    // Sort by visual position (top-to-bottom, left-to-right)
+    const cardData = cardDataArray.sort((a, b) => {
+      const rowDiff = Math.abs(a.top - b.top);
+      if (rowDiff < 10) {
+        // Same row - sort by left position
+        return a.left - b.left;
+      }
+      // Different rows - sort by top position
+      return a.top - b.top;
+    });
 
     // Remove dragged item from active cards
     const activeCards = cardData.filter(c => c.id !== draggedId);
 
     if (activeCards.length === 0) {
-      // Empty folder - cursor at start
+      // Empty folder - cursor at start with container padding
+      const containerStyles = gridContainerRef.current ? getComputedStyle(gridContainerRef.current) : null;
+      const paddingLeft = containerStyles ? parseInt(containerStyles.paddingLeft) || 16 : 16;
+      const paddingTop = containerStyles ? parseInt(containerStyles.paddingTop) || 16 : 16;
+
       return {
         type: 'insert' as const,
         index: 0,
-        cursorX: 16,
-        cursorY: 16,
+        cursorX: paddingLeft,
+        cursorY: paddingTop,
         height: 120,
         cardId: null
       };
@@ -1656,27 +1759,81 @@ export const FileBrowser: React.FC = () => {
                      relativeY <= closestCard.bottom;
 
     if (overCard) {
-      // Calculate position within card
+      // Special handling for parent navigation card - can't drop into it or before it
+      if (closestCard.isParentNav) {
+        // Always insert after parent nav (index 0 of regular folders)
+        return {
+          type: 'insert' as const,
+          index: 0,
+          cursorX: closestCard.right + 8,
+          cursorY: closestCard.top,
+          height: closestCard.height,
+          cardId: null
+        };
+      }
+
+      // Calculate position within regular card
       const relativeCardX = (relativeX - closestCard.left) / closestCard.width;
 
       if (relativeCardX < 0.3) {
-        // Left 30% - insert before
-        const index = activeCards.indexOf(closestCard);
+        // Left 30% - insert before (centered in gap with previous card)
+        // Get actual index considering parent nav card isn't in activeCards
+        let actualIndex = closestCard.originalIndex;
+        const visualIndex = activeCards.indexOf(closestCard);
+        const prevCard = visualIndex > 0 ? activeCards[visualIndex - 1] : null;
+
+        // Adjust for left-to-right dragging within same parent
+        const draggedIndex = childFolders.findIndex(f => f.id === draggedId);
+        if (draggedIndex !== -1 && draggedIndex < actualIndex) {
+          // When dragging from left to right, the removal shifts indices down
+          actualIndex = actualIndex - 1;
+        }
+
+        // Calculate gap-centered position
+        let cursorX: number;
+        if (prevCard && Math.abs(prevCard.top - closestCard.top) < 10) {
+          // Same row as previous card - center in gap
+          cursorX = (prevCard.right + closestCard.left) / 2;
+        } else {
+          // First card or different row - use left edge with offset
+          cursorX = closestCard.left - 8;
+        }
+
         return {
           type: 'insert' as const,
-          index,
-          cursorX: closestCard.left - 8,
+          index: actualIndex,
+          cursorX,
           cursorY: closestCard.top,
           height: closestCard.height,
           cardId: null
         };
       } else if (relativeCardX > 0.7) {
-        // Right 30% - insert after
-        const index = activeCards.indexOf(closestCard) + 1;
+        // Right 30% - insert after (centered in gap with next card)
+        let actualIndex = closestCard.originalIndex + 1;
+        const visualIndex = activeCards.indexOf(closestCard);
+        const nextCard = visualIndex + 1 < activeCards.length ? activeCards[visualIndex + 1] : null;
+
+        // Adjust for left-to-right dragging within same parent
+        const draggedIndex = childFolders.findIndex(f => f.id === draggedId);
+        if (draggedIndex !== -1 && draggedIndex < actualIndex) {
+          // When dragging from left to right, the removal shifts indices down
+          actualIndex = actualIndex - 1;
+        }
+
+        // Calculate gap-centered position
+        let cursorX: number;
+        if (nextCard && Math.abs(nextCard.top - closestCard.top) < 10) {
+          // Same row as next card - center in gap
+          cursorX = (closestCard.right + nextCard.left) / 2;
+        } else {
+          // Last card or different row - use right edge with offset
+          cursorX = closestCard.right + 8;
+        }
+
         return {
           type: 'insert' as const,
-          index,
-          cursorX: closestCard.right + 8,
+          index: actualIndex,
+          cursorX,
           cursorY: closestCard.top,
           height: closestCard.height,
           cardId: null
@@ -1701,7 +1858,7 @@ export const FileBrowser: React.FC = () => {
       return {
         type: 'insert' as const,
         index: 0,
-        cursorX: firstCard.left - 8,
+        cursorX: firstCard.left - 8,  // Always use offset for edge (no card on left)
         cursorY: firstCard.top,
         height: firstCard.height,
         cardId: null
@@ -1711,10 +1868,19 @@ export const FileBrowser: React.FC = () => {
     // Check if after last card
     const lastCard = activeCards[activeCards.length - 1];
     if (lastCard && relativeX > lastCard.right) {
+      let targetIndex = activeCards.length;
+
+      // Adjust for left-to-right dragging within same parent
+      const draggedIndex = childFolders.findIndex(f => f.id === draggedId);
+      if (draggedIndex !== -1 && draggedIndex < targetIndex) {
+        // When dragging from left to right, the removal shifts indices down
+        targetIndex = targetIndex - 1;
+      }
+
       return {
         type: 'insert' as const,
-        index: activeCards.length,
-        cursorX: lastCard.right + 8,
+        index: targetIndex,
+        cursorX: lastCard.right + 8,  // Always use offset for edge (no card on right)
         cursorY: lastCard.top,
         height: lastCard.height,
         cardId: null
@@ -1731,9 +1897,18 @@ export const FileBrowser: React.FC = () => {
         // Check if same row
         if (Math.abs(current.top - next.top) < 10) {
           // Same row - place in middle of gap
+          let targetIndex = i + 1;
+
+          // Adjust for left-to-right dragging within same parent
+          const draggedIndex = childFolders.findIndex(f => f.id === draggedId);
+          if (draggedIndex !== -1 && draggedIndex < targetIndex) {
+            // When dragging from left to right, the removal shifts indices down
+            targetIndex = targetIndex - 1;
+          }
+
           return {
             type: 'insert' as const,
-            index: i + 1,
+            index: targetIndex,
             cursorX: (current.right + next.left) / 2,
             cursorY: current.top,
             height: current.height,
@@ -1743,22 +1918,46 @@ export const FileBrowser: React.FC = () => {
       }
     }
 
-    // Default to closest position
-    const index = relativeX < closestCard.centerX
+    // Default to closest position with gap-centered cursor
+    const isLeftSide = relativeX < closestCard.centerX;
+    let index = isLeftSide
       ? activeCards.indexOf(closestCard)
       : activeCards.indexOf(closestCard) + 1;
+
+    // Adjust for left-to-right dragging within same parent
+    const draggedIndex = childFolders.findIndex(f => f.id === draggedId);
+    if (draggedIndex !== -1 && draggedIndex < index) {
+      // When dragging from left to right, the removal shifts indices down
+      index = index - 1;
+    }
+
+    // Calculate gap-centered position
+    let cursorX: number;
+    if (isLeftSide) {
+      const prevCard = index > 0 ? activeCards[index - 1] : null;
+      if (prevCard && Math.abs(prevCard.top - closestCard.top) < 10) {
+        cursorX = (prevCard.right + closestCard.left) / 2;
+      } else {
+        cursorX = closestCard.left - 8;
+      }
+    } else {
+      const nextCard = index < activeCards.length ? activeCards[index] : null;
+      if (nextCard && Math.abs(nextCard.top - closestCard.top) < 10) {
+        cursorX = (closestCard.right + nextCard.left) / 2;
+      } else {
+        cursorX = closestCard.right + 8;
+      }
+    }
 
     return {
       type: 'insert' as const,
       index,
-      cursorX: relativeX < closestCard.centerX
-        ? closestCard.left - 8
-        : closestCard.right + 8,
+      cursorX,
       cursorY: closestCard.top,
       height: closestCard.height,
       cardId: null
     };
-  }, [localTree, selectedFolderId, folderCardRefs]);
+  }, [localTree, selectedFolderId, folderCardRefs, parentNavCardRef]);
 
   // Drop zone for main view background (drop into current folder level)
   const [{ isOverMainView }, dropMainView] = useDrop(() => ({
@@ -1784,7 +1983,7 @@ export const FileBrowser: React.FC = () => {
             cursorPosition: dropZone.cursorX !== undefined ? {
               x: dropZone.cursorX,
               y: dropZone.cursorY || 0,
-              height: dropZone.cursorHeight || 144
+              height: dropZone.height || 144
             } : null,
             highlightedCardId: null,
             insertionIndex: dropZone.index
@@ -1959,13 +2158,196 @@ export const FileBrowser: React.FC = () => {
   }), [localTree, selectedFolderId, documentsService, toast, setTreeRefetchKey, dropState, calculateDropZone, childFolders]);
 
   return (
-    <div className="file-browser h-full flex flex-col p-8 space-y-6">
-      {/* Page Header */}
-      {PageHeader && Button && (
-        <PageHeader
-          title="Documents"
-          description="Organize and manage your documents"
-          actions={
+    <div className="file-browser h-full flex">
+      {/* Left Sidebar - OUTSIDE tabs, always visible */}
+      <div
+        className={`border-r bg-background/50 transition-all duration-300 ${
+          sidebarCollapsed ? 'w-12' : 'min-w-64 max-w-96 w-auto'
+        }`}
+      >
+        {sidebarCollapsed ? (
+          /* Collapsed thin bar */
+          <div className="flex flex-col items-center p-2">
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              className="p-2 rounded-lg hover:bg-muted transition-colors"
+              title="Show folders"
+            >
+              <PanelLeft className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+        ) : (
+          <FolderTree
+            tree={virtualTree}
+            selectedFolderId={selectedFolderId}
+            onFolderSelect={navigateToFolder}
+            onCollapseSidebar={() => setSidebarCollapsed(true)}
+            onMove={handleFolderMove}
+            onCreate={(parentId) => {
+              if (parentId) {
+                navigateToFolder(parentId); // Select parent folder
+              }
+              setCreateFolderOpen(true);     // Open create dialog
+            }}
+            onDelete={handleFolderDelete}
+            onRename={handleDirectRename}
+            onChangeColor={handleChangeColor}
+          />
+        )}
+      </div>
+
+      {/* Right Area - INSIDE tabs */}
+      <div className="flex-1 flex flex-col">
+        {/* TabBar - shows tabs */}
+        <TabBar
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onTabClick={switchTab}
+          onTabClose={closeTab}
+          onNewTab={() => addGridTab(null)}
+        />
+
+        {/* Breadcrumb Navigation - Always visible with visual prominence + drop targets */}
+        {activeTab?.type === 'grid' && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 rounded-lg border border-border/50 mx-4 mt-2">
+            <BreadcrumbFolder
+              folder={null}
+              isActive={activeTab.folderId === null}
+              onClick={() => navigateToFolder(null)}
+              onDrop={async (draggedId, source) => {
+                // Move folder to root (All Files)
+                console.log(`[Breadcrumb] Moving ${draggedId} to root`);
+                const prevTree = [...localTree];
+
+                // Calculate correct index based on order property (matching backend sort)
+                const findNode = (nodes: any[], id: string): any => {
+                  for (const node of nodes) {
+                    if (node.id === id) return node;
+                    if (node.type === 'folder' && node.children) {
+                      const found = findNode(node.children, id);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+
+                const draggedFolder = findNode(prevTree, draggedId);
+                if (!draggedFolder) {
+                  console.error('[Breadcrumb] Dragged folder not found');
+                  return;
+                }
+
+                // Get all root folders sorted by order
+                const rootFolders = prevTree
+                  .filter((n: any) => n.type === 'folder' && n.parentId === null)
+                  .sort((a: any, b: any) => a.order - b.order);
+
+                // Find correct insertion index
+                const insertIndex = rootFolders.findIndex((f: any) => f.order > draggedFolder.order);
+                const newIndex = insertIndex === -1 ? rootFolders.length : insertIndex;
+
+                // Optimistically update tree
+                const updatedTree = updateTreeAfterMove(prevTree, draggedId, null, newIndex);
+                setLocalTree(updatedTree);
+
+                // Backend update
+                try {
+                  const result = await documentsService.updateFolder(draggedId, { parentId: null });
+                  if (!result.success) {
+                    setLocalTree(prevTree);
+                    toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
+                  } else {
+                    toast({ title: "Folder moved", description: "Moved to All Files" });
+                    setTreeRefetchKey(prev => prev + 1);
+                  }
+                } catch (error) {
+                  setLocalTree(prevTree);
+                  console.error('[Breadcrumb] Drop failed:', error);
+                  toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
+                }
+              }}
+            />
+            {folderPath && folderPath.map((folder, index) => (
+              <React.Fragment key={folder.id}>
+                <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
+                <BreadcrumbFolder
+                  folder={folder}
+                  isActive={index === folderPath.length - 1}
+                  onClick={() => navigateToFolder(folder.id)}
+                  onDrop={async (draggedId, source) => {
+                    // Move to this breadcrumb folder
+                    console.log(`[Breadcrumb] Moving ${draggedId} to ${folder.name}`);
+                    const prevTree = [...localTree];
+
+                    // Calculate correct index based on order property (matching backend sort)
+                    const findNode = (nodes: any[], id: string): any => {
+                      for (const node of nodes) {
+                        if (node.id === id) return node;
+                        if (node.type === 'folder' && node.children) {
+                          const found = findNode(node.children, id);
+                          if (found) return found;
+                        }
+                      }
+                      return null;
+                    };
+
+                    const getChildren = (tree: any[], parentId: string | null): any[] => {
+                      if (parentId === null) {
+                        return tree.filter((n: any) => (n.parentId === null || !n.parentId));
+                      }
+                      const parent = findNode(tree, parentId);
+                      return parent?.type === 'folder' ? parent.children : [];
+                    };
+
+                    const draggedFolder = findNode(prevTree, draggedId);
+                    if (!draggedFolder) {
+                      console.error('[Breadcrumb] Dragged folder not found');
+                      return;
+                    }
+
+                    const parentChildren = getChildren(prevTree, folder.id)
+                      .filter((n: any) => n.id !== draggedId)
+                      .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+
+                    // Drop at beginning when dropped on breadcrumb (no cursor position)
+                    const correctIndex = 0;
+
+                    // Optimistically update tree
+                    const updatedTree = updateTreeAfterMove(prevTree, draggedId, folder.id, correctIndex);
+                    setLocalTree(updatedTree);
+
+                    // Backend update
+                    try {
+                      const result = await documentsService.updateFolder(draggedId, { parentId: folder.id });
+                      if (!result.success) {
+                        setLocalTree(prevTree);
+                        toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
+                      } else {
+                        toast({ title: "Folder moved", description: `Moved to ${folder.name}` });
+                        setTreeRefetchKey(prev => prev + 1);
+                      }
+                    } catch (error) {
+                      setLocalTree(prevTree);
+                      console.error('[Breadcrumb] Drop failed:', error);
+                      toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
+                    }
+                  }}
+                />
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+
+        {/* Tab Content */}
+        {activeTab && activeTab.type === 'grid' ? (
+        // Grid View - existing FileBrowser content
+        <div className="flex-1 flex flex-col p-8 space-y-6 overflow-hidden">
+          {/* Page Header */}
+          {PageHeader && Button && (
+            <PageHeader
+              title="Documents"
+              description="Organize and manage your documents"
+              actions={
             <>
               {/* Sort Dropdown */}
               <div className="relative">
@@ -2085,121 +2467,6 @@ export const FileBrowser: React.FC = () => {
           }
         />
       )}
-
-      {/* Breadcrumb Navigation - Always visible with visual prominence + drop targets */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 rounded-lg border border-border/50">
-        <BreadcrumbFolder
-          folder={null}
-          isActive={selectedFolderId === null}
-          onClick={() => setSelectedFolderId(null)}
-          onDrop={async (draggedId, source) => {
-            // Move folder to root (All Files)
-            console.log(`[Breadcrumb] Moving ${draggedId} to root`);
-            const prevTree = [...localTree];
-
-            // Calculate correct index based on order property (matching backend sort)
-            const findNode = (nodes: any[], id: string): any => {
-              for (const node of nodes) {
-                if (node.id === id) return node;
-                if (node.type === 'folder' && node.children) {
-                  const found = findNode(node.children, id);
-                  if (found) return found;
-                }
-              }
-              return null;
-            };
-
-            const draggedFolder = findNode(localTree, draggedId);
-            if (!draggedFolder) return;
-
-            const rootChildren = localTree
-              .filter((n: any) => (n.parentId === null || !n.parentId) && n.id !== draggedId)
-              .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-
-            // Drop at beginning when dropped on breadcrumb (no cursor position)
-            const correctIndex = 0;
-
-            const updatedTree = updateTreeAfterMove(prevTree, draggedId, null, correctIndex);
-            setLocalTree(updatedTree);
-
-            try {
-              const result = await documentsService.moveToPosition(draggedId, null, correctIndex);
-              if (!result.success) {
-                setLocalTree(prevTree);
-                toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
-              } else {
-                toast({ title: "Folder moved", description: "Moved to All Files" });
-                setTreeRefetchKey(prev => prev + 1);
-              }
-            } catch (error) {
-              setLocalTree(prevTree);
-              toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
-            }
-          }}
-        />
-        {folderPath && folderPath.map((folder, index) => (
-          <React.Fragment key={folder.id}>
-            <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
-            <BreadcrumbFolder
-              folder={folder}
-              isActive={index === folderPath.length - 1}
-              onClick={() => setSelectedFolderId(folder.id)}
-              onDrop={async (draggedId, source) => {
-                // Move to this breadcrumb folder
-                console.log(`[Breadcrumb] Moving ${draggedId} to ${folder.name}`);
-                const prevTree = [...localTree];
-
-                // Calculate correct index based on order property (matching backend sort)
-                const findNode = (nodes: any[], id: string): any => {
-                  for (const node of nodes) {
-                    if (node.id === id) return node;
-                    if (node.type === 'folder' && node.children) {
-                      const found = findNode(node.children, id);
-                      if (found) return found;
-                    }
-                  }
-                  return null;
-                };
-
-                const getChildren = (tree: any[], parentId: string | null): any[] => {
-                  if (parentId === null) {
-                    return tree.filter((n: any) => (n.parentId === null || !n.parentId));
-                  }
-                  const parent = findNode(tree, parentId);
-                  return parent?.type === 'folder' ? parent.children : [];
-                };
-
-                const draggedFolder = findNode(localTree, draggedId);
-                if (!draggedFolder) return;
-
-                const parentChildren = getChildren(localTree, folder.id)
-                  .filter((n: any) => n.id !== draggedId)
-                  .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-
-                // Drop at beginning when dropped on breadcrumb (no cursor position)
-                const correctIndex = 0;
-
-                const updatedTree = updateTreeAfterMove(prevTree, draggedId, folder.id, correctIndex);
-                setLocalTree(updatedTree);
-
-                try {
-                  const result = await documentsService.moveToPosition(draggedId, folder.id, correctIndex);
-                  if (!result.success) {
-                    setLocalTree(prevTree);
-                    toast({ title: "Move failed", description: result.error?.message, variant: "destructive" });
-                  } else {
-                    toast({ title: "Folder moved", description: `Moved to ${folder.name}` });
-                    setTreeRefetchKey(prev => prev + 1);
-                  }
-                } catch (error) {
-                  setLocalTree(prevTree);
-                  toast({ title: "Move failed", description: "An error occurred", variant: "destructive" });
-                }
-              }}
-            />
-          </React.Fragment>
-        ))}
-      </div>
 
       {/* Create Folder Dialog */}
       {Dialog && (
@@ -2681,47 +2948,8 @@ export const FileBrowser: React.FC = () => {
         </Dialog>
       )}
 
-      {/* Main Content: Sidebar + File Area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: Folder Tree */}
-        <div
-          className={`border-r bg-background/50 transition-all duration-300 ${
-            sidebarCollapsed ? 'w-12' : 'min-w-64 max-w-96 w-auto'
-          }`}
-        >
-          {sidebarCollapsed ? (
-            /* Collapsed thin bar */
-            <div className="flex flex-col items-center p-2">
-              <button
-                onClick={() => setSidebarCollapsed(false)}
-                className="p-2 rounded-lg hover:bg-muted transition-colors"
-                title="Show folders"
-              >
-                <PanelLeft className="w-4 h-4 text-muted-foreground" />
-              </button>
-            </div>
-          ) : (
-            <FolderTree
-              tree={virtualTree}
-              selectedFolderId={selectedFolderId}
-              onFolderSelect={setSelectedFolderId}
-              onCollapseSidebar={() => setSidebarCollapsed(true)}
-              onMove={handleFolderMove}
-              onCreate={(parentId) => {
-                if (parentId) {
-                  setSelectedFolderId(parentId); // Select parent folder
-                }
-                setCreateFolderOpen(true);     // Open create dialog
-              }}
-              onDelete={handleFolderDelete}
-              onRename={handleDirectRename}
-              onChangeColor={handleChangeColor}
-            />
-          )}
-        </div>
-
-        {/* Right Area: Folders + Files */}
-        <div className="flex-1 p-6 overflow-y-auto relative">
+          {/* Grid Content Area */}
+          <div className="flex-1 p-6 overflow-y-auto relative">
           {/* Always show grid layout when inside a folder (to show parent nav card) */}
           {/* For root level with no content, show empty state */}
           {!selectedFolderId && childFolders.length === 0 && filesInFolder.length === 0 ? (
@@ -2757,6 +2985,7 @@ export const FileBrowser: React.FC = () => {
               {/* Uses parentInfo instead of direct folderPath to avoid null reference errors during state transitions */}
               {parentInfo && (
                 <ParentNavigationCard
+                  ref={parentNavCardRef}
                   parentFolder={parentInfo.folder}
                   parentFolderId={parentInfo.id}
                   localTree={localTree}
@@ -2766,7 +2995,7 @@ export const FileBrowser: React.FC = () => {
                   toast={toast}
                   setTreeRefetchKey={setTreeRefetchKey}
                   onNavigate={() => {
-                    setSelectedFolderId(parentInfo.id);
+                    navigateToFolder(parentInfo.id);
                   }}
                 />
               )}
@@ -2788,7 +3017,7 @@ export const FileBrowser: React.FC = () => {
                     updateTreeAfterMove={updateTreeAfterMove}
                     documentsService={documentsService}
                     toast={toast}
-                    onFolderSelect={setSelectedFolderId}
+                    onFolderSelect={navigateToFolder}
                     onRename={handleDirectRename}
                     onChangeColor={handleChangeColor}
                     onDelete={handleFolderDelete}
@@ -2826,6 +3055,7 @@ export const FileBrowser: React.FC = () => {
                 <FileCard
                   key={file.id}
                   file={file}
+                  onClick={() => openFileInCurrentTab(file)}
                 />
               ))}
 
@@ -2839,7 +3069,60 @@ export const FileBrowser: React.FC = () => {
               )}
             </div>
           )}
+          </div>
         </div>
+      ) : activeTab && activeTab.type === 'document' ? (
+        // Document View - plugin viewer embedded
+        <DocumentViewerContext.Provider
+          value={{
+            isEmbedded: true,
+            openInNewTab: async (route: string) => {
+              // Parse route to extract fileId
+              // This is a simplification - in production, you'd parse the route properly
+              const fileId = route.split('/').pop();
+              if (fileId) {
+                const file = await documentsService.getDocument(fileId);
+                if (file) {
+                  const handler = documentsService.getHandlerForFile(file);
+                  if (handler) {
+                    await addDocumentTab(file, handler);
+                  }
+                }
+              }
+            },
+            closeTab: () => closeTab(activeTabId),
+            setTabDirty: (isDirty: boolean) => setTabDirty(activeTabId, isDirty),
+            navigateInTab: async (fileId: string) => {
+              const file = await documentsService.getDocument(fileId);
+              if (file) {
+                await openFileInCurrentTab(file);
+              }
+            }
+          }}
+        >
+          <div className="document-viewer flex-1 overflow-auto">
+            {/* Render plugin viewer component */}
+            {(() => {
+              const ViewerComponent = manager.getComponent(activeTab.handler.viewerComponent || '');
+
+              if (!ViewerComponent) {
+                return (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <div className="text-center">
+                      <p className="text-lg font-medium">Viewer not found</p>
+                      <p className="text-sm">Component '{activeTab.handler.viewerComponent}' is not registered</p>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Render the plugin's viewer component with fileId prop
+              // The viewer component receives DocumentViewerContext automatically from the Provider above
+              return <ViewerComponent fileId={activeTab.fileId} />;
+            })()}
+          </div>
+        </DocumentViewerContext.Provider>
+        ) : null}
       </div>
     </div>
   );

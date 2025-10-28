@@ -60,25 +60,33 @@ When user opens a file, Documents:
 
 ## User Interface & Interaction Design
 
-### Two-Panel Layout
+### Tab-Based Workspace Layout
 
-Documents plugin uses a classic **two-panel file manager** layout:
+Documents plugin uses a **tab-based workspace** (like VS Code, Notion, browser tabs) for multi-document workflows:
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│ [Navigation Tree]      │  [Main Content View]            │
-│                        │                                  │
-│ 📁 Projects           │  Grid/List view of files         │
-│   📁 ChayCards  ◀────┼─ Drag files/folders between      │
-│   📄 README.md        │  panels for organization         │
-│ 📁 Archive            │                                  │
-│ 📁 Personal           │  [File cards, upload zone,       │
-│                        │   breadcrumbs, search]          │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ [Tree]        │ [📁 Grid] [📄 Deck.deck] [📝 Notes.md] [+]  │
+│               ├──────────────────────────────────────────────┤
+│ 📁 Projects   │  Active Tab Content:                         │
+│   📁 ChayCards│  - Grid tab: File/folder grid view          │
+│   📄 README   │  - Document tab: Plugin viewer/editor       │
+│ 📁 Archive    │                                              │
+│ 📁 Personal   │  Each tab has own breadcrumb                 │
+│               │  Tabs persist via localStorage               │
+└──────────────────────────────────────────────────────────────┘
      ↑                            ↑
-  Collapsible           Responsive grid/list
-  sidebar tree          with file previews
+  Always visible         Tab bar + tab content
+  file tree              (grid OR document viewer)
 ```
+
+**Key Differences from Traditional Two-Panel**:
+- **Grid view is a tab** (not the "main view")
+- **Multiple tabs open simultaneously** (keep multiple files open)
+- **File tree outside tabs** (provides persistent navigation context)
+- **Tabs persist across sessions** (localStorage-based state)
+
+See [DOCUMENTS_TAB_SYSTEM.md](DOCUMENTS_TAB_SYSTEM.md) for complete tab architecture.
 
 ### Navigation Tree (Left Panel)
 
@@ -312,22 +320,31 @@ Appears in both tree and main view root
 └───────────────────────┘
 ```
 
-### Breadcrumb Navigation
+### Breadcrumb Navigation (Per-Tab)
 
-**Location**: Top of main content view
+**Location**: Inside each tab (both grid tabs and document tabs)
 
-**Purpose**: Show current folder path, quick navigation to parent folders
+**Purpose**: Show where current view/file is located in folder hierarchy
 
+**Grid Tab Breadcrumb**:
 ```
 All Documents > Projects > ChayCards > src > components
     ^click          ^click      ^click      ^click
 ```
-
-**Interaction**:
+- Shows current folder path
 - Click any segment → Navigate to that folder
-- Shows hierarchy even when tree is collapsed
-- Truncates in middle for very deep paths:
-  `All Documents > ... > src > components`
+- Updates when navigating folders within tab
+
+**Document Tab Breadcrumb**:
+```
+All Documents > Projects > ChayCards > Deck.deck
+                                       └── (file lives here)
+```
+- Shows where file is stored (not editable)
+- Provides context: "This file lives in ChayCards folder"
+- Click folder segments → Switch to grid tab showing that folder
+
+**Key Pattern**: Each tab remembers its location independently
 
 ### Empty States
 

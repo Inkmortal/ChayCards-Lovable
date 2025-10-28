@@ -255,6 +255,47 @@
 3. [ ] Add visual feedback only after basic drag works
 4. [ ] Build up incrementally from working foundation
 
+### ✅ Documents Tab System Architecture (COMPLETE - October 27, 2025)
+**Status**: ✅ ARCHITECTURE DOCUMENTED, ⏳ READY TO IMPLEMENT
+
+**Major Architecture Decision**: Tab-based document workspace with localStorage persistence
+
+**What Was Designed**:
+- Tab system for multi-document workflows (like VS Code, browser tabs)
+- localStorage-based state persistence (rejected URL parameters approach)
+- Dual access pattern - documents work embedded in Documents OR standalone
+- FileHandler extension with `getViewerRoute()` method
+- DocumentViewerContext for plugin context detection
+- 4-location context menu pattern (tree right-click, tree dots, grid right-click, grid dots)
+
+**Core Design Principles**:
+1. **localStorage over URL params** - Clean URLs, persistent state, industry standard
+2. **Grid view always in tab** - Consistent UX, no special case
+3. **File tree outside tabs** - Always visible for navigation
+4. **Context menus everywhere** - Power user functionality
+5. **Dual access pattern** - Flexibility for users and plugins
+
+**Files to Create/Modify**:
+- `src/plugins/core-documents/components/TabBar.tsx` (NEW)
+- `src/plugins/core-documents/hooks/useDocumentTabs.tsx` (NEW)
+- `src/plugins/core-documents/context/DocumentViewerContext.ts` (NEW)
+- `src/plugins/core-documents/types.ts` (EXTEND DocumentTab interface)
+- `src/plugins/core-documents/components/FileBrowser.tsx` (REFACTOR for tabs)
+- `src/plugins/core-documents/CLAUDE.md` (NEW) ✅ COMPLETE
+
+**Documentation Created**:
+- `memory-bank/systemPatterns.md` - Complete tab system pattern (400+ lines)
+- `src/plugins/core-documents/CLAUDE.md` - Plugin developer guide (500+ lines)
+- `memory-bank/activeContext.md` - Updated with tab system status
+
+**Technical Details Preserved**:
+- Tab state structure with grid/document types
+- localStorage key: `chaycards:documents:tabs`
+- FileHandler `getViewerRoute()` contract
+- DocumentViewerContext interface
+- Tab lifecycle (creation, closing, switching)
+- Validation on restore strategy
+
 ### ✅ Cross-Functional Drag-and-Drop (COMPLETE - October 26, 2025)
 **Status**: Full drag-and-drop matrix working across all UI components
 **Implementation**: react-dnd + react-arborist dual DnD system coexistence

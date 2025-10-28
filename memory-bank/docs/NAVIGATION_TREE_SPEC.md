@@ -424,6 +424,149 @@ useEffect(() => {
 
 ---
 
+## Context Menus (4 Locations)
+
+### Purpose
+
+The tab system requires context menus in **4 locations** to provide consistent file operations everywhere:
+1. **Tree right-click** - Right-click on tree node
+2. **Tree three-dot menu** - Dropdown menu button in tree
+3. **Grid right-click** - Right-click on file/folder card in main view
+4. **Grid three-dot menu** - Dropdown menu button on cards
+
+All 4 locations share the same context menu items and handlers.
+
+### Menu Items
+
+**For Folders**:
+```typescript
+[
+  { id: 'open', label: 'Open', icon: 'FolderOpen', onClick: openFolder },
+  { id: 'open-new-tab', label: 'Open in New Tab', icon: 'Plus', onClick: openFolderInNewTab },
+  { divider: true },
+  { id: 'rename', label: 'Rename', icon: 'Edit', onClick: renameFolder },
+  { id: 'change-color', label: 'Change Color', icon: 'Palette', onClick: changeColor },
+  { divider: true },
+  { id: 'delete', label: 'Delete', icon: 'Trash2', onClick: deleteFolder, dangerous: true }
+]
+```
+
+**For Files**:
+```typescript
+[
+  { id: 'open', label: 'Open', icon: 'ExternalLink', onClick: openFileInTab },
+  { id: 'open-new-tab', label: 'Open in New Tab', icon: 'Plus', onClick: openFileInNewTab },
+  { divider: true },
+  { id: 'rename', label: 'Rename', icon: 'Edit', onClick: renameFile },
+  { id: 'settings', label: 'Settings', icon: 'Settings', onClick: openSettings }, // If handler provides settingsComponent
+  { divider: true },
+  { id: 'delete', label: 'Delete', icon: 'Trash2', onClick: deleteFile, dangerous: true }
+]
+```
+
+### Implementation Pattern
+
+**Shared Handler Functions**:
+```typescript
+// DocumentsService provides these (same handlers for all 4 locations)
+const openFileInTab = (file: StoredFile, activeTab: boolean = true) => {
+  const handler = documentsService.getHandlerForFile(file);
+  if (!handler) return;
+
+  // Check if already open
+  const existingTab = tabs.find(t => t.type === 'document' && t.fileId === file.id);
+  if (existingTab) {
+    if (activeTab) setActiveTabId(existingTab.id);
+    return;
+  }
+
+  // Create new document tab
+  const newTab = createDocumentTab(file, handler);
+  setTabs([...tabs, newTab]);
+  if (activeTab) setActiveTabId(newTab.id);
+};
+
+const openFileInNewTab = (file: StoredFile) => openFileInTab(file, true);
+
+const openSettings = (file: StoredFile) => {
+  const handler = documentsService.getHandlerForFile(file);
+  if (!handler?.settingsComponent) return;
+
+  // Open settings modal
+  const SettingsComponent = PluginManager.getInstance().getComponent(handler.settingsComponent);
+  showModal(<SettingsComponent file={file} />);
+};
+```
+
+**Tree Context Menu Component**:
+```tsx
+// Right-click menu
+<ContextMenu>
+  <ContextMenuTrigger asChild>
+    <TreeNode item={item} />
+  </ContextMenuTrigger>
+  <ContextMenuContent>
+    {getContextMenuItems(item).map(menuItem => (
+      menuItem.divider ? (
+        <ContextMenuSeparator key={menuItem.id} />
+      ) : (
+        <ContextMenuItem
+          key={menuItem.id}
+          onClick={() => menuItem.onClick(item)}
+          className={menuItem.dangerous ? 'text-destructive' : ''}
+        >
+          {menuItem.icon && <Icon name={menuItem.icon} className="mr-2" />}
+          {menuItem.label}
+        </ContextMenuItem>
+      )
+    ))}
+  </ContextMenuContent>
+</ContextMenu>
+
+// Three-dot menu (dropdown)
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant="ghost" size="icon">
+      <MoreVertical className="w-4 h-4" />
+    </Button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent>
+    {getContextMenuItems(item).map(menuItem => (
+      menuItem.divider ? (
+        <DropdownMenuSeparator key={menuItem.id} />
+      ) : (
+        <DropdownMenuItem
+          key={menuItem.id}
+          onClick={() => menuItem.onClick(item)}
+          className={menuItem.dangerous ? 'text-destructive' : ''}
+        >
+          {menuItem.icon && <Icon name={menuItem.icon} className="mr-2" />}
+          {menuItem.label}
+        </DropdownMenuItem>
+      )
+    ))}
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+### Visual Design
+
+**Tree Context Menu Placement**:
+- Right-click: Menu appears at cursor position
+- Three-dot menu: Button appears on hover (right side of tree node)
+
+**Grid Context Menu Placement**:
+- Right-click: Menu appears at cursor position
+- Three-dot menu: Button visible in top-right of card
+
+**Consistent Styling**:
+- Icons: 16px size, `mr-2` spacing
+- Dangerous actions: Red text (`text-destructive`)
+- Dividers: Between action groups
+- Hover: Background highlight (`hover:bg-accent`)
+
+---
+
 ## Mobile Adaptations
 
 ### Touch Gestures

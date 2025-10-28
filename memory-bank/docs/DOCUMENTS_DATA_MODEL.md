@@ -148,11 +148,27 @@ interface FileHandler {
 
   // Context Menu Items (plugin-specific actions)
   contextMenuItems?: ContextMenuItem[];
+
+  // NEW - Tab System Integration (REQUIRED for document tabs)
+  getViewerRoute: (fileId: string) => string;  // "/app/flashcards/deck/123"
+
+  // Optional settings modal component (opened from tab context menu)
+  settingsComponent?: string;    // "core-flashcards/DeckSettings"
 }
 
 // Storage Location:
 // Registered in-memory via DocumentsService.registerFileHandler()
 // Not persisted (registered on plugin load)
+
+// Example Registration:
+// {
+//   id: 'flashcard-deck-handler',
+//   pluginId: 'core-flashcards',
+//   extensions: ['.deck'],
+//   getViewerRoute: (fileId) => `/app/flashcards/deck/${fileId}`,
+//   settingsComponent: 'core-flashcards/DeckSettings',
+//   // ... other fields
+// }
 ```
 
 ### ContextMenuItem (Extensible Right-Click Menu)

@@ -1537,3 +1537,555 @@ const handler2 = () => {
 This creates race conditions and shared state. Use independent UI state guards instead.
 
 **Key Principle**: Guard conditions should match visual feedback - if user sees the indicator, that handler should execute. If they don't see it, guard should return early.
+
+## Documents Tab System Pattern
+
+### Overview
+The Documents plugin uses a tab-based workspace for viewing documents and folders. This pattern enables multi-document workflows where users can have multiple files open simultaneously, similar to VS Code or browser tabs.
+
+**Key Architectural Decisions**:
+1. **Tab-based rendering**: No URL routing - tabs render plugin viewers directly using component resolution
+2. **localStorage persistence**: Tab state persists across sessions
+3. **Per-tab history**: Each tab maintains its own navigation history with back/forward controls
+
+**Why tab-based rendering (NOT routing)**:
+- ✅ **Documents stays at `/app/documents`**: No navigation away from Documents plugin
+- ✅ **Per-tab history**: Each tab has independent navigation stack with breadcrumb back/forward
+- ✅ **Component-based**: Viewers render via PluginManager.getComponent(), not React Router
+- ✅ **Simpler mental model**: Tabs are rendering containers, not URL state
+- ❌ **URL routing rejected**: Would cause full page navigation, break tab isolation
+
+### Core Concepts
+
+#### 1. Tab Types
+```typescript
+interface DocumentTab {
+  id: string;                    // Unique tab identifier
+  type: 'grid' | 'document';     // Tab content type
+  title: string;                 // Tab display text
+  fileId?: string;               // For document tabs
+  handler?: FileHandler;         // Plugin handler for this file
+  breadcrumb: BreadcrumbItem[];  // Navigation context
+  closeable: boolean;            // Can user close this tab?
+  isDirty?: boolean;            // Has unsaved changes?
+  history: TabHistoryEntry[];    // Navigation history stack
+  historyIndex: number;          // Current position in history
+}
+```
+
+**Tab type details**:
+- **Grid tabs**: Show folder contents (files + subfolders), can navigate to different folders
+- **Document tabs**: Show plugin-provided viewer/editor for specific files
+- **Special tabs**: Grid tabs are NOT closeable (always have at least one), document tabs ARE closeable
+- **Per-tab history**: Each tab maintains independent navigation history for back/forward controls
+
+#### 2. FileHandler Registration
+Plugins register FileHandlers to provide custom viewers for document types:
+
+```typescript
+interface FileHandler {
+  id: string;
+  pluginId: string;
+  name: string;
+  extensions: string[];           // e.g., ['.md', '.deck', '.canvas']
+  mimeTypes: string[];
+  icon: FileHandlerIcon;
+
+  // Component references (namespaced: 'plugin-id/ComponentName')
+  previewComponent?: string;      // For hover/quick peek
+  viewerComponent?: string;       // Full-page viewer (REQUIRED for tabs)
+  editorComponent?: string;       // Edit mode
+  settingsComponent?: string;     // Optional settings modal
+
+  // Priority for handler selection
+  priority: number;
+  canHandle?: (file: StoredFile) => boolean;
+}
+```
+
+**Key requirement**: `viewerComponent` must be provided for files to open in tabs.
+
+**Example registrations**:
+```typescript
+// Flashcard plugin
+{
+  id: 'flashcard-deck-handler',
+  pluginId: 'core-flashcards',
+  extensions: ['.deck'],
+  viewerComponent: 'core-flashcards/DeckView',  // Documents renders this in tabs
+  editorComponent: 'core-flashcards/DeckView',  // Same component for now
+  settingsComponent: 'core-flashcards/DeckSettings',
+  priority: 100
+}
+
+// Canvas plugin
+{
+  id: 'canvas-handler',
+  pluginId: 'core-canvas',
+  extensions: ['.canvas'],
+  viewerComponent: 'core-canvas/CanvasEditor',
+  priority: 100
+}
+```
+
+#### 3. Tab Rendering Architecture (Zero Plugin Burden)
+
+**Key Principle**: Plugins provide ONE viewer component. Documents handles tab rendering, context injection, and navigation chrome. No routing involved.
+
+**Plugin Responsibility** (minimal):
+```typescript
+// Plugin ONLY provides viewer component
+const deckHandler: FileHandler = {
+  id: 'flashcard-deck-handler',
+  viewerComponent: 'core-flashcards/DeckView',
+  // That's it! No routes, no wrappers, no context detection
+};
+
+// Plugin viewer component (simple!)
+export const DeckView: React.FC<{ fileId: string }> = ({ fileId }) => {
+  // Just render the deck - Documents handles everything else
+  return <div className="deck-viewer">...</div>;
+};
+```
+
+**Documents Responsibility** (infrastructure):
+1. **Component Resolution**: Uses PluginManager.getComponent() to resolve viewer
+2. **Context Injection**: Provides DocumentViewerContext automatically to all viewers
+3. **Tab Management**: Tracks tabs in localStorage, handles tab operations
+4. **History Management**: Per-tab navigation history with back/forward controls
+
+**How it works**:
+
+```typescript
+// FileBrowser renders the active tab's content
+function FileBrowser() {
+  const { tabs, activeTabId } = useDocumentTabs();
+  const activeTab = tabs.find(t => t.id === activeTabId);
+
+  if (!activeTab) return null;
+
+  if (activeTab.type === 'grid') {
+    // Grid tab - show file browser
+    return <FileGrid folderId={activeTab.folderId} />;
+  }
+
+  if (activeTab.type === 'document') {
+    // Document tab - render plugin viewer
+    const manager = PluginManager.getInstance();
+    const ViewerComponent = manager.getComponent(activeTab.handler.viewerComponent);
+
+    return (
+      <DocumentViewerContext.Provider value={{
+        closeTab: () => tabs.closeTab(activeTab.id),
+        setTabDirty: (isDirty) => tabs.setTabDirty(activeTab.id, isDirty),
+        navigateInTab: (fileId) => tabs.navigateInTab(activeTab.id, fileId)
+      }}>
+        <ViewerComponent fileId={activeTab.fileId} />
+      </DocumentViewerContext.Provider>
+    );
+  }
+}
+```
+
+**Benefits**:
+- ✅ Zero plugin burden - just provide viewer component
+- ✅ No routing complexity - stays at /app/documents
+- ✅ Per-tab history - breadcrumb back/forward
+- ✅ Component-based - clean separation of concerns
+- ✅ Context automatically injected - plugins optionally use it
+
+#### 4. DocumentViewerContext (Optional for Plugins)
+
+```typescript
+interface DocumentViewerContext {
+  closeTab?: () => void;                          // Close current tab
+  setTabDirty?: (isDirty: boolean) => void;       // Mark tab dirty/clean
+  navigateInTab?: (fileId: string) => Promise<void>;  // Navigate to another file in same tab
+}
+```
+
+**Plugins CAN use context for advanced features** (optional):
+```typescript
+// Optional: Plugin can use context if needed
+export const DeckView: React.FC<{ fileId: string }> = ({ fileId }) => {
+  const viewerContext = useDocumentViewer();  // Hook provided by Documents
+
+  // Optional: Navigate to related file in same tab
+  const openRelatedDeck = async (relatedId: string) => {
+    if (viewerContext?.navigateInTab) {
+      await viewerContext.navigateInTab(relatedId);
+    }
+  };
+
+  // Optional: Mark unsaved changes
+  useEffect(() => {
+    if (hasUnsavedChanges) {
+      viewerContext?.setTabDirty?.(true);
+    }
+  }, [hasUnsavedChanges, viewerContext]);
+
+  return <div>...</div>;
+};
+```
+
+**But context usage is OPTIONAL** - basic viewers work without it!
+
+### localStorage Persistence Strategy
+
+#### State Structure
+```typescript
+interface TabState {
+  tabs: DocumentTab[];
+  activeTabId: string;
+}
+
+// Stored at: localStorage['chaycards:documents:tabs']
+```
+
+**Why this structure**:
+- Array of tabs maintains order
+- activeTabId tracks which tab is visible
+- Serializes cleanly to JSON
+- Easy to restore on mount
+
+#### Save Strategy
+```typescript
+// Save on every tab operation
+const saveTabState = useCallback(() => {
+  const state: TabState = {
+    tabs: tabs,
+    activeTabId: activeTabId
+  };
+  localStorage.setItem('chaycards:documents:tabs', JSON.stringify(state));
+}, [tabs, activeTabId]);
+
+// Triggered by:
+// - Add tab
+// - Remove tab
+// - Switch tab
+// - Update tab (rename, mark dirty)
+```
+
+#### Restore Strategy
+```typescript
+// On component mount
+const restoreTabState = useCallback(() => {
+  const stored = localStorage.getItem('chaycards:documents:tabs');
+  if (!stored) {
+    // First load - create default grid tab
+    return [{
+      id: generateId(),
+      type: 'grid',
+      title: 'All Files',
+      breadcrumb: [{ id: null, name: 'All Files' }],
+      closeable: false
+    }];
+  }
+
+  try {
+    const state: TabState = JSON.parse(stored);
+
+    // Validate tabs (file IDs still exist?)
+    const validTabs = await validateTabs(state.tabs);
+
+    // Ensure at least one grid tab
+    if (validTabs.length === 0) {
+      return [createDefaultGridTab()];
+    }
+
+    return validTabs;
+  } catch (error) {
+    console.error('Failed to restore tabs:', error);
+    return [createDefaultGridTab()];
+  }
+}, []);
+```
+
+**Validation checks**:
+- Document tabs: Verify fileId still exists in DocumentsService
+- Plugin routes: Verify handler is still registered
+- Fallback: Remove invalid tabs, ensure at least one grid tab
+
+### Tab Opening Mechanisms
+
+Users can open tabs from **4 different locations**:
+
+#### 1. Tree Right-Click Menu
+```typescript
+// FolderTree.tsx
+<ContextMenu>
+  <ContextMenuItem onClick={() => openFileInTab(file)}>
+    Open in New Tab
+  </ContextMenuItem>
+</ContextMenu>
+```
+
+#### 2. Tree Three-Dot Menu
+```typescript
+// FolderTree.tsx TreeNodeRenderer
+<DropdownMenu>
+  <DropdownMenuItem onClick={() => openFileInTab(file)}>
+    Open in New Tab
+  </DropdownMenuItem>
+</DropdownMenu>
+```
+
+#### 3. Grid Right-Click Menu
+```typescript
+// FileBrowser.tsx FileCard
+<ContextMenu>
+  <ContextMenuItem onClick={() => openFileInTab(file)}>
+    Open in New Tab
+  </ContextMenuItem>
+</ContextMenu>
+```
+
+#### 4. Grid Three-Dot Menu
+```typescript
+// FileBrowser.tsx FileCard
+<DropdownMenu>
+  <DropdownMenuItem onClick={() => openFileInTab(file)}>
+    Open in New Tab
+  </DropdownMenuItem>
+</DropdownMenu>
+```
+
+**Consistent UX**: All 4 locations use same `openFileInTab()` function:
+```typescript
+const openFileInTab = async (file: StoredFile) => {
+  // 1. Find registered handler
+  const handler = documentsService.getHandlerForFile(file);
+  if (!handler) {
+    toast.error(`No viewer registered for ${file.extension} files`);
+    return;
+  }
+
+  // 2. Check if already open
+  const existingTab = tabs.find(t => t.type === 'document' && t.fileId === file.id);
+  if (existingTab) {
+    setActiveTabId(existingTab.id);  // Switch to existing tab
+    return;
+  }
+
+  // 3. Create new tab
+  const newTab: DocumentTab = {
+    id: generateId(),
+    type: 'document',
+    title: getFileDisplayName(file),
+    fileId: file.id,
+    handler: handler,
+    pluginRoute: handler.getViewerRoute(file.id),
+    breadcrumb: await getFolderPath(file.folderId),
+    closeable: true,
+    isDirty: false
+  };
+
+  // 4. Add to tabs and activate
+  setTabs([...tabs, newTab]);
+  setActiveTabId(newTab.id);
+  saveTabState();
+};
+```
+
+### Tab Lifecycle
+
+#### Creation
+```typescript
+// Grid tab (folder view)
+const createGridTab = (folderId: string | null) => ({
+  id: generateId(),
+  type: 'grid',
+  title: folderId ? folder.name : 'All Files',
+  breadcrumb: await getFolderPath(folderId),
+  closeable: tabs.filter(t => t.type === 'grid').length > 0  // First grid tab not closeable
+});
+
+// Document tab (file viewer)
+const createDocumentTab = (file: StoredFile, handler: FileHandler) => ({
+  id: generateId(),
+  type: 'document',
+  title: getFileDisplayName(file),
+  fileId: file.id,
+  handler: handler,
+  pluginRoute: handler.getViewerRoute(file.id),
+  breadcrumb: await getFolderPath(file.folderId),
+  closeable: true,
+  isDirty: false
+});
+```
+
+#### Closing
+```typescript
+const closeTab = (tabId: string) => {
+  const tab = tabs.find(t => t.id === tabId);
+
+  // Guard: Cannot close non-closeable tabs
+  if (!tab?.closeable) return;
+
+  // Guard: Check for unsaved changes
+  if (tab.isDirty) {
+    const confirmed = confirm(`"${tab.title}" has unsaved changes. Close anyway?`);
+    if (!confirmed) return;
+  }
+
+  // Remove tab
+  const newTabs = tabs.filter(t => t.id !== tabId);
+
+  // Switch to adjacent tab if closing active
+  if (activeTabId === tabId) {
+    const closedIndex = tabs.findIndex(t => t.id === tabId);
+    const newActiveTab = newTabs[closedIndex] || newTabs[closedIndex - 1] || newTabs[0];
+    setActiveTabId(newActiveTab.id);
+  }
+
+  setTabs(newTabs);
+  saveTabState();
+};
+```
+
+#### Switching
+```typescript
+const switchTab = (tabId: string) => {
+  setActiveTabId(tabId);
+  saveTabState();
+
+  // Update browser history (for back button)
+  const tab = tabs.find(t => t.id === tabId);
+  if (tab?.type === 'document' && tab.pluginRoute) {
+    router.push(tab.pluginRoute, { replace: true });
+  } else if (tab?.type === 'grid') {
+    router.push('/app/documents', { replace: true });
+  }
+};
+```
+
+### TabBar UI Component
+
+```typescript
+interface TabBarProps {
+  tabs: DocumentTab[];
+  activeTabId: string;
+  onTabClick: (tabId: string) => void;
+  onTabClose: (tabId: string) => void;
+  onTabReorder?: (startIndex: number, endIndex: number) => void;
+}
+
+// Key features:
+// - Horizontal scrollable container
+// - Close buttons (X) on closeable tabs
+// - Active tab highlight
+// - Drag-to-reorder (optional Phase 2)
+// - Overflow handling (show scroll buttons when tabs overflow)
+// - Keyboard shortcuts (Cmd+W to close, Cmd+Tab to switch)
+```
+
+### Integration with FileBrowser
+
+**Before (Phase 1)**:
+```
+FileBrowser
+├── FolderTree (sidebar)
+├── Header (breadcrumbs, search, buttons)
+└── Grid/List view (files + folders)
+```
+
+**After (Tab System)**:
+```
+FileBrowser
+├── FolderTree (sidebar)
+├── TabBar (tabs, overflow scroll)
+└── TabContent (active tab's content)
+    ├── GridView (if type === 'grid')
+    │   ├── Header (breadcrumbs, search, buttons)
+    │   └── Files + Folders
+    └── DocumentView (if type === 'document')
+        └── <Route path={tab.pluginRoute} />  {/* Plugin viewer */}
+```
+
+### Plugin Developer Guide
+
+**How to make your plugin work with Documents tabs**:
+
+1. **Register FileHandler with `getViewerRoute`**:
+```typescript
+documentsService.registerFileHandler({
+  id: 'my-plugin-handler',
+  pluginId: 'my-plugin',
+  extensions: ['.myext'],
+  getViewerRoute: (fileId) => `/app/my-plugin/view/${fileId}`,  // REQUIRED
+  viewerComponent: 'my-plugin/MyViewer',
+  // ... other fields
+});
+```
+
+2. **Create viewer component that detects context**:
+```typescript
+const MyViewer: React.FC<{ fileId: string }> = ({ fileId }) => {
+  const viewerContext = useContext(DocumentViewerContext);
+
+  return (
+    <div>
+      {viewerContext.isEmbedded ? (
+        // Embedded in Documents
+        <button onClick={() => viewerContext.closeTab?.()}>Close</button>
+      ) : (
+        // Standalone
+        <button onClick={() => router.push('/app/documents')}>Back to Documents</button>
+      )}
+
+      {/* Your viewer UI */}
+    </div>
+  );
+};
+```
+
+3. **Provide standalone route**:
+```typescript
+// In plugin registration
+routes: [
+  {
+    path: '/app/my-plugin/view/:fileId',
+    component: 'my-plugin/MyViewerPage'  // Wraps MyViewer with DocumentViewerContext
+  }
+]
+```
+
+4. **Handle links to other files**:
+```typescript
+// If embedded, use Documents tab system
+if (viewerContext.isEmbedded) {
+  viewerContext.openInNewTab?.(`/app/my-plugin/view/${linkedFileId}`);
+} else {
+  // Standalone, use router
+  router.push(`/app/my-plugin/view/${linkedFileId}`);
+}
+```
+
+### Benefits of This Architecture
+
+1. **User Experience**:
+   - ✅ Multi-document workflows (have multiple files open)
+   - ✅ State persistence (tabs restore on app restart)
+   - ✅ Clean URLs (no messy parameters)
+   - ✅ Familiar pattern (like VS Code, browser tabs)
+
+2. **Plugin Integration**:
+   - ✅ Plugins work embedded OR standalone
+   - ✅ Simple integration (just implement FileHandler)
+   - ✅ Context awareness (adapt UX to embedding)
+   - ✅ No plugin changes needed for tab system
+
+3. **Implementation**:
+   - ✅ Centralized state (localStorage)
+   - ✅ Validation on restore (handle missing files)
+   - ✅ Minimal coupling (plugins don't know about tabs)
+   - ✅ Future-proof (easy to add features like tab pinning)
+
+### Future Enhancements (Phase 2+)
+
+- **Tab reordering**: Drag tabs to reorder
+- **Tab pinning**: Pin tabs so they can't be closed
+- **Tab groups**: Group related tabs with visual separator
+- **Split view**: Show two tabs side-by-side
+- **Tab history**: Recently closed tabs
+- **Keyboard shortcuts**: Cmd+T new tab, Cmd+W close tab, Cmd+1-9 switch to tab N
