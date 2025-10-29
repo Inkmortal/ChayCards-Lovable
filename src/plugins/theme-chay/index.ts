@@ -2,15 +2,23 @@ import type { Plugin } from '@/shared/plugin-system';
 import { chayLight, chayDark } from './themes';
 
 export const ThemeChayPlugin: Plugin = {
-  id: 'theme-chay',
+  id: 'chaycards/theme-chay',
   name: 'Chay Themes',
   version: '1.0.0',
+  author: {
+    username: 'chaycards',
+    displayName: 'ChayCards Team'
+  },
   description: 'Girly pink and plant green themes - Chay Light and Chay Dark',
   publicSafe: true,
-  requires: ['core-theme'],
+  dependencies: {
+    requires: {
+      'chaycards/core-theme': '^1.0.0'
+    }
+  },
 
   onLoad: async (manager) => {
-    const themeService = manager.getService('core-theme/themeService');
+    const themeService = manager.getService('chaycards/core-theme/themeService');
 
     if (!themeService) {
       console.error('[ThemeChay] ThemeService not found - core-theme dependency missing?');

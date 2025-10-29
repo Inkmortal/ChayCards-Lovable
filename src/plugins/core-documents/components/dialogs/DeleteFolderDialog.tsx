@@ -25,8 +25,8 @@ export const DeleteFolderDialog: React.FC<DeleteFolderDialogProps> = ({
   onDeleteComplete,
 }) => {
   const manager = PluginManager.getInstance();
-  const Dialog = manager.getComponent('core-ui/Dialog');
-  const Button = manager.getComponent('core-ui/Button');
+  const Dialog = manager.getComponent('chaycards/core-ui/Dialog');
+  const Button = manager.getComponent('chaycards/core-ui/Button');
 
   const [folderHasContents, setFolderHasContents] = useState(false);
   const [deleteConfirmed, setDeleteConfirmed] = useState(false);

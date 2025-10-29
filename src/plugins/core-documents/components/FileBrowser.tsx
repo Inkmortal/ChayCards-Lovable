@@ -71,7 +71,7 @@ export const FileBrowser: React.FC = () => {
   const { toast } = useToast();
 
   // Get DocumentsService
-  const documentsService = manager.getService('core-documents/documentsService');
+  const documentsService = manager.getService('chaycards/core-documents/documentsService');
 
   // Local tree state for optimistic updates
   const [treeRefetchKey, setTreeRefetchKey] = useState(0);
@@ -324,14 +324,14 @@ export const FileBrowser: React.FC = () => {
   const [showColorPicker, setShowColorPicker] = useState(false);
 
   // Get UI components from core-ui plugin
-  const PageHeader = manager.getComponent('core-ui/PageHeader');
-  const EmptyState = manager.getComponent('core-ui/EmptyState');
-  const Card = manager.getComponent('core-ui/Card');
-  const Dialog = manager.getComponent('core-ui/Dialog');
-  const Button = manager.getComponent('core-ui/Button');
-  const Popover = manager.getComponent('core-ui/Popover');
-  const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
-  const DropdownMenuItem = manager.getComponent('core-ui/DropdownMenuItem');
+  const PageHeader = manager.getComponent('chaycards/core-ui/PageHeader');
+  const EmptyState = manager.getComponent('chaycards/core-ui/EmptyState');
+  const Card = manager.getComponent('chaycards/core-ui/Card');
+  const Dialog = manager.getComponent('chaycards/core-ui/Dialog');
+  const Button = manager.getComponent('chaycards/core-ui/Button');
+  const Popover = manager.getComponent('chaycards/core-ui/Popover');
+  const DropdownMenu = manager.getComponent('chaycards/core-ui/DropdownMenu');
+  const DropdownMenuItem = manager.getComponent('chaycards/core-ui/DropdownMenuItem');
 
   // Calculate placeholder preview when dialog opens
   React.useEffect(() => {

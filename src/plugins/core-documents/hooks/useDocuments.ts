@@ -15,7 +15,7 @@ import type { StoredFile, Folder, FolderTreeNode, TreeNode, FileHandler, SortMod
  * Returns undefined if service is not initialized to prevent race conditions
  */
 const useDocumentsService = (): DocumentsService | undefined => {
-  const service = PluginManager.getInstance().getService<DocumentsService>('core-documents/documentsService');
+  const service = PluginManager.getInstance().getService<DocumentsService>('chaycards/core-documents/documentsService');
 
   // Only return service if it's initialized to prevent race conditions
   return service?.isInitialized() ? service : undefined;

@@ -2,15 +2,23 @@ import type { Plugin } from '@/shared/plugin-system';
 import { catppuccinLatte, catppuccinFrappe } from './themes';
 
 export const ThemeCatppuccinPlugin: Plugin = {
-  id: 'theme-catppuccin',
+  id: 'chaycards/theme-catppuccin',
   name: 'Catppuccin Themes',
   version: '1.0.0',
+  author: {
+    username: 'chaycards',
+    displayName: 'ChayCards Team'
+  },
   description: 'Catppuccin Latte and Frappé theme variants',
   publicSafe: true,
-  requires: ['core-theme'],
+  dependencies: {
+    requires: {
+      'chaycards/core-theme': '^1.0.0'
+    }
+  },
 
   onLoad: async (manager) => {
-    const themeService = manager.getService('core-theme/themeService');
+    const themeService = manager.getService('chaycards/core-theme/themeService');
 
     if (!themeService) {
       console.error('[ThemeCatppuccin] ThemeService not found - core-theme dependency missing?');

@@ -56,7 +56,7 @@ export class FlashcardService {
     this.storage = storage;
 
     // Get DocumentsService for folder management
-    const documentsService = manager.getService<DocumentsService>('core-documents/documentsService');
+    const documentsService = manager.getService<DocumentsService>('chaycards/core-documents/documentsService');
 
     if (!documentsService) {
       console.warn('[FlashcardService] DocumentsService not available - folder integration disabled');
@@ -127,7 +127,7 @@ export class FlashcardService {
       return null;
     }
 
-    const documentsService = this.manager.getService<DocumentsService>('core-documents/documentsService');
+    const documentsService = this.manager.getService<DocumentsService>('chaycards/core-documents/documentsService');
     if (!documentsService) {
       console.warn('[FlashcardService] DocumentsService not available');
       return null;
@@ -416,7 +416,7 @@ export class FlashcardService {
       return allDecks.filter(d => d.folderId === folderId);
     }
 
-    const documentsService = this.manager.getService<DocumentsService>('core-documents/documentsService');
+    const documentsService = this.manager.getService<DocumentsService>('chaycards/core-documents/documentsService');
     if (!documentsService) {
       return allDecks.filter(d => d.folderId === folderId);
     }
@@ -461,7 +461,7 @@ export class FlashcardService {
       return [];
     }
 
-    const documentsService = this.manager.getService<DocumentsService>('core-documents/documentsService');
+    const documentsService = this.manager.getService<DocumentsService>('chaycards/core-documents/documentsService');
     if (!documentsService) {
       console.warn('[FlashcardService] DocumentsService not available');
       return [];
@@ -1101,7 +1101,7 @@ export class FlashcardService {
   private async createDeckStoredFile(deck: Deck): Promise<void> {
     if (!this.manager) return;
 
-    const documentsService = this.manager.getService<DocumentsService>('core-documents/documentsService');
+    const documentsService = this.manager.getService<DocumentsService>('chaycards/core-documents/documentsService');
     if (!documentsService) {
       console.warn('[FlashcardService] DocumentsService not available - deck will not appear in Documents');
       return;
@@ -1149,7 +1149,7 @@ export class FlashcardService {
   private async updateDeckStoredFile(deck: Deck): Promise<void> {
     if (!this.manager) return;
 
-    const documentsService = this.manager.getService<DocumentsService>('core-documents/documentsService');
+    const documentsService = this.manager.getService<DocumentsService>('chaycards/core-documents/documentsService');
     if (!documentsService) return;
 
     const files = await documentsService.getFiles();
@@ -1186,7 +1186,7 @@ export class FlashcardService {
   private async deleteDeckStoredFile(deckId: string): Promise<void> {
     if (!this.manager) return;
 
-    const documentsService = this.manager.getService<DocumentsService>('core-documents/documentsService');
+    const documentsService = this.manager.getService<DocumentsService>('chaycards/core-documents/documentsService');
     if (!documentsService) return;
 
     const files = await documentsService.getFiles();

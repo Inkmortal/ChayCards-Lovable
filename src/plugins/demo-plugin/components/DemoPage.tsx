@@ -21,11 +21,11 @@ export const DemoPage = () => {
 
   // *** CROSS-PLUGIN DATA ACCESS ***
   // Accessing service from core-theme plugin
-  const themeService = pluginManager.getService('core-theme/themeService');
+  const themeService = pluginManager.getService('chaycards/core-theme/themeService');
 
   // *** OWN PLUGIN DATA ***
   // Accessing own service from demo-plugin
-  const demoDataService = pluginManager.getService('demo-plugin/dataService');
+  const demoDataService = pluginManager.getService('chaycards/demo-plugin/dataService');
 
   // Determine storage mode from platform (Electron = local, Web = cloud)
   const storageMode = isElectron() ? 'local' : 'cloud';

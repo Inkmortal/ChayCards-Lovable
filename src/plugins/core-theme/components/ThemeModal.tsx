@@ -17,7 +17,7 @@ const CategoryToggle: React.FC<{
   onChange: (value: 'dark' | 'light') => void;
 }> = ({ value, onChange }) => {
   const manager = PluginManager.getInstance();
-  const Switch = manager.getComponent('core-ui/Switch');
+  const Switch = manager.getComponent('chaycards/core-ui/Switch');
 
   return (
     <div className="flex items-center gap-3 px-4 py-2 bg-card border border-border rounded-lg shadow-sm">
@@ -56,17 +56,17 @@ const CATEGORY_FILTER_KEY = 'core-theme:category-filter';
  */
 export const ThemeModal: React.FC<ThemeModalProps> = ({ open, onOpenChange }) => {
   const manager = PluginManager.getInstance();
-  const Dialog = manager.getComponent('core-ui/Dialog');
-  const Tabs = manager.getComponent('core-ui/Tabs');
-  const Badge = manager.getComponent('core-ui/Badge');
-  const EmptyState = manager.getComponent('core-ui/EmptyState');
-  const Button = manager.getComponent('core-ui/Button');
-  const Switch = manager.getComponent('core-ui/Switch');
-  const ErrorMessage = manager.getComponent('core-ui/ErrorMessage');
+  const Dialog = manager.getComponent('chaycards/core-ui/Dialog');
+  const Tabs = manager.getComponent('chaycards/core-ui/Tabs');
+  const Badge = manager.getComponent('chaycards/core-ui/Badge');
+  const EmptyState = manager.getComponent('chaycards/core-ui/EmptyState');
+  const Button = manager.getComponent('chaycards/core-ui/Button');
+  const Switch = manager.getComponent('chaycards/core-ui/Switch');
+  const ErrorMessage = manager.getComponent('chaycards/core-ui/ErrorMessage');
 
   const currentTheme = useCurrentTheme();
   const availableThemes = useAvailableThemes();
-  const themeService = manager.getService('core-theme/themeService');
+  const themeService = manager.getService('chaycards/core-theme/themeService');
 
   const [activeTab, setActiveTab] = useState<TabValue>('favorites');
   const [showBuilder, setShowBuilder] = useState(false);

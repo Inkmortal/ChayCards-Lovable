@@ -183,10 +183,10 @@ export const ThemeBuilder: React.FC<ThemeBuilderProps> = ({
   onImport
 }) => {
   const manager = PluginManager.getInstance();
-  const FormSection = manager.getComponent('core-ui/FormSection');
-  const FormField = manager.getComponent('core-ui/FormField');
-  const Button = manager.getComponent('core-ui/Button');
-  const Popover = manager.getComponent('core-ui/Popover');
+  const FormSection = manager.getComponent('chaycards/core-ui/FormSection');
+  const FormField = manager.getComponent('chaycards/core-ui/FormField');
+  const Button = manager.getComponent('chaycards/core-ui/Button');
+  const Popover = manager.getComponent('chaycards/core-ui/Popover');
 
   // Defensive check - if components aren't available, show error
   if (!FormSection || !FormField || !Button) {
@@ -293,7 +293,7 @@ export const ThemeBuilder: React.FC<ThemeBuilderProps> = ({
   const handleSave = () => {
     // Check if storage is available
     const manager = PluginManager.getInstance();
-    const themeService = manager.getService<any>('core-theme/themeService');
+    const themeService = manager.getService<any>('chaycards/core-theme/themeService');
 
     if (!themeService?.hasStorage()) {
       throw new Error('Please log in to create custom themes. Custom themes require persistent storage.');

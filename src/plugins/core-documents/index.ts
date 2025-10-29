@@ -20,15 +20,23 @@ import { FileBrowser } from './components/FileBrowser';
 // import { FileCard } from './components/FileCard';
 
 export const CoreDocumentsPlugin: Plugin = {
-  id: 'core-documents',
+  id: 'chaycards/core-documents',
   name: 'Documents',
   version: '1.0.0',
+  author: {
+    username: 'chaycards',
+    displayName: 'ChayCards Team'
+  },
   description: 'File management system with folders, tags, and extensible file handlers',
 
   // Requires core-ui for UI components
-  requires: ['core-ui'],
+  dependencies: {
+    requires: {
+      'chaycards/core-ui': '^1.0.0'
+    }
+  },
 
-  // Components (will be auto-namespaced to 'core-documents/ComponentName')
+  // Components (will be auto-namespaced to 'chaycards/core-documents/ComponentName')
   components: {
     'FileBrowser': FileBrowser,
     // Phase 2: Additional UI components
@@ -36,7 +44,7 @@ export const CoreDocumentsPlugin: Plugin = {
     // 'FileCard': FileCard,
   },
 
-  // Services (auto-namespaced to 'core-documents/serviceName')
+  // Services (auto-namespaced to 'chaycards/core-documents/serviceName')
   services: {
     'documentsService': new DocumentsService()
   },
@@ -45,7 +53,7 @@ export const CoreDocumentsPlugin: Plugin = {
   routes: [
     {
       path: '/app/documents',
-      component: 'core-documents/FileBrowser',
+      component: 'chaycards/core-documents/FileBrowser',
       label: 'Documents',
       icon: 'FileText',
       showInNav: true,
@@ -58,7 +66,7 @@ export const CoreDocumentsPlugin: Plugin = {
     console.log('[CoreDocumentsPlugin] Loading...');
 
     // Get service and storage
-    const service = manager.getService<DocumentsService>('core-documents/documentsService');
+    const service = manager.getService<DocumentsService>('chaycards/core-documents/documentsService');
     const storage = manager.getStorage();
 
     // Initialize service with storage

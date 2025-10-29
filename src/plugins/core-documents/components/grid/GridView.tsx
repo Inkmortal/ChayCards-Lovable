@@ -117,9 +117,9 @@ export const GridView: React.FC<GridViewProps> = ({
   parentInfo,
 }) => {
   const manager = PluginManager.getInstance();
-  const PageHeader = manager.getComponent('core-ui/PageHeader');
-  const Button = manager.getComponent('core-ui/Button');
-  const EmptyState = manager.getComponent('core-ui/EmptyState');
+  const PageHeader = manager.getComponent('chaycards/core-ui/PageHeader');
+  const Button = manager.getComponent('chaycards/core-ui/Button');
+  const EmptyState = manager.getComponent('chaycards/core-ui/EmptyState');
 
   // Handle sort button click
   const handleSort = async (mode: SortMode) => {

@@ -71,7 +71,7 @@ export interface DocumentViewerContextValue {
    * navigateInTab({ type: 'folder', folderId: null })
    *
    * // Navigate to component
-   * navigateInTab({ type: 'component', component: 'core-flashcards/CardEditor', props: { deckId: '123' } })
+   * navigateInTab({ type: 'component', component: 'chaycards/core-flashcards/CardEditor', props: { deckId: '123' } })
    */
   navigateInTab?: (item: NavigationItem) => void;
 }

@@ -53,7 +53,7 @@ export default function CardEditor({ deckId: propDeckId, cardId: propCardId, mod
 
   // Get service from PluginManager
   const manager = PluginManager.getInstance();
-  const service = manager.getService('core-flashcards/flashcardService') as FlashcardService;
+  const service = manager.getService('chaycards/core-flashcards/flashcardService') as FlashcardService;
 
   const {
     templates,
@@ -206,7 +206,7 @@ export default function CardEditor({ deckId: propDeckId, cardId: propCardId, mod
       // Navigate back to deck view
       navigation.push({
         type: 'component',
-        component: 'core-flashcards/DeckView',
+        component: 'chaycards/core-flashcards/DeckView',
         props: { deckId }
       });
     } catch (error) {
@@ -226,7 +226,7 @@ export default function CardEditor({ deckId: propDeckId, cardId: propCardId, mod
   const handleCancel = () => {
     navigation.push({
       type: 'component',
-      component: 'core-flashcards/DeckView',
+      component: 'chaycards/core-flashcards/DeckView',
       props: { deckId }
     });
   };

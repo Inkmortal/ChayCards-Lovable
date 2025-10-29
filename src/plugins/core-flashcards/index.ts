@@ -22,14 +22,23 @@ import StudySession from './components/StudySession';
 import DeckSettings from './components/DeckSettings';
 
 export const flashcardsPlugin: Plugin = {
-  id: 'core-flashcards',
+  id: 'chaycards/core-flashcards',
   name: 'Flashcards',
   version: '1.0.0',
+  author: {
+    username: 'chaycards',
+    displayName: 'ChayCards Team'
+  },
   description: 'Spaced repetition learning system with customizable templates',
 
-  requires: ['core-ui', 'core-documents'], // Integrates with documents for folder organization
+  dependencies: {
+    requires: {
+      'chaycards/core-ui': '^1.0.0',
+      'chaycards/core-documents': '^1.0.0'
+    }
+  }, // Integrates with documents for folder organization
 
-  // Components (auto-namespaced to 'core-flashcards/ComponentName')
+  // Components (auto-namespaced to 'chaycards/core-flashcards/ComponentName')
   components: {
     'FlashcardHome': FlashcardHome,
     'DeckView': DeckView,
@@ -46,7 +55,7 @@ export const flashcardsPlugin: Plugin = {
   routes: [
     {
       path: '/app/flashcards',
-      component: 'core-flashcards/FlashcardHome',
+      component: 'chaycards/core-flashcards/FlashcardHome',
       label: 'Flashcards',
       icon: 'Brain',
       showInNav: true,
@@ -54,19 +63,19 @@ export const flashcardsPlugin: Plugin = {
     },
     {
       path: '/app/flashcards/deck/:deckId',
-      component: 'core-flashcards/DeckView',
+      component: 'chaycards/core-flashcards/DeckView',
     },
     {
       path: '/app/flashcards/deck/:deckId/card/new',
-      component: 'core-flashcards/CardEditor',
+      component: 'chaycards/core-flashcards/CardEditor',
     },
     {
       path: '/app/flashcards/deck/:deckId/card/:cardId',
-      component: 'core-flashcards/CardEditor',
+      component: 'chaycards/core-flashcards/CardEditor',
     },
     {
       path: '/app/flashcards/study/:deckId',
-      component: 'core-flashcards/StudySession',
+      component: 'chaycards/core-flashcards/StudySession',
     },
     // Statistics and other routes to be added later
   ],
@@ -74,15 +83,15 @@ export const flashcardsPlugin: Plugin = {
   // Navigation routes for Documents integration
   // Maps component names to route builder functions for standalone mode
   navigationRoutes: {
-    'core-flashcards/FlashcardHome': () => '/app/flashcards',
-    'core-flashcards/DeckView': (props) => `/app/flashcards/deck/${props.fileId || props.deckId}`,
-    'core-flashcards/CardEditor': (props) => {
+    'chaycards/core-flashcards/FlashcardHome': () => '/app/flashcards',
+    'chaycards/core-flashcards/DeckView': (props) => `/app/flashcards/deck/${props.fileId || props.deckId}`,
+    'chaycards/core-flashcards/CardEditor': (props) => {
       if (props.mode === 'create') {
         return `/app/flashcards/deck/${props.deckId}/card/new`;
       }
       return `/app/flashcards/deck/${props.deckId}/card/${props.cardId}`;
     },
-    'core-flashcards/StudySession': (props) => `/app/flashcards/study/${props.deckId}`,
+    'chaycards/core-flashcards/StudySession': (props) => `/app/flashcards/study/${props.deckId}`,
   },
 
   async onLoad(manager) {
@@ -100,14 +109,14 @@ export const flashcardsPlugin: Plugin = {
     // Initialize service
     const service = new FlashcardService(eventBus);
 
-    // Register service (will be namespaced to 'core-flashcards/flashcardService')
-    manager.setService('core-flashcards/flashcardService', service);
+    // Register service (will be namespaced to 'chaycards/core-flashcards/flashcardService')
+    manager.setService('chaycards/core-flashcards/flashcardService', service);
 
     // Initialize with PluginManager and Storage (sets up default folder and event listeners)
     await service.initialize(manager, storage);
 
     // Get DocumentsService to register FileHandler
-    const documentsService = manager.getService<DocumentsService>('core-documents/documentsService');
+    const documentsService = manager.getService<DocumentsService>('chaycards/core-documents/documentsService');
 
     if (documentsService) {
       // Register FileHandler for flashcard decks
@@ -118,9 +127,9 @@ export const flashcardsPlugin: Plugin = {
         icon: { type: 'emoji', emoji: '🎴' },
         extensions: ['.deck'],
         mimeTypes: ['application/x-flashcard-deck'],
-        viewerComponent: 'core-flashcards/DeckView',
-        editorComponent: 'core-flashcards/DeckView', // Same component for now
-        settingsComponent: 'core-flashcards/DeckSettings', // Settings modal
+        viewerComponent: 'chaycards/core-flashcards/DeckView',
+        editorComponent: 'chaycards/core-flashcards/DeckView', // Same component for now
+        settingsComponent: 'chaycards/core-flashcards/DeckSettings', // Settings modal
         priority: 100,
 
         // Bidirectional sync callbacks

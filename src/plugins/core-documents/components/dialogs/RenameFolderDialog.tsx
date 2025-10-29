@@ -47,7 +47,7 @@ export const RenameFolderDialog: React.FC<RenameFolderDialogProps> = ({
   onRenameComplete,
 }) => {
   const manager = PluginManager.getInstance();
-  const Dialog = manager.getComponent('core-ui/Dialog');
+  const Dialog = manager.getComponent('chaycards/core-ui/Dialog');
 
   const [renameValue, setRenameValue] = useState('');
   const [renameError, setRenameError] = useState('');

@@ -26,7 +26,7 @@ export const STORAGE_KEYS = {
  *
  * @example
  * // Core plugins use predefined prefixes
- * const settingsPrefix = STORAGE_KEY_PREFIX.SETTINGS; // 'core-settings'
+ * const settingsPrefix = STORAGE_KEY_PREFIX.SETTINGS; // 'chaycards/core-settings'
  *
  * @example
  * // Third-party plugins use their plugin ID
@@ -34,9 +34,9 @@ export const STORAGE_KEYS = {
  */
 export const STORAGE_KEY_PREFIX = {
   /** Core settings plugin prefix */
-  SETTINGS: 'core-settings',
+  SETTINGS: 'chaycards/core-settings',
   /** Core theme plugin prefix */
-  THEME: 'core-theme',
+  THEME: 'chaycards/core-theme',
   /** Generate prefix for any plugin by ID */
   PLUGIN: (pluginId: string) => pluginId,
 } as const;
@@ -56,13 +56,13 @@ export const STORAGE_KEY_PREFIX = {
  *
  * @example
  * // Core settings plugin
- * const settingsKey = buildPluginStorageKey('core-settings', 'app-settings');
+ * const settingsKey = buildPluginStorageKey('chaycards/core-settings', 'app-settings');
  * // Returns: 'core-settings:app-settings'
  * await storage.set(settingsKey, { theme: 'dark' });
  *
  * @example
  * // Theme preference
- * const themeKey = buildPluginStorageKey('core-theme', 'preference');
+ * const themeKey = buildPluginStorageKey('chaycards/core-theme', 'preference');
  * // Returns: 'core-theme:preference'
  * await storage.set(themeKey, 'catppuccin-latte');
  *
@@ -112,16 +112,16 @@ export const PLUGIN_MANIFEST_VERSION = '1.0';
  * These are essential for the application to function.
  */
 export const CORE_PLUGINS = [
-  'core-settings',
-  'core-theme',
-  'core-ui',
-  'core-documents',  // Essential feature - can't use ChayCards without documents
-  'theme-catppuccin',
-  'theme-dracula',
-  'theme-gruvbox',
-  'theme-tokyonight',
-  'theme-chay',
-  'demo-plugin',
+  'chaycards/core-settings',
+  'chaycards/core-theme',
+  'chaycards/core-ui',
+  'chaycards/core-documents',  // Essential feature - can't use ChayCards without documents
+  'chaycards/theme-catppuccin',
+  'chaycards/theme-dracula',
+  'chaycards/theme-gruvbox',
+  'chaycards/theme-tokyonight',
+  'chaycards/theme-chay',
+  'chaycards/demo-plugin',
 ] as const;
 
 /**
@@ -144,9 +144,9 @@ export const DEFAULT_PLUGINS = [
  * @returns true if the plugin is a core plugin, false otherwise
  *
  * @example
- * isCorePlugin('core-settings'); // true
- * isCorePlugin('core-documents'); // true
- * isCorePlugin('demo-plugin'); // true
+ * isCorePlugin('chaycards/core-settings'); // true
+ * isCorePlugin('chaycards/core-documents'); // true
+ * isCorePlugin('chaycards/demo-plugin'); // true
  */
 export function isCorePlugin(pluginId: string): boolean {
   return (CORE_PLUGINS as readonly string[]).includes(pluginId);

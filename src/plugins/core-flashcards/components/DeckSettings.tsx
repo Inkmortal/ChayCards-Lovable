@@ -12,17 +12,17 @@ export interface DeckSettingsProps {
 
 export const DeckSettings: React.FC<DeckSettingsProps> = ({ fileId }) => {
   const manager = PluginManager.getInstance();
-  const service = manager.getService('core-flashcards/flashcardService');
+  const service = manager.getService('chaycards/core-flashcards/flashcardService');
 
   const [deck, setDeck] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Get UI components
-  const Label = manager.getComponent('core-ui/Label');
-  const Input = manager.getComponent('core-ui/Input');
-  const Textarea = manager.getComponent('core-ui/Textarea');
-  const Button = manager.getComponent('core-ui/Button');
+  const Label = manager.getComponent('chaycards/core-ui/Label');
+  const Input = manager.getComponent('chaycards/core-ui/Input');
+  const Textarea = manager.getComponent('chaycards/core-ui/Textarea');
+  const Button = manager.getComponent('chaycards/core-ui/Button');
 
   // Load deck data
   useEffect(() => {

@@ -22,7 +22,7 @@ export const DeleteFileDialog: React.FC<DeleteFileDialogProps> = ({
   onDeleteComplete,
 }) => {
   const manager = PluginManager.getInstance();
-  const Dialog = manager.getComponent('core-ui/Dialog');
+  const Dialog = manager.getComponent('chaycards/core-ui/Dialog');
 
   const [file, setFile] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);

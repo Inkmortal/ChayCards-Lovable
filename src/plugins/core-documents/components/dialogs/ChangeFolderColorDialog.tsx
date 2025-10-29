@@ -39,8 +39,8 @@ export const ChangeFolderColorDialog: React.FC<ChangeFolderColorDialogProps> = (
   onColorChangeComplete,
 }) => {
   const manager = PluginManager.getInstance();
-  const Dialog = manager.getComponent('core-ui/Dialog');
-  const Popover = manager.getComponent('core-ui/Popover');
+  const Dialog = manager.getComponent('chaycards/core-ui/Dialog');
+  const Popover = manager.getComponent('chaycards/core-ui/Popover');
 
   const [changeColorValue, setChangeColorValue] = useState(defaultFolderColor);
 

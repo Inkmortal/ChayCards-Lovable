@@ -4,6 +4,7 @@
  */
 
 import { ComponentType } from 'react';
+import semver from 'semver';
 import type {
   Plugin,
   Route,
@@ -57,6 +58,18 @@ export class PluginManager implements IPluginManager {
   }
 
   setComponent(name: string, component: ComponentType<any>): void {
+    // Check for collision
+    if (this.components.has(name)) {
+      console.error(
+        `🚨 COMPONENT COLLISION: '${name}' is already registered!\n` +
+        `This indicates a duplicate plugin ID or namespace conflict.\n` +
+        `The previous component will be overwritten.`
+      );
+      if (import.meta.env.DEV) {
+        console.trace('Component collision stack trace:');
+      }
+    }
+
     this.components.set(name, component);
     this.eventBus.emit('component:registered', { name, component });
   }
@@ -67,8 +80,72 @@ export class PluginManager implements IPluginManager {
   }
 
   setService(name: string, service: any): void {
+    // Check for collision
+    if (this.services.has(name)) {
+      console.error(
+        `🚨 SERVICE COLLISION: '${name}' is already registered!\n` +
+        `This indicates a duplicate plugin ID or namespace conflict.\n` +
+        `The previous service will be overwritten.`
+      );
+      if (import.meta.env.DEV) {
+        console.trace('Service collision stack trace:');
+      }
+    }
+
     this.services.set(name, service);
     this.eventBus.emit('service:registered', { name, service });
+  }
+
+  /**
+   * Find services matching a pattern (regex or string).
+   * Returns array of service info including full name, plugin ID, and service name.
+   */
+  findServices(pattern: string | RegExp): Array<{
+    fullName: string;
+    pluginId: string;
+    serviceName: string;
+  }> {
+    const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+    const results: Array<{ fullName: string; pluginId: string; serviceName: string }> = [];
+
+    for (const [fullName, _] of this.services) {
+      if (regex.test(fullName)) {
+        // Split pluginId/serviceName (handle author/plugin/serviceName format)
+        const parts = fullName.split('/');
+        if (parts.length >= 2) {
+          // For 'author/plugin/service' format
+          const pluginId = parts.length === 3 ? `${parts[0]}/${parts[1]}` : parts[0];
+          const serviceName = parts.length === 3 ? parts[2] : parts[1];
+          results.push({ fullName, pluginId, serviceName });
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Check if a specific service exists for a plugin.
+   */
+  hasService(pluginId: string, serviceName: string): boolean {
+    return this.services.has(`${pluginId}/${serviceName}`);
+  }
+
+  /**
+   * Get all services registered by a specific plugin.
+   * Returns object mapping service names to service instances.
+   */
+  getPluginServices(pluginId: string): Record<string, any> {
+    const services: Record<string, any> = {};
+
+    for (const [fullName, service] of this.services) {
+      if (fullName.startsWith(`${pluginId}/`)) {
+        const serviceName = fullName.substring(pluginId.length + 1);
+        services[serviceName] = service;
+      }
+    }
+
+    return services;
   }
 
   // Route management
@@ -130,7 +207,7 @@ export class PluginManager implements IPluginManager {
 
   // Initialize storage (called after core-settings loads)
   async initializeStorage(): Promise<void> {
-    const settingsService = this.getService('core-settings/settingsService');
+    const settingsService = this.getService('chaycards/core-settings/settingsService');
     if (!settingsService) {
       throw new Error('SettingsService not found. core-settings plugin must load first.');
     }
@@ -292,6 +369,88 @@ export class PluginManager implements IPluginManager {
     });
   }
 
+  /**
+   * Validate plugin dependencies with version checking.
+   * Returns errors (blocks loading) and warnings (logs but continues).
+   */
+  private async validateDependencies(plugin: Plugin): Promise<{
+    errors: string[];
+    warnings: string[];
+  }> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Handle OLD format (requires array) - for backward compatibility during migration
+    if (plugin.requires) {
+      for (const depId of plugin.requires) {
+        // Check if dependency failed to load
+        if (this.failedPlugins.has(depId)) {
+          errors.push(
+            `Plugin ${plugin.id} requires ${depId}, which failed to load. ` +
+            `Cannot proceed with loading ${plugin.id}.`
+          );
+          continue;
+        }
+
+        const dep = this.loadedPlugins.get(depId);
+        if (!dep) {
+          errors.push(`Missing required plugin: ${depId}`);
+        }
+      }
+    }
+
+    // Handle NEW format (dependencies object with version constraints)
+    if (plugin.dependencies) {
+      // Check REQUIRES (hard dependencies - blocks loading)
+      if (plugin.dependencies.requires) {
+        for (const [depId, versionRange] of Object.entries(plugin.dependencies.requires)) {
+          // Check if dependency failed to load
+          if (this.failedPlugins.has(depId)) {
+            errors.push(
+              `Plugin ${plugin.id} requires ${depId}, which failed to load. ` +
+              `Cannot proceed with loading ${plugin.id}.`
+            );
+            continue;
+          }
+
+          const dep = this.loadedPlugins.get(depId);
+
+          if (!dep) {
+            errors.push(`Missing required plugin: ${depId}`);
+          } else if (!semver.satisfies(dep.version, versionRange)) {
+            errors.push(
+              `Version mismatch: ${plugin.id} requires ${depId}@${versionRange}, ` +
+              `but ${dep.version} is installed`
+            );
+          }
+        }
+      }
+
+      // Check RECOMMENDS (soft dependencies - warns only, continues loading)
+      if (plugin.dependencies.recommends) {
+        for (const [depId, versionRange] of Object.entries(plugin.dependencies.recommends)) {
+          const dep = this.loadedPlugins.get(depId);
+
+          if (!dep) {
+            // Not installed - that's OK for recommended dependencies
+            console.log(`📦 ${plugin.id}: Recommended plugin ${depId} not available`);
+          } else if (!semver.satisfies(dep.version, versionRange)) {
+            // Installed but wrong version - warn
+            warnings.push(
+              `⚠️ ${plugin.id} recommends ${depId}@${versionRange}, ` +
+              `but ${dep.version} is installed. Some features may not work properly.`
+            );
+          } else {
+            // Perfect match!
+            console.log(`✨ ${plugin.id}: Enhanced with ${depId}@${dep.version}`);
+          }
+        }
+      }
+    }
+
+    return { errors, warnings };
+  }
+
   // Plugin loading with dependency resolution
   async loadPlugin(plugin: Plugin): Promise<void> {
     // Check if already loaded
@@ -300,23 +459,20 @@ export class PluginManager implements IPluginManager {
       return;
     }
 
-    // Load dependencies first
-    if (plugin.requires) {
-      for (const depId of plugin.requires) {
-        // Check if dependency failed to load
-        if (this.failedPlugins.has(depId)) {
-          throw new Error(
-            `Plugin ${plugin.id} requires ${depId}, which failed to load. ` +
-            `Cannot proceed with loading ${plugin.id}.`
-          );
-        }
+    // Validate dependencies (both old and new format)
+    const { errors, warnings } = await this.validateDependencies(plugin);
 
-        const dep = this.loadedPlugins.get(depId);
-        if (!dep) {
-          throw new Error(`Plugin ${plugin.id} requires ${depId}, but it's not loaded`);
-        }
-      }
+    // Errors block loading
+    if (errors.length > 0) {
+      const errorMessage = `Cannot load plugin ${plugin.id}:\n${errors.join('\n')}`;
+      console.error(`[PluginManager] ❌ ${errorMessage}`);
+      throw new Error(errorMessage);
     }
+
+    // Warnings log but allow loading to continue
+    warnings.forEach(warning => {
+      console.warn(`[PluginManager] ${warning}`);
+    });
 
     try {
       // Register components with namespace
@@ -444,8 +600,8 @@ export class PluginManager implements IPluginManager {
                   waves.map((w, i) => `Wave ${i}: [${w.map(p => p.id).join(', ')}]`));
 
       // Load Wave 0 (core-settings special case)
-      if (waves[0].length !== 1 || waves[0][0].id !== 'core-settings') {
-        throw new Error('Wave 0 must contain only core-settings plugin');
+      if (waves[0].length !== 1 || waves[0][0].id !== 'chaycards/core-settings') {
+        throw new Error('Wave 0 must contain only chaycards/core-settings plugin');
       }
 
       const wave0StartTime = performance.now();
@@ -517,7 +673,7 @@ export class PluginManager implements IPluginManager {
       }
 
       // Apply localStorage theme after all theme plugins have loaded
-      const themeService = this.getService('core-theme/themeService');
+      const themeService = this.getService('chaycards/core-theme/themeService');
       if (themeService) {
         await themeService.applyLocalStorageTheme();
       }
@@ -574,7 +730,7 @@ export class PluginManager implements IPluginManager {
       }
 
       // Apply localStorage theme after all theme plugins have loaded
-      const themeService = this.getService('core-theme/themeService');
+      const themeService = this.getService('chaycards/core-theme/themeService');
       if (themeService) {
         console.log('[PluginManager] Applying localStorage theme after all plugins loaded...');
         await themeService.applyLocalStorageTheme();
@@ -632,7 +788,7 @@ export class PluginManager implements IPluginManager {
     const sortedPlugins = this.sortPluginsByDependencies(plugins);
 
     // Load core-settings first
-    const coreSettings = sortedPlugins.find(p => p.id === 'core-settings');
+    const coreSettings = sortedPlugins.find(p => p.id === 'chaycards/core-settings');
     if (coreSettings) {
       await this.loadPlugin(coreSettings);
 
@@ -644,7 +800,7 @@ export class PluginManager implements IPluginManager {
 
     // Load remaining plugins
     for (const plugin of sortedPlugins) {
-      if (plugin.id !== 'core-settings') {
+      if (plugin.id !== 'chaycards/core-settings') {
         await this.loadPlugin(plugin);
       }
     }
@@ -721,6 +877,23 @@ export class PluginManager implements IPluginManager {
 
   // Sort plugins by dependencies (topological sort)
   public sortPluginsByDependencies(plugins: Plugin[]): Plugin[] {
+    // Helper: Get all dependency IDs (supports both old and new formats)
+    const getDependencyIds = (plugin: Plugin): string[] => {
+      const deps: string[] = [];
+
+      // Old format: requires array
+      if (plugin.requires && plugin.requires.length > 0) {
+        deps.push(...plugin.requires);
+      }
+
+      // New format: dependencies.requires object
+      if (plugin.dependencies?.requires) {
+        deps.push(...Object.keys(plugin.dependencies.requires));
+      }
+
+      return deps;
+    };
+
     const sorted: Plugin[] = [];
     const visited = new Set<string>();
     const visiting = new Set<string>();
@@ -736,15 +909,14 @@ export class PluginManager implements IPluginManager {
 
       visiting.add(plugin.id);
 
-      // Visit dependencies first
-      if (plugin.requires) {
-        for (const depId of plugin.requires) {
-          const dep = plugins.find(p => p.id === depId);
-          if (dep) {
-            visit(dep);
-          } else {
-            console.warn(`Plugin ${plugin.id} requires ${depId}, but it's not found`);
-          }
+      // Visit dependencies first (both old and new formats)
+      const depIds = getDependencyIds(plugin);
+      for (const depId of depIds) {
+        const dep = plugins.find(p => p.id === depId);
+        if (dep) {
+          visit(dep);
+        } else {
+          console.warn(`Plugin ${plugin.id} requires ${depId}, but it's not found`);
         }
       }
 
@@ -768,6 +940,23 @@ export class PluginManager implements IPluginManager {
    * @returns Array of waves, each wave is array of plugins that can load in parallel
    */
   private computeLoadingWaves(plugins: Plugin[]): Plugin[][] {
+    // Helper: Get all dependency IDs (supports both old and new formats)
+    const getDependencyIds = (plugin: Plugin): string[] => {
+      const deps: string[] = [];
+
+      // Old format: requires array
+      if (plugin.requires && plugin.requires.length > 0) {
+        deps.push(...plugin.requires);
+      }
+
+      // New format: dependencies.requires object
+      if (plugin.dependencies?.requires) {
+        deps.push(...Object.keys(plugin.dependencies.requires));
+      }
+
+      return deps;
+    };
+
     // Use existing topological sort (guarantees dependency order)
     const sorted = this.sortPluginsByDependencies(plugins);
 
@@ -775,18 +964,22 @@ export class PluginManager implements IPluginManager {
     const depthMap = new Map<string, number>();
 
     for (const plugin of sorted) {
-      if (plugin.id === 'core-settings') {
+      if (plugin.id === 'chaycards/core-settings') {
         // Special case: core-settings is Wave 0 (must load before storage init)
         depthMap.set(plugin.id, 0);
-      } else if (!plugin.requires || plugin.requires.length === 0) {
-        // Zero dependencies = Wave 1 (after storage init)
-        depthMap.set(plugin.id, 1);
       } else {
-        // Depth = max(dependency depths) + 1
-        const maxDepDepth = Math.max(
-          ...plugin.requires.map(depId => depthMap.get(depId) ?? 0)
-        );
-        depthMap.set(plugin.id, maxDepDepth + 1);
+        const depIds = getDependencyIds(plugin);
+
+        if (depIds.length === 0) {
+          // Zero dependencies = Wave 1 (after storage init)
+          depthMap.set(plugin.id, 1);
+        } else {
+          // Depth = max(dependency depths) + 1
+          const maxDepDepth = Math.max(
+            ...depIds.map(depId => depthMap.get(depId) ?? 0)
+          );
+          depthMap.set(plugin.id, maxDepDepth + 1);
+        }
       }
     }
 

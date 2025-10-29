@@ -37,8 +37,8 @@ export const CreateFolderDialog: React.FC<CreateFolderDialogProps> = ({
   onFolderCreated,
 }) => {
   const manager = PluginManager.getInstance();
-  const Dialog = manager.getComponent('core-ui/Dialog');
-  const Popover = manager.getComponent('core-ui/Popover');
+  const Dialog = manager.getComponent('chaycards/core-ui/Dialog');
+  const Popover = manager.getComponent('chaycards/core-ui/Popover');
 
   const [newFolderName, setNewFolderName] = useState('');
   const [folderPlaceholder, setFolderPlaceholder] = useState('New Folder');

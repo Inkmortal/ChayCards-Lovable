@@ -6,16 +6,33 @@
 import { ComponentType } from 'react';
 
 export interface Plugin {
-  id: string;              // Unique identifier (e.g., 'core.theme')
+  id: string;              // Unique identifier (format: 'author/plugin-name')
   name: string;            // Display name
   version: string;         // Semantic version
   description?: string;    // What this plugin does
-  author?: string;         // Plugin author
+
+  // Author metadata (for marketplace)
+  author: {
+    username: string;      // Author username (e.g., 'chaycards', 'johndoe')
+    displayName?: string;  // Display name (e.g., 'ChayCards Team', 'John Doe')
+    url?: string;          // Homepage or profile URL
+  };
 
   // Public page compatibility
   publicSafe?: boolean;    // Can run on public pages without user storage (default: false)
 
-  // Dependencies
+  // Dependencies (new format with version constraints)
+  dependencies?: {
+    requires?: Record<string, string>;     // Hard dependencies (blocks loading if missing/incompatible)
+    recommends?: Record<string, string>;   // Soft dependencies (warns if incompatible, continues loading)
+  };
+
+  // Marketplace metadata
+  repository?: string;     // Source code repository URL (e.g., GitHub)
+  license?: string;        // License identifier (e.g., 'MIT', 'GPL-3.0')
+  keywords?: string[];     // Search keywords for marketplace
+
+  // DEPRECATED: Old dependency format (will be removed after migration)
   requires?: string[];     // Array of plugin IDs this depends on
 
   // What this plugin provides

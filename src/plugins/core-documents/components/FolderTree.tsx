@@ -352,8 +352,8 @@ const TreeNodeRenderer: React.FC<TreeNodeRendererProps> = ({
   setGlobalDropCursor
 }) => {
   const manager = PluginManager.getInstance();
-  const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
-  const DropdownMenuItem = manager.getComponent('core-ui/DropdownMenuItem');
+  const DropdownMenu = manager.getComponent('chaycards/core-ui/DropdownMenu');
+  const DropdownMenuItem = manager.getComponent('chaycards/core-ui/DropdownMenuItem');
   const data = node.data;
   const isFolder = data.type === 'folder';
   const hasChildren = isFolder && data.children && data.children.length > 0;

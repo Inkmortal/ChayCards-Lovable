@@ -24,7 +24,7 @@ export const RenameFileDialog: React.FC<RenameFileDialogProps> = ({
   onRenameComplete,
 }) => {
   const manager = PluginManager.getInstance();
-  const Dialog = manager.getComponent('core-ui/Dialog');
+  const Dialog = manager.getComponent('chaycards/core-ui/Dialog');
 
   const [file, setFile] = useState<any>(null);
   const [nameWithoutExt, setNameWithoutExt] = useState('');

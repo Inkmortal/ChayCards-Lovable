@@ -13,7 +13,7 @@ import type { ThemeService } from '../services/ThemeService';
  * @private
  */
 const useThemeService = (): ThemeService | undefined => {
-  return PluginManager.getInstance().getService('core-theme/themeService');
+  return PluginManager.getInstance().getService('chaycards/core-theme/themeService');
 };
 
 /**

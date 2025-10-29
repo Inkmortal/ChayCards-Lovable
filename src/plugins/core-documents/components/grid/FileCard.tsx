@@ -28,9 +28,9 @@ export const FileCard = React.forwardRef<HTMLDivElement, FileCardProps>(({
   onOpenInTab
 }, forwardedRef) => {
   const manager = PluginManager.getInstance();
-  const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
-  const DropdownMenuItem = manager.getComponent('core-ui/DropdownMenuItem');
-  const DropdownMenuSeparator = manager.getComponent('core-ui/DropdownMenuSeparator');
+  const DropdownMenu = manager.getComponent('chaycards/core-ui/DropdownMenu');
+  const DropdownMenuItem = manager.getComponent('chaycards/core-ui/DropdownMenuItem');
+  const DropdownMenuSeparator = manager.getComponent('chaycards/core-ui/DropdownMenuSeparator');
 
   const internalRef = useRef<HTMLDivElement>(null);
 

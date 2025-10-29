@@ -11,7 +11,7 @@
  * // Navigate to component
  * navigation.push({
  *   type: 'component',
- *   component: 'core-flashcards/CardEditor',
+ *   component: 'chaycards/core-flashcards/CardEditor',
  *   props: { deckId: '123', cardId: '456' }
  * });
  *
@@ -78,7 +78,7 @@ function buildRouteFromNavigationItem(item: NavigationItem): string | null {
 
   if (item.type === 'file') {
     // Get file handler and use its route
-    const documentsService = manager.getService<DocumentsService>('core-documents/documentsService');
+    const documentsService = manager.getService<DocumentsService>('chaycards/core-documents/documentsService');
     if (documentsService) {
       // This is async in reality, but we'll handle it synchronously for navigation
       // In practice, the file should already be loaded when navigating

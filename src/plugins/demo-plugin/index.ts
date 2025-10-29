@@ -16,13 +16,21 @@ import { SidebarWidget } from './components/SidebarWidget';
 import { DemoDataService } from './services/DemoDataService';
 
 export const DemoPlugin: Plugin = {
-  id: 'demo-plugin',
+  id: 'chaycards/demo-plugin',
   name: 'Demo Plugin',
   version: '1.0.0',
+  author: {
+    username: 'chaycards',
+    displayName: 'ChayCards Team'
+  },
   description: 'Demonstrates plugin system capabilities including data storage and cross-plugin communication',
 
   // Depends on theme system to demonstrate cross-plugin data access
-  requires: ['core-theme'],
+  dependencies: {
+    requires: {
+      'chaycards/core-theme': '^1.0.0'
+    }
+  },
 
   // Register components
   components: {
@@ -40,7 +48,7 @@ export const DemoPlugin: Plugin = {
   routes: [
     {
       path: '/app/demo',
-      component: 'demo-plugin/DemoPage',
+      component: 'chaycards/demo-plugin/DemoPage',
       label: 'Demo',
       showInNav: true,
       order: 10  // Show first in navigation
@@ -51,7 +59,7 @@ export const DemoPlugin: Plugin = {
     console.log('Demo Plugin loaded');
 
     // Initialize data service with storage adapter
-    const dataService = manager.getService('demo-plugin/dataService');
+    const dataService = manager.getService('chaycards/demo-plugin/dataService');
     const storage = manager.getStorage();
     if (dataService && storage) {
       await dataService.initialize(storage);
@@ -61,14 +69,14 @@ export const DemoPlugin: Plugin = {
     // Add header component
     manager.addToRegion('header', {
       id: 'demo-header-status',
-      component: 'demo-plugin/HeaderStatus',
+      component: 'chaycards/demo-plugin/HeaderStatus',
       order: 50  // middle position
     });
 
     // Add sidebar component
     manager.addToRegion('sidebar', {
       id: 'demo-sidebar-widget',
-      component: 'demo-plugin/SidebarWidget',
+      component: 'chaycards/demo-plugin/SidebarWidget',
       order: 10  // top of sidebar components
     });
 

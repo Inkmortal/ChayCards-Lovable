@@ -77,7 +77,7 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
 
   // Get service from PluginManager
   const manager = PluginManager.getInstance();
-  const service = manager.getService('core-flashcards/flashcardService') as FlashcardService;
+  const service = manager.getService('chaycards/core-flashcards/flashcardService') as FlashcardService;
 
   const {
     decks,
@@ -227,7 +227,7 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
       <div className="flex flex-col items-center justify-center h-full">
         <BookMarked className="w-12 h-12 text-muted-foreground mb-4" />
         <p className="text-muted-foreground">Deck not found</p>
-        <Button onClick={() => navigation.push({ type: 'component', component: 'core-flashcards/FlashcardHome', props: {} })} className="mt-4">
+        <Button onClick={() => navigation.push({ type: 'component', component: 'chaycards/core-flashcards/FlashcardHome', props: {} })} className="mt-4">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Flashcards
         </Button>
@@ -243,7 +243,7 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigation.push({ type: 'component', component: 'core-flashcards/FlashcardHome', props: {} })}
+            onClick={() => navigation.push({ type: 'component', component: 'chaycards/core-flashcards/FlashcardHome', props: {} })}
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
@@ -292,7 +292,7 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
             size="sm"
             onClick={() => navigation.push({
               type: 'component',
-              component: 'core-flashcards/StudySession',
+              component: 'chaycards/core-flashcards/StudySession',
               props: { deckId: deck.id }
             })}
             disabled={dueCards.length === 0}
@@ -443,7 +443,7 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
 
         <Button onClick={() => navigation.push({
           type: 'component',
-          component: 'core-flashcards/CardEditor',
+          component: 'chaycards/core-flashcards/CardEditor',
           props: { deckId, mode: 'create', defaultTemplateId: deck?.defaultTemplateId }
         })}>
           <Plus className="w-4 h-4 mr-2" />
@@ -473,7 +473,7 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
               {!searchQuery && cardFilter === 'all' && (
                 <Button onClick={() => navigation.push({
                   type: 'component',
-                  component: 'core-flashcards/CardEditor',
+                  component: 'chaycards/core-flashcards/CardEditor',
                   props: { deckId, mode: 'create', defaultTemplateId: deck?.defaultTemplateId }
                 })}>
                   <Plus className="w-4 h-4 mr-2" />
@@ -553,7 +553,7 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
                             <DropdownMenuItem
                               onClick={() => navigation.push({
                                 type: 'component',
-                                component: 'core-flashcards/CardEditor',
+                                component: 'chaycards/core-flashcards/CardEditor',
                                 props: { deckId, cardId: card.id, mode: 'edit' }
                               })}
                             >

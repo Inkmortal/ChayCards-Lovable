@@ -10,13 +10,17 @@ import type { Plugin } from '../../shared/plugin-system/types';
 import { SettingsService } from './services/SettingsService';
 
 export const CoreSettingsPlugin: Plugin = {
-  id: 'core-settings',
+  id: 'chaycards/core-settings',
   name: 'Core Settings',
   version: '1.0.0',
+  author: {
+    username: 'chaycards',
+    displayName: 'ChayCards Team'
+  },
   description: 'Manages application settings and user preferences',
 
   // No dependencies - this loads FIRST
-  requires: [],
+  dependencies: {},
 
   services: {
     'settingsService': new SettingsService()
@@ -25,7 +29,7 @@ export const CoreSettingsPlugin: Plugin = {
   onLoad: async (manager) => {
     console.log('[core-settings] Plugin loaded');
 
-    const settingsService = manager.getService('core-settings/settingsService');
+    const settingsService = manager.getService('chaycards/core-settings/settingsService');
 
     // Log current app-wide settings
     console.log('[core-settings] Current settings:', settingsService.getSettings());

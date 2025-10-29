@@ -55,8 +55,8 @@ export default function FlashcardHome() {
 
   // Get services from PluginManager
   const manager = PluginManager.getInstance();
-  const flashcardService = manager.getService('core-flashcards/flashcardService') as FlashcardService;
-  const documentsService = manager.getService('core-documents/documentsService') as DocumentsService;
+  const flashcardService = manager.getService('chaycards/core-flashcards/flashcardService') as FlashcardService;
+  const documentsService = manager.getService('chaycards/core-documents/documentsService') as DocumentsService;
 
   // Flashcard data
   const {

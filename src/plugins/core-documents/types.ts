@@ -134,7 +134,7 @@ export interface FileHandler {
   /**
    * Optional settings component for this file type
    * Shown in tab context menu under "Settings"
-   * @example 'core-flashcards/DeckSettings'
+   * @example 'chaycards/core-flashcards/DeckSettings'
    */
   settingsComponent?: string;
 }
@@ -382,7 +382,7 @@ export interface TabHistoryEntry {
   /** For document entries: which file was open */
   fileId?: string;
 
-  /** For component entries: which component to render (e.g., 'core-flashcards/CardEditor') */
+  /** For component entries: which component to render (e.g., 'chaycards/core-flashcards/CardEditor') */
   component?: string;
 
   /** For component entries: props to pass to the component */

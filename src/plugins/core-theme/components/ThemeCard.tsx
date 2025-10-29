@@ -45,8 +45,8 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   onClone,
 }) => {
   const manager = PluginManager.getInstance();
-  const Badge = manager.getComponent('core-ui/Badge');
-  const DropdownMenu = manager.getComponent('core-ui/DropdownMenu');
+  const Badge = manager.getComponent('chaycards/core-ui/Badge');
+  const DropdownMenu = manager.getComponent('chaycards/core-ui/DropdownMenu');
 
   // Extract 4 most visually distinctive colors for theme identity
   const paletteColors = [

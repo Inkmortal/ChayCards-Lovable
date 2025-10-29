@@ -44,7 +44,7 @@ export default function StudySession({ deckId: propDeckId, mode: propMode }: Stu
 
   // Get service
   const manager = PluginManager.getInstance();
-  const service = manager.getService('core-flashcards/flashcardService') as FlashcardService;
+  const service = manager.getService('chaycards/core-flashcards/flashcardService') as FlashcardService;
 
   const {
     templates,
@@ -188,7 +188,7 @@ export default function StudySession({ deckId: propDeckId, mode: propMode }: Stu
   const handleExit = () => {
     navigation.push({
       type: 'component',
-      component: 'core-flashcards/DeckView',
+      component: 'chaycards/core-flashcards/DeckView',
       props: { deckId }
     });
   };

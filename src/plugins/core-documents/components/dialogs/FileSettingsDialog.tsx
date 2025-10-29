@@ -20,7 +20,7 @@ export const FileSettingsDialog: React.FC<FileSettingsDialogProps> = ({
   documentsService,
 }) => {
   const manager = PluginManager.getInstance();
-  const Dialog = manager.getComponent('core-ui/Dialog');
+  const Dialog = manager.getComponent('chaycards/core-ui/Dialog');
 
   if (!Dialog || !file) return null;
 

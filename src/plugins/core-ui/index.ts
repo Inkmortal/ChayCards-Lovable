@@ -42,16 +42,20 @@ import { RadioGroup } from './components/RadioGroup';
 import { Button } from './components/Button';
 
 export const CoreUIPlugin: Plugin = {
-  id: 'core-ui',
+  id: 'chaycards/core-ui',
   name: 'Core UI Components',
   version: '1.0.0',
+  author: {
+    username: 'chaycards',
+    displayName: 'ChayCards Team'
+  },
   description: 'Shared UI component library for plugin ecosystem',
 
   // Can run on public pages (no user storage needed)
   publicSafe: true,
 
   // No dependencies - this is a base library
-  requires: [],
+  dependencies: {},
 
   // Export components for other plugins to use
   components: {

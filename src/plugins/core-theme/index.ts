@@ -11,9 +11,13 @@ import { ThemeCard } from './components/ThemeCard';
 import { ThemeBuilder } from './components/ThemeBuilder';
 
 export const CoreThemePlugin: Plugin = {
-  id: 'core-theme',
+  id: 'chaycards/core-theme',
   name: 'Core Theme System',
   version: '1.0.0',
+  author: {
+    username: 'chaycards',
+    displayName: 'ChayCards Team'
+  },
   description: 'Provides theming capabilities with multiple theme variants',
 
   // Can run on public pages with localStorage, syncs to user storage when authenticated
@@ -21,7 +25,7 @@ export const CoreThemePlugin: Plugin = {
 
   // No dependencies - works standalone with localStorage on public pages,
   // syncs to user storage when available on authenticated pages
-  requires: [],
+  dependencies: {},
 
   components: {
     'ThemeSelector': ThemeSelector,
@@ -38,7 +42,7 @@ export const CoreThemePlugin: Plugin = {
     console.log('[CoreThemePlugin] onLoad called');
 
     // Get theme service and storage
-    const themeService = manager.getService('core-theme/themeService');
+    const themeService = manager.getService('chaycards/core-theme/themeService');
     const storage = manager.getStorage();
 
     console.log('[CoreThemePlugin] ThemeService:', !!themeService);
@@ -67,7 +71,7 @@ export const CoreThemePlugin: Plugin = {
   onPluginsReady: async (manager) => {
     console.log('[CoreThemePlugin] onPluginsReady called - all theme plugins loaded');
 
-    const themeService = manager.getService('core-theme/themeService');
+    const themeService = manager.getService('chaycards/core-theme/themeService');
 
     // Apply stored theme now that all theme plugins have registered their themes
     if (themeService) {
