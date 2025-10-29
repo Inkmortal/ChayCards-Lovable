@@ -137,7 +137,8 @@
       "Bash(timeout 15 npx tsc:*)",
       "Bash(timeout 5 tail:*)",
       "Bash(./scripts/start-servers-tmux.sh:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(npx tsx:*)"
     ],
     "deny": []
   },
