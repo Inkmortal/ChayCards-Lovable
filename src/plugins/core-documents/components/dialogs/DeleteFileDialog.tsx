@@ -85,7 +85,7 @@ export const DeleteFileDialog: React.FC<DeleteFileDialogProps> = ({
       showConfirm
       showCancel
       confirmText={isDeleting ? "Deleting..." : "Delete"}
-      confirmVariant="destructive"
+      confirmVariant="3d-destructive"
       onConfirm={handleConfirm}
       onCancel={handleCancel}
     >

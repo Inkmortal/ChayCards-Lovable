@@ -106,9 +106,9 @@ export const TabBar: React.FC<TabBarProps> = ({
   }, [tabs, activeTabId, onTabClick, onTabClose, onNewTab]);
 
   return (
-    <div className="flex items-center border-b bg-background overflow-x-auto overflow-y-hidden">
-      {/* Tab list */}
-      <div className="flex items-center flex-1 min-w-0">
+    <div className="flex items-center border-b bg-background">
+      {/* Tab list - scrollable */}
+      <div className="flex items-center flex-1 min-w-0 overflow-x-auto overflow-y-hidden">
         {tabs.map((tab, index) => {
           const isActive = tab.id === activeTabId;
 
@@ -167,7 +167,7 @@ export const TabBar: React.FC<TabBarProps> = ({
         })}
       </div>
 
-      {/* New tab button */}
+      {/* New tab button - sticky on right */}
       <Button
         variant="ghost"
         size="icon"

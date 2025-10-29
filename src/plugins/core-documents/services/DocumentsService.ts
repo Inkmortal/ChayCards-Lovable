@@ -724,6 +724,87 @@ export class DocumentsService {
   }
 
   /**
+   * Get folder contents analyzed by FileHandler type
+   * Useful for plugins that need to determine folder safety before operations
+   *
+   * @param folderId - Folder ID to analyze (null = root)
+   * @param recursive - If true, includes contents of all subfolders
+   * @returns Content analysis with files grouped by handler type
+   *
+   * @example
+   * const contents = await documentsService.getFolderContents('folder-id');
+   * if (contents.isEmpty) {
+   *   // Safe to delete immediately
+   * } else if (contents.filesByHandler['flashcard-deck-handler']) {
+   *   // Contains only flashcards - confirm deletion
+   * } else {
+   *   // Contains mixed content - block deletion
+   * }
+   */
+  async getFolderContents(
+    folderId: string | null,
+    recursive: boolean = false
+  ): Promise<{
+    isEmpty: boolean;
+    folders: Folder[];
+    filesByHandler: Record<string, StoredFile[]>;
+    totalFiles: number;
+  }> {
+    const allFolders = await this.getFolders();
+    const allFiles = await this.getFiles();
+
+    // Get child folders (direct children or recursive)
+    let childFolders: Folder[];
+    if (recursive) {
+      // Recursively collect all descendant folders
+      const collectDescendants = (parentId: string | null): Folder[] => {
+        const children = allFolders.filter(f => f.parentId === parentId);
+        return children.concat(children.flatMap(child => collectDescendants(child.id)));
+      };
+      childFolders = collectDescendants(folderId);
+    } else {
+      // Only direct children
+      childFolders = allFolders.filter(f => f.parentId === folderId);
+    }
+
+    // Get files in this folder (and subfolders if recursive)
+    let filesInScope: StoredFile[];
+    if (recursive) {
+      // Include files from this folder and all descendant folders
+      const folderIds = new Set([folderId, ...childFolders.map(f => f.id)]);
+      filesInScope = allFiles.filter(f => folderIds.has(f.folderId));
+    } else {
+      // Only files directly in this folder
+      filesInScope = allFiles.filter(f => f.folderId === folderId);
+    }
+
+    // Group files by their FileHandler
+    const filesByHandler: Record<string, StoredFile[]> = {};
+    for (const file of filesInScope) {
+      const handler = this.getHandlerForFile(file);
+      if (handler) {
+        if (!filesByHandler[handler.id]) {
+          filesByHandler[handler.id] = [];
+        }
+        filesByHandler[handler.id].push(file);
+      } else {
+        // Files without a handler go into 'unknown' group
+        if (!filesByHandler['unknown']) {
+          filesByHandler['unknown'] = [];
+        }
+        filesByHandler['unknown'].push(file);
+      }
+    }
+
+    return {
+      isEmpty: childFolders.length === 0 && filesInScope.length === 0,
+      folders: childFolders,
+      filesByHandler,
+      totalFiles: filesInScope.length
+    };
+  }
+
+  /**
    * Build folder tree structure
    */
   async getFolderTree(): Promise<FolderTreeNode[]> {
