@@ -514,3 +514,18 @@ export interface FolderStats {
   averageRetention: number;
   averageEase: number;
 }
+
+// ============================================================================
+// FLASHCARD HOME UI TYPES
+// ============================================================================
+
+/**
+ * View mode for deck list display
+ */
+export type ViewMode = 'simple' | 'rich';
+
+/**
+ * Focus mode for Today's Focus widget
+ * Determines how due cards are grouped and presented
+ */
+export type FocusMode = 'combined' | 'by-deck' | 'by-folder';
