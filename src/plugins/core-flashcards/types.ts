@@ -211,6 +211,9 @@ export interface Deck {
   // Integration with documents plugin
   folderId?: string | null;       // Can live in document folders
 
+  // Default template for new cards
+  defaultTemplateId: string;      // Defaults to 'basic'
+
   // Settings
   settings: DeckSettings;
 

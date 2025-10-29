@@ -17,6 +17,9 @@ import type { FileHandler, DocumentsService } from '@/plugins/core-documents';
 // Components
 import FlashcardHome from './components/FlashcardHome';
 import DeckView from './components/DeckView';
+import CardEditor from './components/CardEditor';
+import StudySession from './components/StudySession';
+import DeckSettings from './components/DeckSettings';
 
 export const flashcardsPlugin: Plugin = {
   id: 'core-flashcards',
@@ -30,7 +33,10 @@ export const flashcardsPlugin: Plugin = {
   components: {
     'FlashcardHome': FlashcardHome,
     'DeckView': DeckView,
-    // StudySession and others to be added later
+    'CardEditor': CardEditor,
+    'StudySession': StudySession,
+    'DeckSettings': DeckSettings,
+    // Statistics and others to be added later
   },
 
   // Services
@@ -50,8 +56,34 @@ export const flashcardsPlugin: Plugin = {
       path: '/app/flashcards/deck/:deckId',
       component: 'core-flashcards/DeckView',
     },
-    // Study and Statistics routes to be added later
+    {
+      path: '/app/flashcards/deck/:deckId/card/new',
+      component: 'core-flashcards/CardEditor',
+    },
+    {
+      path: '/app/flashcards/deck/:deckId/card/:cardId',
+      component: 'core-flashcards/CardEditor',
+    },
+    {
+      path: '/app/flashcards/study/:deckId',
+      component: 'core-flashcards/StudySession',
+    },
+    // Statistics and other routes to be added later
   ],
+
+  // Navigation routes for Documents integration
+  // Maps component names to route builder functions for standalone mode
+  navigationRoutes: {
+    'core-flashcards/FlashcardHome': () => '/app/flashcards',
+    'core-flashcards/DeckView': (props) => `/app/flashcards/deck/${props.fileId || props.deckId}`,
+    'core-flashcards/CardEditor': (props) => {
+      if (props.mode === 'create') {
+        return `/app/flashcards/deck/${props.deckId}/card/new`;
+      }
+      return `/app/flashcards/deck/${props.deckId}/card/${props.cardId}`;
+    },
+    'core-flashcards/StudySession': (props) => `/app/flashcards/study/${props.deckId}`,
+  },
 
   async onLoad(manager) {
     console.log('[FlashcardsPlugin] Loading...');
@@ -88,11 +120,23 @@ export const flashcardsPlugin: Plugin = {
         mimeTypes: ['application/x-flashcard-deck'],
         viewerComponent: 'core-flashcards/DeckView',
         editorComponent: 'core-flashcards/DeckView', // Same component for now
-        priority: 100
+        settingsComponent: 'core-flashcards/DeckSettings', // Settings modal
+        priority: 100,
+
+        // Bidirectional sync callbacks
+        onFileUpdated: async (fileId: string, updates: Partial<any>) => {
+          await service.syncFromStoredFile(fileId, updates);
+        },
+        onFileDeleted: async (fileId: string) => {
+          await service.deleteDeck(fileId);
+        },
+        onFileMoved: async (fileId: string, oldFolderId: string | null, newFolderId: string | null) => {
+          await service.updateDeck(fileId, { folderId: newFolderId });
+        },
       };
 
       documentsService.registerFileHandler(deckHandler);
-      console.log('[FlashcardsPlugin] Registered FileHandler for flashcard decks');
+      console.log('[FlashcardsPlugin] Registered FileHandler for flashcard decks with bidirectional sync');
 
       // Listen for file creation requests from Documents UI
       eventBus.on('file:create-requested', async ({ handlerId, pluginId, folderId }) => {

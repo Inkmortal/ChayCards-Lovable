@@ -267,6 +267,12 @@ export class DocumentsService {
       // Save to storage
       await this.storage.set(this.FILES_KEY, files);
 
+      // Invoke FileHandler callback if registered
+      const handler = this.getHandlerForFile(file);
+      if (handler?.onFileUpdated) {
+        await handler.onFileUpdated(id, options);
+      }
+
       // Emit event
       const eventBus = PluginManager.getInstance().getEventBus();
       eventBus.emit('document:updated', { file });
@@ -297,14 +303,20 @@ export class DocumentsService {
     const file = files[fileIndex];
 
     try {
-      // 1. Delete file content from File Storage
+      // 1. Invoke FileHandler callback if registered (before deletion)
+      const handler = this.getHandlerForFile(file);
+      if (handler?.onFileDeleted) {
+        await handler.onFileDeleted(id);
+      }
+
+      // 2. Delete file content from File Storage
       await this.storage.delete(file.fileStorageKey);
 
-      // 2. Remove from metadata index
+      // 3. Remove from metadata index
       files.splice(fileIndex, 1);
       await this.storage.set(this.FILES_KEY, files);
 
-      // 3. Emit event
+      // 4. Emit event
       const eventBus = PluginManager.getInstance().getEventBus();
       eventBus.emit('document:deleted', { file });
 
@@ -812,112 +824,6 @@ export class DocumentsService {
     return true;
   }
 
-  /**
-   * Move folder to a new parent and optionally set its order
-   * Used for drag-and-drop folder reorganization
-   */
-  async moveFolder(
-    folderId: string,
-    newParentId: string | null,
-    newOrder?: number
-  ): Promise<FolderOperationResult> {
-    if (!this.storage) {
-      return { success: false, error: 'Storage not initialized' };
-    }
-
-    const folders = await this.getFolders();
-    const folder = folders.find(f => f.id === folderId);
-    if (!folder) {
-      return { success: false, error: 'Folder not found' };
-    }
-
-    // Validate no circular reference
-    if (newParentId !== null && !(await this.validateFolderMove(folderId, newParentId))) {
-      return {
-        success: false,
-        error: 'Cannot move folder into its own subfolder'
-      };
-    }
-
-    // Validate name uniqueness in target location
-    const nameExists = folders.some(
-      f =>
-        f.id !== folderId &&
-        f.parentId === newParentId &&
-        f.name.toLowerCase() === folder.name.toLowerCase()
-    );
-
-    if (nameExists) {
-      return {
-        success: false,
-        error: `A folder named "${folder.name}" already exists in the target location`
-      };
-    }
-
-    try {
-      // Update folder
-      folder.parentId = newParentId;
-      if (newOrder !== undefined) {
-        folder.order = newOrder;
-      }
-      folder.updatedAt = Date.now();
-
-      // Save to storage
-      await this.storage.set(this.FOLDERS_KEY, folders);
-
-      // Emit event
-      const eventBus = PluginManager.getInstance().getEventBus();
-      eventBus.emit('folder:moved', { folder, newParentId, newOrder });
-
-      console.log('[DocumentsService] Folder moved:', folder.name, 'to parent', newParentId);
-      return { success: true, folder };
-    } catch (error) {
-      console.error('[DocumentsService] Failed to move folder:', error);
-      return { success: false, error: String(error) };
-    }
-  }
-
-  /**
-   * Batch update folder order values
-   * Used when drag-and-drop reorders multiple folders at once
-   *
-   * @param updates - Array of {folderId, order} pairs
-   * @deprecated Use insertBefore/insertAfter instead
-   */
-  async reorderFolders(
-    updates: Array<{ folderId: string; order: number }>
-  ): Promise<FolderOperationResult> {
-    if (!this.storage) {
-      return { success: false, error: { code: 'STORAGE_ERROR', message: 'Storage not initialized' } };
-    }
-
-    try {
-      const folders = await this.getFolders();
-      const updatedFolders: Folder[] = [];
-
-      for (const update of updates) {
-        const folder = folders.find(f => f.id === update.folderId);
-        if (folder) {
-          folder.order = update.order;
-          folder.updatedAt = Date.now();
-          updatedFolders.push(folder);
-        }
-      }
-
-      // Save to storage
-      await this.storage.set(this.FOLDERS_KEY, folders);
-
-      // Emit event
-      const eventBus = PluginManager.getInstance().getEventBus();
-      eventBus.emit('folders:reordered', { folders: updatedFolders });
-
-      console.log('[DocumentsService] Folders reordered:', updatedFolders.length, 'folders');
-      return { success: true, data: updatedFolders };
-    } catch (error) {
-      console.error('[DocumentsService] Failed to reorder folders:', error);
-      return { success: false, error: { code: 'STORAGE_ERROR', message: String(error) } };
-    }
-  }
 
   // ==================== New Semantic Folder APIs ====================
 
@@ -1099,209 +1005,8 @@ export class DocumentsService {
     return { success: true, data: folder };
   }
 
-  /**
-   * Make folder a child of parent (append to end by default)
-   */
-  async makeChild(
-    folderId: string,
-    parentId: string | null,
-    position: 'start' | 'end' = 'end'
-  ): Promise<FolderOperationResult> {
-    if (!this.storage) {
-      return { success: false, error: { code: 'STORAGE_ERROR', message: 'Storage not initialized' } };
-    }
 
-    const folders = await this.getFolders();
-    const folder = folders.find(f => f.id === folderId);
-    if (!folder) {
-      return { success: false, error: { code: 'NOT_FOUND', message: 'Folder not found' } };
-    }
-
-    // Validate move
-    const validation = this.validateMove(folder, parentId);
-    if (!validation.success) {
-      return validation;
-    }
-
-    const oldParentId = folder.parentId;
-
-    // Get parent's children (excluding the folder being moved)
-    const siblings = folders.filter(f => f.parentId === parentId && f.id !== folderId);
-
-    // Calculate order
-    let newOrder: number;
-    if (position === 'start') {
-      // Place at beginning (order 0)
-      newOrder = 0;
-      // Rebalance siblings AFTER setting folder to 0 to create proper gaps
-      folder.parentId = parentId;
-      folder.order = newOrder;
-      await this.rebalanceOrders(parentId);
-      // After rebalance, folder will be at 0 and siblings at 1000, 2000, etc.
-    } else {
-      // Place at end
-      const maxOrder = siblings.reduce((max, f) => Math.max(max, f.order), -1);
-      newOrder = maxOrder + FOLDER_CONFIG.ORDER_GAP;
-      folder.parentId = parentId;
-      folder.order = newOrder;
-    }
-
-    folder.updatedAt = Date.now();
-
-    // Calculate and update depth
-    const newDepth = await this.calculateDepth(parentId, folders);
-    await this.updateDepth(folderId, newDepth, folders);
-
-    await this.storage.set(this.FOLDERS_KEY, folders);
-
-    // NO EVENT EMISSION - UI already updated optimistically
-
-    return { success: true, data: folder };
-  }
-
-  /**
-   * Move folder to root level
-   */
-  async moveToRoot(folderId: string, position: 'start' | 'end' = 'end'): Promise<FolderOperationResult> {
-    return this.makeChild(folderId, null, position);
-  }
-
-  // ==================== File Reordering APIs (NEW) ====================
-
-  /**
-   * Insert file before target item (folder or file, same parent)
-   */
-  async insertFileBefore(fileId: string, targetId: string): Promise<FileOperationResult> {
-    if (!this.storage) {
-      return { success: false, error: 'Storage not initialized' };
-    }
-
-    const files = await this.getFiles();
-    const folders = await this.getFolders();
-    const file = files.find(f => f.id === fileId);
-
-    if (!file) {
-      return { success: false, error: 'File not found' };
-    }
-
-    // Find target (could be folder or file)
-    const targetFolder = folders.find(f => f.id === targetId);
-    const targetFile = files.find(f => f.id === targetId);
-    const target = targetFolder || targetFile;
-
-    if (!target) {
-      return { success: false, error: 'Target not found' };
-    }
-
-    const targetParentId = targetFolder ? targetFolder.parentId : targetFile!.folderId;
-
-    // Calculate new order (target - 500)
-    const newOrder = target.order - 500;
-
-    // Update file
-    file.folderId = targetParentId;
-    file.order = Math.round(newOrder);
-    file.updatedAt = Date.now();
-
-    await this.storage.set(this.FILES_KEY, files);
-
-    // NO EVENT EMISSION - UI already updated optimistically
-
-    return { success: true, file };
-  }
-
-  /**
-   * Insert file after target item (folder or file, same parent)
-   */
-  async insertFileAfter(fileId: string, targetId: string): Promise<FileOperationResult> {
-    if (!this.storage) {
-      return { success: false, error: 'Storage not initialized' };
-    }
-
-    const files = await this.getFiles();
-    const folders = await this.getFolders();
-    const file = files.find(f => f.id === fileId);
-
-    if (!file) {
-      return { success: false, error: 'File not found' };
-    }
-
-    // Find target (could be folder or file)
-    const targetFolder = folders.find(f => f.id === targetId);
-    const targetFile = files.find(f => f.id === targetId);
-    const target = targetFolder || targetFile;
-
-    if (!target) {
-      return { success: false, error: 'Target not found' };
-    }
-
-    const targetParentId = targetFolder ? targetFolder.parentId : targetFile!.folderId;
-
-    // Calculate new order (target + 500)
-    const newOrder = target.order + 500;
-
-    // Update file
-    file.folderId = targetParentId;
-    file.order = Math.round(newOrder);
-    file.updatedAt = Date.now();
-
-    await this.storage.set(this.FILES_KEY, files);
-
-    // NO EVENT EMISSION - UI already updated optimistically
-
-    return { success: true, file };
-  }
-
-  /**
-   * Make file a child of folder (append to end by default)
-   */
-  async makeFileChild(
-    fileId: string,
-    parentId: string | null,
-    position: 'start' | 'end' = 'end'
-  ): Promise<FileOperationResult> {
-    if (!this.storage) {
-      return { success: false, error: 'Storage not initialized' };
-    }
-
-    const files = await this.getFiles();
-    const folders = await this.getFolders();
-    const file = files.find(f => f.id === fileId);
-
-    if (!file) {
-      return { success: false, error: 'File not found' };
-    }
-
-    // Get items in target parent (folders and files)
-    const foldersInParent = folders.filter(f => f.parentId === parentId);
-    const filesInParent = files.filter(f => f.folderId === parentId && f.id !== fileId);
-    const itemsInParent = [...foldersInParent, ...filesInParent];
-
-    // Calculate order
-    let newOrder: number;
-    if (position === 'start') {
-      // Place at beginning
-      const minOrder = itemsInParent.reduce((min, item) => Math.min(min, item.order), Infinity);
-      newOrder = minOrder === Infinity ? 0 : minOrder - 500;
-    } else {
-      // Place at end
-      const maxOrder = itemsInParent.reduce((max, item) => Math.max(max, item.order), -1);
-      newOrder = maxOrder + FOLDER_CONFIG.ORDER_GAP;
-    }
-
-    // Update file
-    file.folderId = parentId;
-    file.order = Math.round(newOrder);
-    file.updatedAt = Date.now();
-
-    await this.storage.set(this.FILES_KEY, files);
-
-    // NO EVENT EMISSION - UI already updated optimistically
-
-    return { success: true, file };
-  }
-
-  // ==================== Sorting API (NEW) ====================
+  // ==================== Sorting API ====================
 
   /**
    * Sort all folders and files by specified mode
@@ -1412,57 +1117,6 @@ export class DocumentsService {
   }
 
   /**
-   * Validate move operation
-   */
-  private validateMove(folder: Folder, newParentId: string | null): FolderOperationResult {
-    // Check circular reference
-    if (newParentId !== null) {
-      if (!this.validateMoveSync(folder.id, newParentId)) {
-        return {
-          success: false,
-          error: {
-            code: 'CIRCULAR_REFERENCE',
-            message: 'Cannot move folder into its own subfolder'
-          }
-        };
-      }
-    }
-
-    // Check max depth
-    const newDepthSync = this.calculateDepthSync(newParentId);
-    if (newDepthSync >= FOLDER_CONFIG.MAX_DEPTH) {
-      return {
-        success: false,
-        error: {
-          code: 'MAX_DEPTH',
-          message: `Maximum folder depth of ${FOLDER_CONFIG.MAX_DEPTH} exceeded`
-        }
-      };
-    }
-
-    return { success: true };
-  }
-
-  /**
-   * Synchronous circular reference check
-   */
-  private validateMoveSync(folderId: string, targetParentId: string): boolean {
-    // Implementation needs access to folders, so we'll keep it async-friendly
-    // This is a placeholder - actual implementation in validateFolderMove
-    return true;
-  }
-
-  /**
-   * Calculate depth synchronously (for validation)
-   */
-  private calculateDepthSync(parentId: string | null): number {
-    if (parentId === null) return 0;
-    // Simplified sync version for validation
-    // Real depth calculation happens in updateDepth
-    return 1;
-  }
-
-  /**
    * Calculate depth for a folder
    */
   private async calculateDepth(parentId: string | null, folders?: Folder[]): Promise<number> {
@@ -1498,22 +1152,6 @@ export class DocumentsService {
     }
   }
 
-  /**
-   * Check if targetId is a descendant of folderId
-   */
-  private async isDescendant(folderId: string, targetId: string): Promise<boolean> {
-    const folders = await this.getFolders();
-    let currentId: string | null = targetId;
-
-    while (currentId !== null) {
-      if (currentId === folderId) return true;
-
-      const folder = folders.find(f => f.id === currentId);
-      currentId = folder?.parentId || null;
-    }
-
-    return false;
-  }
 
   /**
    * Migrate existing folders and files to v3 schema

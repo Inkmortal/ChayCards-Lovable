@@ -30,7 +30,6 @@ import type { PluginManager, StorageAdapter } from '@/shared/plugin-system/types
 import type { DocumentsService, Folder, StoredFile } from '@/plugins/core-documents';
 import { FOLDER_CONFIG } from '@/plugins/core-documents/constants';
 import { buildPluginStorageKey } from '@/shared/constants';
-import { isElectron } from '@/utils/platform';
 
 export class FlashcardService {
   private eventBus: EventBus;
@@ -187,7 +186,15 @@ export class FlashcardService {
     for (const key of keys) {
       const result = await this.storage.get<Deck>(key);
       if (result?.data) {
-        decks.push(result.data);
+        let deck = result.data;
+
+        // Migration: Add defaultTemplateId to existing decks that don't have it
+        if (!deck.defaultTemplateId) {
+          deck = { ...deck, defaultTemplateId: 'basic' };
+          await this.storage.set(key, deck);
+        }
+
+        decks.push(deck);
       }
     }
 
@@ -204,7 +211,18 @@ export class FlashcardService {
 
     const key = buildPluginStorageKey('core-flashcards', `decks/${deckId}`);
     const result = await this.storage.get<Deck>(key);
-    return result?.data || null;
+
+    if (!result?.data) return null;
+
+    let deck = result.data;
+
+    // Migration: Add defaultTemplateId to existing decks that don't have it
+    if (!deck.defaultTemplateId) {
+      deck = { ...deck, defaultTemplateId: 'basic' };
+      await this.storage.set(key, deck);
+    }
+
+    return deck;
   }
 
   /**
@@ -240,6 +258,7 @@ export class FlashcardService {
       name,
       description: options.description,
       folderId,
+      defaultTemplateId: 'basic', // Default to basic template
       settings: {
         algorithm: 'sm2',
         preset,
@@ -294,6 +313,43 @@ export class FlashcardService {
     this.eventBus.emit('flashcards:deck:updated', { deck: updatedDeck });
 
     return updatedDeck;
+  }
+
+  /**
+   * Sync deck from StoredFile changes (called by Documents callbacks)
+   * CRITICAL: Does NOT call updateDeckStoredFile() to avoid circular updates
+   */
+  async syncFromStoredFile(deckId: string, updates: Partial<StoredFile>): Promise<void> {
+    const deck = await this.getDeck(deckId);
+    if (!deck) {
+      console.warn(`[FlashcardService] Cannot sync - deck not found: ${deckId}`);
+      return;
+    }
+
+    const deckUpdates: Partial<Deck> = {};
+
+    // Sync filename to deck name (remove .deck extension)
+    if (updates.filename) {
+      deckUpdates.name = updates.filename.replace('.deck', '');
+    }
+
+    // Sync folderId directly
+    if (updates.folderId !== undefined) {
+      deckUpdates.folderId = updates.folderId;
+    }
+
+    // Only update if there are changes
+    if (Object.keys(deckUpdates).length > 0) {
+      const deckKey = buildPluginStorageKey('core-flashcards', `decks/${deckId}`);
+      Object.assign(deck, deckUpdates);
+      deck.updatedAt = Date.now();
+      await this.storage!.set(deckKey, deck);
+
+      // Emit event for UI updates
+      this.eventBus.emit('flashcards:deck:updated', { deck });
+
+      console.log('[FlashcardService] Synced deck from StoredFile:', deckId, deckUpdates);
+    }
   }
 
   /**
@@ -486,27 +542,16 @@ export class FlashcardService {
    * Get all cards in a deck
    */
   async getCards(deckId: string): Promise<Card[]> {
-    if (isElectron()) {
-      const cardsJson = await window.electronAPI.storage.get(STORAGE_KEYS.CARDS);
-      const allCards: Card[] = cardsJson ? JSON.parse(cardsJson) : [];
-      return allCards.filter(c => c.deckId === deckId);
-    } else {
-      // Web: fetch from Supabase
-      return [];
-    }
+    const allCards = await this.getAllCards();
+    return allCards.filter(c => c.deckId === deckId);
   }
 
   /**
    * Get a single card by ID
    */
   async getCard(cardId: string): Promise<Card | null> {
-    if (isElectron()) {
-      const cardsJson = await window.electronAPI.storage.get(STORAGE_KEYS.CARDS);
-      const allCards: Card[] = cardsJson ? JSON.parse(cardsJson) : [];
-      return allCards.find(c => c.id === cardId) || null;
-    } else {
-      return null;
-    }
+    const allCards = await this.getAllCards();
+    return allCards.find(c => c.id === cardId) || null;
   }
 
   /**
@@ -585,18 +630,7 @@ export class FlashcardService {
     const card = await this.getCard(cardId);
     if (!card) return;
 
-    // Delete media files
-    if (card.mediaFiles && isElectron()) {
-      for (const [fieldName, storageKey] of Object.entries(card.mediaFiles)) {
-        try {
-          await window.electronAPI.storage.delete(storageKey);
-        } catch (error) {
-          console.error(`Failed to delete media file ${storageKey}:`, error);
-        }
-      }
-    }
-
-    // Delete the card
+    // Delete the card (media files cascade-delete automatically via Files as Entity Properties)
     const allCards = await this.getAllCards();
     const filtered = allCards.filter(c => c.id !== cardId);
     await this.saveCards(filtered);
@@ -609,45 +643,52 @@ export class FlashcardService {
 
   /**
    * Upload media file for a card field
+   * Uses Files as Entity Properties pattern - files are stored WITH the card
    */
   async uploadMediaFile(
     cardId: string,
     fieldName: string,
     file: File
   ): Promise<string> {
-    const storageKey = `${STORAGE_KEYS.MEDIA_PREFIX}:card-${cardId}:${fieldName}`;
-
-    if (isElectron()) {
-      // Convert file to base64
-      const arrayBuffer = await file.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce(
-          (data, byte) => data + String.fromCharCode(byte),
-          ''
-        )
-      );
-
-      const fileData = {
-        data: base64,
-        mimeType: file.type,
-        fileName: file.name,
-        size: file.size,
-      };
-
-      await window.electronAPI.storage.set(storageKey, JSON.stringify(fileData));
-    } else {
-      // Web: upload to Supabase storage
-      // TODO: Implement web storage
+    if (!this.storage) {
+      throw new Error('Storage not initialized');
     }
 
-    // Update card's mediaFiles record
+    // Get card
     const card = await this.getCard(cardId);
-    if (card) {
-      const mediaFiles = { ...card.mediaFiles, [fieldName]: storageKey };
-      await this.updateCard(cardId, { mediaFiles });
+    if (!card) {
+      throw new Error(`Card not found: ${cardId}`);
     }
 
-    return storageKey;
+    // Convert file to Uint8Array for storage
+    const arrayBuffer = await file.arrayBuffer();
+    const fileData = new Uint8Array(arrayBuffer);
+
+    // Get existing files attached to card
+    const storageKey = `${STORAGE_KEYS.CARDS}`;
+    const result = await this.storage.get<Card[]>(storageKey);
+    const existingFiles = result?.files || {};
+
+    // Update card fields to reference the new file
+    const updatedCard = {
+      ...card,
+      mediaFiles: {
+        ...card.mediaFiles,
+        [fieldName]: `file:${fieldName}`, // Reference to file attachment
+      },
+    };
+
+    // Update all cards with new file attachment
+    const allCards = await this.getAllCards();
+    const updatedCards = allCards.map(c => c.id === cardId ? updatedCard : c);
+
+    // Store cards WITH files using Files as Entity Properties pattern
+    await this.storage.set(storageKey, updatedCards, {
+      ...existingFiles,
+      [`${cardId}_${fieldName}`]: fileData, // Store file as entity property
+    });
+
+    return `file:${fieldName}`;
   }
 
   // ==========================================================================
@@ -658,13 +699,8 @@ export class FlashcardService {
    * Get all templates (built-in + custom)
    */
   async getTemplates(): Promise<CardTemplate[]> {
-    if (isElectron()) {
-      const templatesJson = await window.electronAPI.storage.get(STORAGE_KEYS.TEMPLATES);
-      const customTemplates: CardTemplate[] = templatesJson ? JSON.parse(templatesJson) : [];
-      return [...BUILT_IN_TEMPLATES, ...customTemplates];
-    } else {
-      return BUILT_IN_TEMPLATES;
-    }
+    const customTemplates = await this.getCustomTemplates();
+    return [...BUILT_IN_TEMPLATES, ...customTemplates];
   }
 
   /**
@@ -945,17 +981,19 @@ export class FlashcardService {
    * End a study session and save statistics
    */
   async endStudySession(session: StudySession): Promise<void> {
+    if (!this.storage) {
+      throw new Error('Storage not initialized');
+    }
+
     session.endTime = Date.now();
     session.totalTime = session.endTime - session.startTime;
     session.averageTimePerCard = session.totalCards > 0 ? session.totalTime / session.totalCards : 0;
 
     // Save session to history
-    if (isElectron()) {
-      const sessionsJson = await window.electronAPI.storage.get(STORAGE_KEYS.SESSIONS);
-      const sessions: StudySession[] = sessionsJson ? JSON.parse(sessionsJson) : [];
-      sessions.push(session);
-      await window.electronAPI.storage.set(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
-    }
+    const result = await this.storage.get<StudySession[]>(STORAGE_KEYS.SESSIONS);
+    const sessions: StudySession[] = result?.data || [];
+    sessions.push(session);
+    await this.storage.set(STORAGE_KEYS.SESSIONS, sessions);
 
     // Update deck stats
     await this.updateDeckStats(session.deckId);
@@ -974,13 +1012,14 @@ export class FlashcardService {
    * Get user statistics
    */
   async getUserStatistics(): Promise<UserStatistics> {
-    if (isElectron()) {
-      const statsJson = await window.electronAPI.storage.get(STORAGE_KEYS.USER_STATS);
-      if (statsJson) return JSON.parse(statsJson);
+    if (!this.storage) {
+      throw new Error('Storage not initialized');
     }
 
-    // Return default stats
-    return {
+    const result = await this.storage.get<UserStatistics>(STORAGE_KEYS.USER_STATS);
+
+    // Return stored stats or default
+    return result?.data || {
       userId: 'local',
       totalDecks: 0,
       totalCards: 0,
@@ -1029,9 +1068,11 @@ export class FlashcardService {
       (stats.averageRetention * (stats.totalReviews - session.totalCards) + retention * session.totalCards) /
       stats.totalReviews;
 
-    if (isElectron()) {
-      await window.electronAPI.storage.set(STORAGE_KEYS.USER_STATS, JSON.stringify(stats));
+    if (!this.storage) {
+      throw new Error('Storage not initialized');
     }
+
+    await this.storage.set(STORAGE_KEYS.USER_STATS, stats);
   }
 
   // ==========================================================================
@@ -1158,17 +1199,18 @@ export class FlashcardService {
   }
 
   private async getCustomTemplates(): Promise<CardTemplate[]> {
-    if (isElectron()) {
-      const templatesJson = await window.electronAPI.storage.get(STORAGE_KEYS.TEMPLATES);
-      return templatesJson ? JSON.parse(templatesJson) : [];
+    if (!this.storage) {
+      throw new Error('Storage not initialized');
     }
-    return [];
+    const result = await this.storage.get<CardTemplate[]>(STORAGE_KEYS.TEMPLATES);
+    return result?.data || [];
   }
 
   private async saveCustomTemplates(templates: CardTemplate[]): Promise<void> {
-    if (isElectron()) {
-      await window.electronAPI.storage.set(STORAGE_KEYS.TEMPLATES, JSON.stringify(templates));
+    if (!this.storage) {
+      throw new Error('Storage not initialized');
     }
+    await this.storage.set(STORAGE_KEYS.TEMPLATES, templates);
   }
 
   private calculateAverageRetention(cards: Card[]): number {

@@ -253,10 +253,13 @@ export const useDocumentTabs = (
         validTabs.push(createDefaultGridTab());
       }
 
-      // Ensure first grid tab is not closeable
-      const firstGridTab = validTabs.find(t => t.type === 'grid') as GridTab | undefined;
-      if (firstGridTab) {
-        firstGridTab.closeable = false;
+      // Ensure first grid tab is not closeable ONLY if it's the only grid tab
+      const gridTabs = validTabs.filter(t => t.type === 'grid') as GridTab[];
+      if (gridTabs.length === 1) {
+        gridTabs[0].closeable = false;
+      } else if (gridTabs.length > 1) {
+        // Allow all grid tabs to be closeable when there are multiple
+        gridTabs.forEach(tab => tab.closeable = true);
       }
 
       // Validate active tab ID
@@ -299,12 +302,15 @@ export const useDocumentTabs = (
     const folder = folderId ? await documentsService.getFolder(folderId) : null;
     const breadcrumb = await generateBreadcrumb(folderId, documentsService);
 
+    const existingGridTabs = tabs.filter(t => t.type === 'grid');
+    const hasExistingGridTabs = existingGridTabs.length > 0;
+
     const newTab: GridTab = {
       id: generateTabId(),
       type: 'grid',
       title: folder ? folder.name : 'All Files',
       breadcrumb,
-      closeable: tabs.filter(t => t.type === 'grid').length > 0,
+      closeable: hasExistingGridTabs, // New tab is closeable if there are already grid tabs
       folderId,
       history: [
         {
@@ -317,7 +323,15 @@ export const useDocumentTabs = (
       historyIndex: 0
     };
 
-    setTabs([...tabs, newTab]);
+    // Update all existing grid tabs to be closeable (since we're adding another one)
+    const updatedTabs = tabs.map(tab => {
+      if (tab.type === 'grid') {
+        return { ...tab, closeable: true };
+      }
+      return tab;
+    });
+
+    setTabs([...updatedTabs, newTab]);
     setActiveTabId(newTab.id);
   }, [tabs, documentsService]);
 
@@ -383,7 +397,18 @@ export const useDocumentTabs = (
       if (!confirmed) return;
     }
 
-    const newTabs = tabs.filter(t => t.id !== tabId);
+    let newTabs = tabs.filter(t => t.id !== tabId);
+
+    // If we're down to one grid tab, make it uncloseable
+    const remainingGridTabs = newTabs.filter(t => t.type === 'grid');
+    if (remainingGridTabs.length === 1) {
+      newTabs = newTabs.map(t => {
+        if (t.type === 'grid') {
+          return { ...t, closeable: false };
+        }
+        return t;
+      });
+    }
 
     // Switch to adjacent tab if closing active
     if (activeTabId === tabId) {

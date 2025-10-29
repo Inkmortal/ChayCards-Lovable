@@ -17,8 +17,8 @@ interface CachedFolderLayout {
   row: number;
   col: number;
   centerZone: Zone;  // 80% of card center for "drop into"
-  leftGapZone: Zone | null;  // Left edge + half of left gap for "insert before"
-  rightGapZone: Zone | null; // Right edge + half of right gap for "insert after"
+  leftGapZone: Zone;  // Left edge + half of left gap for "insert before" (always present)
+  rightGapZone: Zone; // Right edge + half of right gap for "insert after" (always present)
 }
 
 // Result of getDropZone()
@@ -112,26 +112,27 @@ export function useGridLayoutManager(
       };
 
       // LEFT GAP ZONE: 10% left edge + half of left gap
-      // Not present for first item in row
+      // Always present - first folder uses container padding as left gap
       const isFirstInRow = col === 0;
-      const leftGapZone: Zone | null = isFirstInRow ? null : {
-        x: rect.left - HALF_GAP,
+      const leftGapZone: Zone = {
+        x: isFirstInRow ? rect.left - centerMargin : rect.left - HALF_GAP,
         y: rect.top,
-        width: centerMargin + HALF_GAP,
+        width: centerMargin + (isFirstInRow ? centerMargin : HALF_GAP),
         height: rect.height,
-        centerX: rect.left - HALF_GAP, // Cursor at left edge of gap
+        centerX: isFirstInRow ? rect.left - centerMargin : rect.left - HALF_GAP,
         centerY: rect.top + rect.height / 2,
       };
 
       // RIGHT GAP ZONE: 10% right edge + half of right gap
+      // Always present - last folder uses container padding as right gap
       const nextFolder = folderPositions[i + 1];
       const isLastInRow = !nextFolder || (rowMap.get(nextFolder.id) ?? 0) > row;
-      const rightGapZone: Zone | null = isLastInRow ? null : {
+      const rightGapZone: Zone = {
         x: rect.right - centerMargin,
         y: rect.top,
-        width: centerMargin + HALF_GAP,
+        width: centerMargin + (isLastInRow ? centerMargin : HALF_GAP),
         height: rect.height,
-        centerX: rect.right + HALF_GAP, // Cursor at right edge of gap
+        centerX: isLastInRow ? rect.right + centerMargin : rect.right + HALF_GAP,
         centerY: rect.top + rect.height / 2,
       };
 
@@ -192,42 +193,38 @@ export function useGridLayoutManager(
 
     // Check gap zones first (higher priority for precise cursor positioning)
     for (const folder of cachedLayout) {
-      // Left gap zone
-      if (folder.leftGapZone) {
-        const zone = folder.leftGapZone;
-        if (
-          x >= zone.x &&
-          x <= zone.x + zone.width &&
-          y >= zone.y &&
-          y <= zone.y + zone.height
-        ) {
-          return {
-            type: 'gap-left',
-            folderId: folder.id,
-            cursorX: zone.centerX,
-            cursorY: zone.y,
-            cursorHeight: zone.height,
-          };
-        }
+      // Left gap zone (always exists)
+      const leftZone = folder.leftGapZone;
+      if (
+        x >= leftZone.x &&
+        x <= leftZone.x + leftZone.width &&
+        y >= leftZone.y &&
+        y <= leftZone.y + leftZone.height
+      ) {
+        return {
+          type: 'gap-left',
+          folderId: folder.id,
+          cursorX: leftZone.centerX,
+          cursorY: leftZone.y,
+          cursorHeight: leftZone.height,
+        };
       }
 
-      // Right gap zone
-      if (folder.rightGapZone) {
-        const zone = folder.rightGapZone;
-        if (
-          x >= zone.x &&
-          x <= zone.x + zone.width &&
-          y >= zone.y &&
-          y <= zone.y + zone.height
-        ) {
-          return {
-            type: 'gap-right',
-            folderId: folder.id,
-            cursorX: zone.centerX,
-            cursorY: zone.y,
-            cursorHeight: zone.height,
-          };
-        }
+      // Right gap zone (always exists)
+      const rightZone = folder.rightGapZone;
+      if (
+        x >= rightZone.x &&
+        x <= rightZone.x + rightZone.width &&
+        y >= rightZone.y &&
+        y <= rightZone.y + rightZone.height
+      ) {
+        return {
+          type: 'gap-right',
+          folderId: folder.id,
+          cursorX: rightZone.centerX,
+          cursorY: rightZone.y,
+          cursorHeight: rightZone.height,
+        };
       }
     }
 

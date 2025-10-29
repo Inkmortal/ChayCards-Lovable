@@ -294,6 +294,18 @@ export type TreeNode =
     };
 
 /**
+ * Virtual folder for tree display with runtime state
+ */
+export interface VirtualFolder {
+  id: string;
+  name: string;
+  parentId: string | null;
+  colorHex?: string;
+  children: VirtualFolder[];
+  isOpen?: boolean;
+}
+
+/**
  * View mode for file browser
  */
 export type ViewMode = 'grid' | 'list';

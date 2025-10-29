@@ -9,6 +9,7 @@ import LocalProfile from "./renderer/pages/LocalProfile";
 import NotFound from "./renderer/pages/NotFound";
 import AppShell from "./renderer/layouts/AppShell";
 import { TitleBar } from "./renderer/components/TitleBar";
+import { Toaster } from "./renderer/components/ui/toaster";
 
 const App = () => {
   return (
@@ -33,6 +34,7 @@ const App = () => {
             </Routes>
           </BrowserRouter>
         </div>
+        <Toaster />
       </div>
     </DndProvider>
   );

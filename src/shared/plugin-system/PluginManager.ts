@@ -39,6 +39,10 @@ export class PluginManager implements IPluginManager {
   private storageManager = getStorageManager();
   private storageInitialized = false;
 
+  // Wave-based parallel loading state
+  private failedPlugins = new Set<string>();       // Track failed plugin IDs
+  private waveTimings = new Map<number, number>(); // Wave index → load time (ms)
+
   // Singleton access
   static getInstance(): PluginManager {
     if (!this.instance) {
@@ -97,6 +101,11 @@ export class PluginManager implements IPluginManager {
 
   getRegionComponents(region: string): RegionComponent[] {
     return this.regions.get(region) || [];
+  }
+
+  // Plugin retrieval - access loaded plugin metadata
+  getPlugin(pluginId: string): Plugin | undefined {
+    return this.loadedPlugins.get(pluginId);
   }
 
   // Event bus access
@@ -294,6 +303,14 @@ export class PluginManager implements IPluginManager {
     // Load dependencies first
     if (plugin.requires) {
       for (const depId of plugin.requires) {
+        // Check if dependency failed to load
+        if (this.failedPlugins.has(depId)) {
+          throw new Error(
+            `Plugin ${plugin.id} requires ${depId}, which failed to load. ` +
+            `Cannot proceed with loading ${plugin.id}.`
+          );
+        }
+
         const dep = this.loadedPlugins.get(depId);
         if (!dep) {
           throw new Error(`Plugin ${plugin.id} requires ${depId}, but it's not loaded`);
@@ -420,38 +437,76 @@ export class PluginManager implements IPluginManager {
         );
       }
 
-      // Sort plugins by dependency order and load them
-      const sortedPlugins = this.sortPluginsByDependencies(plugins);
+      // Compute loading waves for parallel loading
+      const totalStartTime = performance.now();
+      const waves = this.computeLoadingWaves(plugins);
+      console.log(`[PluginManager] Loading ${waves.length} waves:`,
+                  waves.map((w, i) => `Wave ${i}: [${w.map(p => p.id).join(', ')}]`));
 
-      // Load core-settings first
-      const coreSettings = sortedPlugins.find(p => p.id === 'core-settings');
-      if (coreSettings) {
-        await this.loadPlugin(coreSettings);
-
-        // Initialize storage after core-settings loads but before other plugins
-        await this.initializeStorage();
+      // Load Wave 0 (core-settings special case)
+      if (waves[0].length !== 1 || waves[0][0].id !== 'core-settings') {
+        throw new Error('Wave 0 must contain only core-settings plugin');
       }
 
-      // Load remaining plugins
-      const failedPlugins: string[] = [];
-      for (const plugin of sortedPlugins) {
-        if (plugin.id !== 'core-settings') {
-          try {
-            await this.loadPlugin(plugin);
-          } catch (error) {
-            console.error(`[PluginManager] Failed to load plugin ${plugin.id}:`, error);
-            failedPlugins.push(plugin.id);
-            // Continue loading other plugins instead of failing completely
-          }
+      const wave0StartTime = performance.now();
+      await this.loadPlugin(waves[0][0]);
+      const wave0EndTime = performance.now();
+      console.log(`[PluginManager] Wave 0 complete (${(wave0EndTime - wave0StartTime).toFixed(2)}ms)`);
+
+      // Initialize storage (synchronization point between Wave 0 and Wave 1)
+      const storageStartTime = performance.now();
+      await this.initializeStorage();
+      const storageEndTime = performance.now();
+      console.log(`[PluginManager] Storage initialized (${(storageEndTime - storageStartTime).toFixed(2)}ms)`);
+
+      // Load remaining waves in parallel
+      const allFailedPlugins: string[] = [];
+
+      for (let i = 1; i < waves.length; i++) {
+        const wave = waves[i];
+        console.log(`[PluginManager] Loading Wave ${i}: [${wave.map(p => p.id).join(', ')}]`);
+
+        const waveStartTime = performance.now();
+        const failedInWave = await this.loadWave(wave);
+        const waveEndTime = performance.now();
+
+        allFailedPlugins.push(...failedInWave);
+
+        const waveDuration = waveEndTime - waveStartTime;
+        this.waveTimings.set(i, waveDuration);
+
+        console.log(`[PluginManager] Wave ${i} complete (${waveDuration.toFixed(2)}ms)`);
+
+        if (failedInWave.length > 0) {
+          console.warn(`[PluginManager] Wave ${i} had ${failedInWave.length} failures:`, failedInWave);
         }
       }
 
-      const successCount = sortedPlugins.length - failedPlugins.length;
-      console.log(`Loaded ${successCount} plugins successfully${failedPlugins.length > 0 ? ` (${failedPlugins.length} failed: ${failedPlugins.join(', ')})` : ''}`);
-      this.eventBus.emit('plugins:all-loaded', { count: sortedPlugins.length });
+      // Report results
+      const totalEndTime = performance.now();
+      const totalDuration = totalEndTime - totalStartTime;
+
+      const successCount = plugins.length - allFailedPlugins.length;
+      console.log(`[PluginManager] ✅ Loaded ${successCount}/${plugins.length} plugins in ${totalDuration.toFixed(2)}ms`);
+
+      if (allFailedPlugins.length > 0) {
+        console.warn(`[PluginManager] ❌ Failed plugins (${allFailedPlugins.length}):`, allFailedPlugins);
+      }
+
+      // Log wave timing breakdown
+      console.log(`[PluginManager] Wave breakdown:`,
+                  Array.from(this.waveTimings.entries())
+                       .map(([wave, time]) => `Wave ${wave}: ${time.toFixed(2)}ms`).join(', '));
+
+      this.eventBus.emit('plugins:all-loaded', { count: successCount });
 
       // Call onPluginsReady hooks after all plugins loaded
-      for (const plugin of sortedPlugins) {
+      for (const plugin of plugins) {
+        // Skip failed plugins
+        if (this.failedPlugins.has(plugin.id)) {
+          continue;
+        }
+
         if (plugin.onPluginsReady) {
           try {
             await plugin.onPluginsReady(this);
@@ -700,6 +755,83 @@ export class PluginManager implements IPluginManager {
 
     plugins.forEach(visit);
     return sorted;
+  }
+
+  /**
+   * Compute loading waves for parallel plugin loading.
+   * Plugins in the same wave can load concurrently.
+   *
+   * Wave 0: core-settings (special case - must load before storage init)
+   * Wave N: Plugins whose dependencies all loaded in Wave N-1 or earlier
+   *
+   * @param plugins - Plugins to group into waves
+   * @returns Array of waves, each wave is array of plugins that can load in parallel
+   */
+  private computeLoadingWaves(plugins: Plugin[]): Plugin[][] {
+    // Use existing topological sort (guarantees dependency order)
+    const sorted = this.sortPluginsByDependencies(plugins);
+
+    // Build dependency depth map (how many "hops" from zero-dependency plugins)
+    const depthMap = new Map<string, number>();
+
+    for (const plugin of sorted) {
+      if (plugin.id === 'core-settings') {
+        // Special case: core-settings is Wave 0 (must load before storage init)
+        depthMap.set(plugin.id, 0);
+      } else if (!plugin.requires || plugin.requires.length === 0) {
+        // Zero dependencies = Wave 1 (after storage init)
+        depthMap.set(plugin.id, 1);
+      } else {
+        // Depth = max(dependency depths) + 1
+        const maxDepDepth = Math.max(
+          ...plugin.requires.map(depId => depthMap.get(depId) ?? 0)
+        );
+        depthMap.set(plugin.id, maxDepDepth + 1);
+      }
+    }
+
+    // Group plugins by depth (wave index)
+    const maxDepth = Math.max(...Array.from(depthMap.values()));
+    const waves: Plugin[][] = [];
+
+    for (let depth = 0; depth <= maxDepth; depth++) {
+      const wavePlugins = sorted.filter(p => depthMap.get(p.id) === depth);
+      if (wavePlugins.length > 0) {
+        waves.push(wavePlugins);
+      }
+    }
+
+    return waves;
+  }
+
+  /**
+   * Load all plugins in a wave concurrently.
+   * Uses Promise.allSettled to prevent one failure from blocking others.
+   *
+   * @param wave - Array of plugins to load in parallel
+   * @returns Array of failed plugin IDs
+   */
+  private async loadWave(wave: Plugin[]): Promise<string[]> {
+    const failedInWave: string[] = [];
+
+    // Load all plugins in wave concurrently
+    const results = await Promise.allSettled(
+      wave.map(plugin => this.loadPlugin(plugin))
+    );
+
+    // Track failures
+    results.forEach((result, idx) => {
+      if (result.status === 'rejected') {
+        const pluginId = wave[idx].id;
+        console.error(`[PluginManager] Plugin ${pluginId} failed to load:`, result.reason);
+
+        // Mark as failed so dependents skip
+        this.failedPlugins.add(pluginId);
+        failedInWave.push(pluginId);
+      }
+    });
+
+    return failedInWave;
   }
 
   private sortNavigationItems(): void {

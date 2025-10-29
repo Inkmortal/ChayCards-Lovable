@@ -8,8 +8,9 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { PluginManager } from '@/shared/plugin-system';
+import { useNavigation } from '@/plugins/core-documents/hooks/useNavigation';
 import { useFlashcards } from '../hooks/useFlashcards';
 import {
   ArrowLeft,
@@ -65,9 +66,14 @@ import type { FlashcardService } from '../services/FlashcardService';
 type CardFilter = 'all' | 'new' | 'learning' | 'review' | 'mastered' | 'due';
 type SortBy = 'created' | 'updated' | 'due' | 'ease' | 'interval';
 
-export default function DeckView() {
-  const { deckId } = useParams<{ deckId: string }>();
-  const navigate = useNavigate();
+interface DeckViewProps {
+  fileId?: string; // Provided by Documents plugin when embedded
+}
+
+export default function DeckView({ fileId }: DeckViewProps = {}) {
+  const { deckId: urlDeckId } = useParams<{ deckId: string }>();
+  const deckId = fileId || urlDeckId; // Prefer fileId prop (from Documents), fallback to URL param
+  const navigation = useNavigation();
 
   // Get service from PluginManager
   const manager = PluginManager.getInstance();
@@ -88,6 +94,8 @@ export default function DeckView() {
   const [cardFilter, setCardFilter] = useState<CardFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('created');
   const [dueCards, setDueCards] = useState<FlashCard[]>([]);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
 
   // Early return if service not available
   if (!service) {
@@ -98,6 +106,7 @@ export default function DeckView() {
     );
   }
 
+  // Get deck from global decks array (works for both Documents tabs and standalone routes)
   const deck = decks.find(d => d.id === deckId);
   const deckCards = deckId ? cards[deckId] || [] : [];
 
@@ -183,6 +192,28 @@ export default function DeckView() {
     }
   };
 
+  const handleStartEditingName = () => {
+    if (!deck) return;
+    setEditedName(deck.name);
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = async () => {
+    if (!deck || !editedName.trim()) return;
+    try {
+      await updateDeck(deck.id, { name: editedName.trim() });
+      setIsEditingName(false);
+    } catch (error) {
+      console.error('Failed to update deck name:', error);
+      alert('Failed to update deck name');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false);
+    setEditedName('');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -196,7 +227,7 @@ export default function DeckView() {
       <div className="flex flex-col items-center justify-center h-full">
         <BookMarked className="w-12 h-12 text-muted-foreground mb-4" />
         <p className="text-muted-foreground">Deck not found</p>
-        <Button onClick={() => navigate('/flashcards')} className="mt-4">
+        <Button onClick={() => navigation.push({ type: 'component', component: 'core-flashcards/FlashcardHome', props: {} })} className="mt-4">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Flashcards
         </Button>
@@ -212,12 +243,39 @@ export default function DeckView() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/flashcards')}
+            onClick={() => navigation.push({ type: 'component', component: 'core-flashcards/FlashcardHome', props: {} })}
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">{deck.name}</h1>
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveName();
+                    if (e.key === 'Escape') handleCancelEdit();
+                  }}
+                  className="text-2xl font-bold h-12 w-[400px]"
+                  autoFocus
+                />
+                <Button size="sm" onClick={handleSaveName}>
+                  <Save className="w-4 h-4" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <h1
+                className="text-3xl font-bold cursor-pointer hover:text-primary transition-colors"
+                onClick={handleStartEditingName}
+                title="Click to edit deck name"
+              >
+                {deck.name}
+              </h1>
+            )}
             <p className="text-muted-foreground">{deck.description}</p>
           </div>
           <Badge variant={deck.isActive ? 'default' : 'outline'}>
@@ -232,7 +290,11 @@ export default function DeckView() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(`/app/flashcards/study/${deck.id}`)}
+            onClick={() => navigation.push({
+              type: 'component',
+              component: 'core-flashcards/StudySession',
+              props: { deckId: deck.id }
+            })}
             disabled={dueCards.length === 0}
           >
             <Play className="w-4 h-4 mr-2" />
@@ -356,7 +418,34 @@ export default function DeckView() {
           </SelectContent>
         </Select>
 
-        <Button onClick={() => navigate(`/app/flashcards/deck/${deckId}/card/new`)}>
+        <Select
+          value={deck?.defaultTemplateId || 'basic'}
+          onValueChange={(templateId) => {
+            if (deck) {
+              updateDeck(deck.id, { defaultTemplateId: templateId });
+            }
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-[200px]">
+            <SelectValue placeholder="Default template" />
+          </SelectTrigger>
+          <SelectContent>
+            {templates.map(template => (
+              <SelectItem key={template.id} value={template.id}>
+                <div className="flex items-center gap-2">
+                  <span>{template.icon}</span>
+                  <span>{template.name}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button onClick={() => navigation.push({
+          type: 'component',
+          component: 'core-flashcards/CardEditor',
+          props: { deckId, mode: 'create', defaultTemplateId: deck?.defaultTemplateId }
+        })}>
           <Plus className="w-4 h-4 mr-2" />
           Add Card
         </Button>
@@ -382,7 +471,11 @@ export default function DeckView() {
                   : 'No cards in this deck yet'}
               </p>
               {!searchQuery && cardFilter === 'all' && (
-                <Button onClick={() => navigate(`/app/flashcards/deck/${deckId}/card/new`)}>
+                <Button onClick={() => navigation.push({
+                  type: 'component',
+                  component: 'core-flashcards/CardEditor',
+                  props: { deckId, mode: 'create', defaultTemplateId: deck?.defaultTemplateId }
+                })}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add Your First Card
                 </Button>
@@ -458,7 +551,11 @@ export default function DeckView() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() => navigate(`/app/flashcards/deck/${deckId}/card/${card.id}`)}
+                              onClick={() => navigation.push({
+                                type: 'component',
+                                component: 'core-flashcards/CardEditor',
+                                props: { deckId, cardId: card.id, mode: 'edit' }
+                              })}
                             >
                               <Edit className="w-4 h-4 mr-2" />
                               Edit

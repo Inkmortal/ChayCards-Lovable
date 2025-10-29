@@ -150,10 +150,8 @@ export const TabBar: React.FC<TabBarProps> = ({
 
               {/* Close button */}
               {tab.closeable && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 transition-opacity"
+                <button
+                  className="h-5 w-5 p-0 shrink-0 opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity rounded inline-flex items-center justify-center"
                   onClick={(e) => {
                     e.stopPropagation();
                     onTabClose(tab.id);
@@ -162,7 +160,7 @@ export const TabBar: React.FC<TabBarProps> = ({
                   aria-label={`Close ${tab.title}`}
                 >
                   <X className="h-3 w-3" />
-                </Button>
+                </button>
               )}
             </div>
           );
