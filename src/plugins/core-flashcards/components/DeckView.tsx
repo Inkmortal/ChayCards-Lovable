@@ -279,7 +279,7 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
             <p className="text-muted-foreground">{deck.description}</p>
           </div>
           <Badge variant={deck.isActive ? 'default' : 'outline'}>
-            {deck.isActive ? 'Active' : 'Inactive'}
+            {deck.isActive ? 'In Focus' : 'Not in Focus'}
           </Badge>
         </div>
 
