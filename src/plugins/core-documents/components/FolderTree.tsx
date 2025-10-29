@@ -15,6 +15,7 @@ import { ChevronRight, ChevronDown, Folder, FileText, PanelLeftClose, MoreVertic
 import type { TreeNode } from '../types';
 import { FileIconDisplay, getFileDisplayName } from './FileDisplay';
 import { TreeDropIndicator } from './TreeDropIndicator';
+import { useTreeLayoutManager } from '../hooks/useTreeLayoutManager';
 import { cn } from '@/shared/lib/utils';
 import { useToast } from '@/renderer/hooks/use-toast';
 import { PluginManager } from '@/shared/plugin-system/PluginManager';
@@ -96,7 +97,6 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   const treeRef = useRef<TreeApi<TreeNode>>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(400); // Default height
-  const [gapCursorPosition, setGapCursorPosition] = useState<{ top: number; left: number; visible: boolean }>({ top: 0, left: 0, visible: false });
 
   // Global drop cursor state for TreeDropIndicator
   const [globalDropCursor, setGlobalDropCursor] = useState<{
@@ -115,16 +115,22 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     index: number;
   } | null>(null);
 
+  // Track dragged item ID for zone filtering
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+
+  // Use tree layout manager for zone-based drop detection
+  const { getDropZone } = useTreeLayoutManager(treeRef, containerRef, draggedItemId);
+
   // Container-level drop zone - continuously tracks mouse over entire tree
   const [{ isOverContainer }, dropContainer] = useDrop(() => ({
     accept: 'FOLDER',
     hover: (item: { id: string; source: string }, monitor) => {
-      if (!containerRef.current || !treeRef.current) {
-        setGlobalDropCursor(null);
-        setComputedDrop(null);
-        return;
+      // Track dragged item when drag starts
+      if (draggedItemId !== item.id) {
+        setDraggedItemId(item.id);
       }
 
+      // Get current mouse position
       const clientOffset = monitor.getClientOffset();
       if (!clientOffset) {
         setGlobalDropCursor(null);
@@ -132,167 +138,34 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         return;
       }
 
-      // Get all visible nodes from react-arborist
-      const visibleNodes = treeRef.current.visibleNodes;
-      if (!visibleNodes || visibleNodes.length === 0) {
+      // Use layout manager to find drop zone
+      const zone = getDropZone(clientOffset);
+      if (!zone) {
         setGlobalDropCursor(null);
         setComputedDrop(null);
         return;
       }
 
-      // Find which node the mouse is over
-      let targetNode: NodeApi<TreeNode> | null = null;
-      let nodeElement: Element | null = null;
-
-      for (const node of visibleNodes) {
-        // Get node element by data-node-id attribute
-        const element = containerRef.current.querySelector(`[data-node-id="${node.id}"]`);
-        if (!element) continue;
-
-        const rect = element.getBoundingClientRect();
-        if (
-          clientOffset.x >= rect.left &&
-          clientOffset.x <= rect.right &&
-          clientOffset.y >= rect.top &&
-          clientOffset.y <= rect.bottom
-        ) {
-          targetNode = node;
-          nodeElement = element;
-          break;
-        }
-      }
-
-      // No node found - clear cursor
-      if (!targetNode || !nodeElement) {
-        setGlobalDropCursor(null);
-        setComputedDrop(null);
-        return;
-      }
-
-      // Now we have the node - apply all the same logic from TreeNodeRenderer
-      const hoverBoundingRect = nodeElement.getBoundingClientRect();
-      const y = clientOffset.y - hoverBoundingRect.top;
-      const x = clientOffset.x - hoverBoundingRect.left;
-      const data = targetNode.data;
-      const isFolder = data.type === 'folder';
-      const isAllFilesNode = data.id === '__ALL_FILES__';
-
-      const VISUAL_HEIGHT = 36;
-      const PADDING_BOTTOM = 24;
-      const indentPerLevel = 16;
-      const basePadding = isAllFilesNode ? 4 : 8;
-      const hoverLevel = Math.floor(Math.max(0, x - basePadding) / indentPerLevel);
-
-      const topThreshold = VISUAL_HEIGHT * 0.25;
-      const bottomThreshold = VISUAL_HEIGHT * 0.75;
-      const atTop = y < topThreshold;
-      const inMiddle = y >= topThreshold && y <= bottomThreshold;
-
-      // Middle hover = highlight folder
-      if (isFolder && inMiddle) {
-        const chevronWidth = 18;
-        const breathingRoom = 4;
-        const highlightLeftEdge = basePadding + (targetNode.level * 16) + chevronWidth - breathingRoom;
-
-        const highlightRect = new DOMRect(
-          hoverBoundingRect.left + highlightLeftEdge,
-          hoverBoundingRect.top,
-          hoverBoundingRect.width - highlightLeftEdge,
-          hoverBoundingRect.height
-        );
-
-        setGlobalDropCursor({ type: 'highlight', rect: highlightRect });
-        setComputedDrop({
-          parentId: data.id === '__ALL_FILES__' || data.id === '__REACT_ARBORIST_INTERNAL_ROOT__' ? null : data.id,
-          index: 0,
+      // Set cursor based on zone type
+      if (zone.type === 'drop-into-folder') {
+        setGlobalDropCursor({
+          type: 'highlight',
+          rect: zone.highlightRect!
         });
-        return;
-      }
-
-      // Line cursor with context-aware indent rules
-      const nextNode = targetNode.next;
-      const isBetweenSiblings = nextNode && nextNode.level === targetNode.level;
-      const isAfterLastChild = !nextNode || nextNode.level < targetNode.level;
-      const isBeforeFirstChild = atTop && targetNode.prev === targetNode.parent;
-
-      let boundedLevel: number;
-      if (isBetweenSiblings) {
-        boundedLevel = targetNode.level;
-      } else if (isBeforeFirstChild) {
-        boundedLevel = targetNode.level;
-      } else if (isAfterLastChild) {
-        boundedLevel = Math.max(0, Math.min(targetNode.level, hoverLevel));
-      } else if (nextNode && nextNode.level < targetNode.level) {
-        boundedLevel = Math.max(nextNode.level, Math.min(targetNode.level, hoverLevel));
       } else {
-        boundedLevel = Math.max(0, Math.min(targetNode.level, hoverLevel));
+        setGlobalDropCursor({
+          type: 'line',
+          cursorX: zone.cursorX,
+          cursorY: zone.cursorY,
+          lineEndX: zone.lineEndX!
+        });
       }
 
-      let nodeAboveCursor;
-      if (atTop) {
-        const prev = targetNode.prev;
-        if (prev && prev.id === item.id) {
-          nodeAboveCursor = prev.prev;
-        } else {
-          nodeAboveCursor = prev;
-        }
-      } else {
-        if (targetNode.next && targetNode.next.id === item.id) {
-          setGlobalDropCursor(null);
-          setComputedDrop(null);
-          return;
-        }
-        nodeAboveCursor = targetNode;
-      }
-
-      if (!nodeAboveCursor) {
-        const cursorX = hoverBoundingRect.left + basePadding + (0 * indentPerLevel);
-        const cursorY = hoverBoundingRect.top - 2;
-        const lineEndX = hoverBoundingRect.right - 16;
-        setGlobalDropCursor({ type: 'line', cursorX, cursorY, lineEndX });
-        setComputedDrop({ parentId: null, index: 0 });
-        return;
-      }
-
-      let actualTargetNode = nodeAboveCursor;
-      while (actualTargetNode.parent && actualTargetNode.level > boundedLevel) {
-        actualTargetNode = actualTargetNode.parent;
-      }
-
-      if (actualTargetNode.id === '__ALL_FILES__') {
-        const cursorX = hoverBoundingRect.left + basePadding + (0 * indentPerLevel);
-        const cursorY = hoverBoundingRect.top - 2;
-        const lineEndX = hoverBoundingRect.right - 16;
-        setGlobalDropCursor({ type: 'line', cursorX, cursorY, lineEndX });
-        setComputedDrop({ parentId: null, index: 0 });
-        return;
-      }
-
-      const parentId = actualTargetNode.parent ?
-        (actualTargetNode.parent.id === '__ALL_FILES__' || actualTargetNode.parent.id === '__REACT_ARBORIST_INTERNAL_ROOT__' ? null : actualTargetNode.parent.id) :
-        null;
-      const siblings = actualTargetNode.parent?.children || [];
-      const targetIndex = siblings.findIndex(child => child.id === actualTargetNode.id);
-      const draggedIndex = siblings.findIndex(child => child.id === item.id);
-      const isDraggingDownward = draggedIndex !== -1 && draggedIndex < targetIndex;
-      const isDraggingUpward = draggedIndex !== -1 && draggedIndex > targetIndex;
-      const dropIndex = isDraggingDownward ? targetIndex : targetIndex + 1;
-
-      let cursorPosition: 'top' | 'bottom';
-      if (isDraggingUpward && !atTop) {
-        cursorPosition = 'top';
-      } else {
-        cursorPosition = atTop ? 'top' : 'bottom';
-      }
-
-      const cursorX = hoverBoundingRect.left + basePadding + (boundedLevel * indentPerLevel);
-      const cursorY = cursorPosition === 'top'
-        ? hoverBoundingRect.top - 2
-        : hoverBoundingRect.top + VISUAL_HEIGHT + (PADDING_BOTTOM / 2);
-      const lineEndX = hoverBoundingRect.right - 16;
-
-      setGlobalDropCursor({ type: 'line', cursorX, cursorY, lineEndX });
-      setComputedDrop({ parentId, index: dropIndex });
+      // Set pre-computed drop operation
+      setComputedDrop({
+        parentId: zone.parentId,
+        index: zone.index
+      });
     },
     drop: async (item: { id: string; source: string }) => {
       if (!onMove || !computedDrop) return;
@@ -300,6 +173,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
       const { parentId, index } = computedDrop;
       setGlobalDropCursor(null);
       setComputedDrop(null);
+      setDraggedItemId(null); // Clear dragged item on drop
 
       console.log(`[TreeContainer] Drop: ${item.id} -> parent=${parentId || 'root'}, index=${index}`);
 
@@ -315,7 +189,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     collect: (monitor) => ({
       isOverContainer: monitor.isOver(),
     }),
-  }), [onMove, computedDrop, containerRef, treeRef]);
+  }), [onMove, computedDrop, getDropZone, draggedItemId]);
 
   // Connect drop to container
   useEffect(() => {
@@ -338,74 +212,6 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     window.addEventListener('resize', updateHeight);
     return () => window.removeEventListener('resize', updateHeight);
   }, []);
-
-  // Container-level drop target for gaps between tree nodes
-  const [{ isOver: isOverGapContainer }, dropGapContainer] = useDrop(() => ({
-    accept: 'NODE',
-    hover: (item, monitor) => {
-      // Only handle gaps when hovering over container itself (shallow)
-      if (!monitor.isOver({ shallow: true })) {
-        setGapCursorPosition(prev => ({ ...prev, visible: false }));
-        return;
-      }
-
-      const clientOffset = monitor.getClientOffset();
-      if (!clientOffset || !containerRef.current) {
-        setGapCursorPosition(prev => ({ ...prev, visible: false }));
-        return;
-      }
-
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const relativeY = clientOffset.y - containerRect.top;
-
-      // Calculate which gap we're in based on Y position
-      // Each node is 36px tall (rowHeight), with 8px paddingTop
-      const rowHeight = 36;
-      const paddingTop = 8;
-      const adjustedY = relativeY - paddingTop;
-
-      if (adjustedY < 0) {
-        setGapCursorPosition(prev => ({ ...prev, visible: false }));
-        return;
-      }
-
-      // Calculate which row we're closest to
-      const rowIndex = Math.floor(adjustedY / rowHeight);
-      const positionInRow = adjustedY % rowHeight;
-
-      // Only show cursor in gaps (first/last 2px of each row)
-      const isInTopGap = positionInRow < 2;
-      const isInBottomGap = positionInRow > rowHeight - 2;
-
-      if (!isInTopGap && !isInBottomGap) {
-        setGapCursorPosition(prev => ({ ...prev, visible: false }));
-        return;
-      }
-
-      // Calculate cursor position
-      let cursorRow = isInTopGap ? rowIndex : rowIndex + 1;
-      const cursorTop = paddingTop + (cursorRow * rowHeight);
-
-      setGapCursorPosition({
-        top: cursorTop,
-        left: 8, // Same as node padding
-        visible: true,
-      });
-    },
-    drop: () => {
-      setGapCursorPosition(prev => ({ ...prev, visible: false }));
-    },
-    collect: (monitor) => ({
-      isOverContainer: monitor.isOver({ shallow: true }),
-    }),
-  }), []);
-
-  // Connect gap drop ref to container
-  useEffect(() => {
-    if (containerRef.current) {
-      dropGapContainer(containerRef);
-    }
-  }, [dropGapContainer]);
 
   // Handle moves - just pass the raw values up to parent
   const handleMove = async ({
@@ -497,27 +303,6 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
 
           {/* Tree drop cursor - renders above all nodes using useDragLayer */}
           <TreeDropIndicator dropCursor={globalDropCursor} />
-
-          {/* Gap cursor - shown when hovering over gaps between nodes */}
-          {gapCursorPosition.visible && (
-            <div
-              className="absolute flex items-center pointer-events-none"
-              style={{
-                top: `${gapCursorPosition.top}px`,
-                left: `${gapCursorPosition.left}px`,
-                right: '16px',
-                zIndex: 10,
-              }}
-            >
-              {/* Dot */}
-              <div
-                className="w-1 h-1 bg-primary rounded-full flex-shrink-0"
-                style={{ boxShadow: '0 0 0 3px #3b82f6' }}
-              />
-              {/* Line extending to the right */}
-              <div className="flex-1 h-0.5 bg-primary rounded-full" />
-            </div>
-          )}
         </>
         )}
       </div>

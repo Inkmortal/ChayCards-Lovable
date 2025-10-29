@@ -18,7 +18,7 @@ Use Puppeteer MCP to test and verify frontend implementations during development
 
 ### Authentication Flow
 ```
-# 1. Navigate to app (will redirect to login)
+# 1. Navigate to app (shows landing page)
 mcp__puppeteer__puppeteer_navigate
 - url: "http://localhost:8080"
 - launchOptions: {
@@ -32,53 +32,90 @@ mcp__puppeteer__puppeteer_navigate
     ]
   }
 
-# 2. Wait for login page to load
+# 2. Click "Log in" button on landing page
 mcp__puppeteer__puppeteer_evaluate
-- script: "new Promise(r => setTimeout(r, 1000))"
+- script: |
+    (() => {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const loginButton = buttons.find(b => b.textContent.trim() === 'Log in');
+      if (loginButton) loginButton.click();
+      return { clicked: true };
+    })()
 
-# 3. Fill login form
+# 3. Wait for login form to load
+mcp__puppeteer__puppeteer_evaluate
+- script: "new Promise(r => setTimeout(r, 1500))"
+
+# 4. Fill login form
 mcp__puppeteer__puppeteer_fill
-- selector: "input[name='username'], input[type='text'], input[placeholder*='username' i], input[placeholder*='email' i]"
+- selector: "#username"
 - value: "test"
 
 mcp__puppeteer__puppeteer_fill
-- selector: "input[name='password'], input[type='password']"
+- selector: "#password"
 - value: "test1234"
 
-# 4. Submit login
-mcp__puppeteer__puppeteer_click
-- selector: "button[type='submit'], button:has-text('Login'), button:has-text('Sign In')"
+# 5. Submit login (click "Log in" button via script)
+mcp__puppeteer__puppeteer_evaluate
+- script: |
+    (() => {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const loginButton = buttons.find(b => b.textContent.trim() === 'Log in');
+      if (loginButton) loginButton.click();
+      return { clicked: true };
+    })()
 
-# 5. Wait for redirect to app
+# 6. Wait for redirect to app
 mcp__puppeteer__puppeteer_evaluate
 - script: "new Promise(r => setTimeout(r, 2000))"
 
-# 6. Verify logged in (check for app content)
+# 7. Verify logged in (check for app content)
 mcp__puppeteer__puppeteer_evaluate
 - script: |
     ({
       isLoggedIn: document.querySelector('[data-authenticated], .app-shell, nav') !== null,
-      currentUrl: window.location.href
+      currentUrl: window.location.href,
+      authToken: localStorage.getItem('auth_token'),
+      hasValidToken: localStorage.getItem('auth_token')?.split('.').length === 3
     })
 ```
 
 ### JWT Token Storage
 After successful login:
-- JWT token is stored in localStorage as `authToken`
-- Token persists across page reloads in the same session
+- JWT token is stored in localStorage as `auth_token` (note: underscore, not camelCase)
+- Token persists across page reloads within the same browser session
 - Token is automatically included in API requests
+- Token expires after 7 days (see `exp` claim in JWT)
 
-### Testing Without Re-Authentication
-For testing specific features without re-authenticating each time, you can inject the token directly:
+**Important Session Limitations:**
+- Puppeteer browser sessions are ephemeral - they reset between Claude Code sessions
+- Auth tokens do NOT persist across Puppeteer restarts
+- Each new testing session requires re-authentication (takes ~5 seconds)
+
+### Retrieving the Auth Token
+To retrieve the current auth token for inspection or manual testing:
 
 ```
 mcp__puppeteer__puppeteer_evaluate
 - script: |
-    localStorage.setItem('authToken', 'YOUR_VALID_JWT_TOKEN_HERE');
+    ({
+      authToken: localStorage.getItem('auth_token'),
+      tokenLength: localStorage.getItem('auth_token')?.length || 0,
+      isValidJWT: localStorage.getItem('auth_token')?.split('.').length === 3
+    })
+```
+
+### Testing Without Re-Authentication (Same Session Only)
+For testing specific features without re-authenticating within the same Puppeteer session, you can inject the token directly:
+
+```
+mcp__puppeteer__puppeteer_evaluate
+- script: |
+    localStorage.setItem('auth_token', 'YOUR_VALID_JWT_TOKEN_HERE');
     window.location.reload();
 ```
 
-**Note**: This approach requires a valid JWT token from a previous authentication. For most tests, use the standard login flow above.
+**Note**: This approach only works within the same Puppeteer session. The token must be valid (not expired). For most tests, use the standard login flow above.
 
 ## Core Commands
 
