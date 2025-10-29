@@ -29,7 +29,7 @@ export interface DialogProps {
   onCancel?: () => void;
   confirmText?: string;
   cancelText?: string;
-  confirmVariant?: '3d' | '3d-primary' | '3d-outline' | 'destructive';
+  confirmVariant?: '3d' | '3d-primary' | '3d-outline' | '3d-destructive' | 'destructive';
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | '7xl';
   showBackButton?: boolean;
   onBack?: () => void;
