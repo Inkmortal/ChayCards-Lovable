@@ -62,7 +62,10 @@ export default function CardRenderer({
 
   // Interpolate template with field values
   const interpolatedHtml = useMemo(() => {
-    const templateHtml = side === 'front' ? template.front : template.back;
+    // Check for per-card overrides first, fallback to template
+    const templateHtml = side === 'front'
+      ? (card.templateOverrides?.front || template.front)
+      : (card.templateOverrides?.back || template.back);
     let html = templateHtml;
 
     // Process conditionals first: {{#Field}}...{{/Field}}
@@ -131,10 +134,19 @@ export default function CardRenderer({
     }
   };
 
+  // Merge template CSS with override CSS
+  const finalCss = useMemo(() => {
+    let css = template.css;
+    if (card.templateOverrides?.css) {
+      css += '\n/* Per-card overrides */\n' + card.templateOverrides.css;
+    }
+    return css;
+  }, [template.css, card.templateOverrides?.css]);
+
   return (
     <div className={`card-renderer ${className}`}>
-      {/* Inject template CSS */}
-      <style>{template.css}</style>
+      {/* Inject template CSS + overrides */}
+      <style>{finalCss}</style>
 
       {/* Render card HTML */}
       <div

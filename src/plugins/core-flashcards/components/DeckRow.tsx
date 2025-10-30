@@ -10,10 +10,11 @@
 
 import React from 'react';
 import { Clipboard, Star, MoreVertical, Play } from 'lucide-react';
-import { Deck } from '../types';
+import { Deck, StudyMode } from '../types';
 import { ProgressBar } from './ProgressBar';
 import { Button } from '@/renderer/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
+import { StudyModeDropdown } from './StudyModeDropdown';
 
 export type ViewMode = 'simple' | 'rich';
 
@@ -25,7 +26,7 @@ interface DeckRowProps {
   /** Callback when deck is clicked */
   onOpen: (deckId: string) => void;
   /** Callback when study button is clicked */
-  onStudy: (deckId: string) => void;
+  onStudy: (deckId: string, mode?: StudyMode) => void;
   /** Callback when active status is toggled */
   onToggleActive: (deckId: string) => void;
   /** Callback when context menu is opened */
@@ -60,7 +61,11 @@ export const DeckRow: React.FC<DeckRowProps> = ({
 
   const handleStudyClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onStudy(deck.id);
+    onStudy(deck.id, 'spaced-repetition');
+  };
+
+  const handleModeSelect = (mode: StudyMode) => {
+    onStudy(deck.id, mode);
   };
 
   const handleStarClick = (e: React.MouseEvent) => {
@@ -79,16 +84,24 @@ export const DeckRow: React.FC<DeckRowProps> = ({
       >
         {/* Actions LEFT of name - Icon buttons only */}
         <div className="flex items-center gap-1 flex-shrink-0">
-          {/* Study button - Primary color */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 hover:bg-primary/10"
-            onClick={handleStudyClick}
-            title="Study now"
-          >
-            <Play className="w-5 h-5 fill-primary text-primary" />
-          </Button>
+          {/* Study button - Split button with dropdown */}
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 hover:bg-primary/10 rounded-r-none"
+              onClick={handleStudyClick}
+              title="Study now (Spaced Repetition)"
+            >
+              <Play className="w-5 h-5 fill-primary text-primary" />
+            </Button>
+            <StudyModeDropdown
+              deckId={deck.id}
+              onSelectMode={handleModeSelect}
+              variant="ghost"
+              size="sm"
+            />
+          </div>
 
           {/* Star button */}
           <Button
@@ -162,16 +175,24 @@ export const DeckRow: React.FC<DeckRowProps> = ({
     >
       {/* Actions LEFT of content - Icon buttons only */}
       <div className="flex flex-col gap-1 flex-shrink-0">
-        {/* Study button - Primary color */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0 hover:bg-primary/10"
-          onClick={handleStudyClick}
-          title="Study now"
-        >
-          <Play className="w-5 h-5 fill-primary text-primary" />
-        </Button>
+        {/* Study button - Split button with dropdown */}
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 hover:bg-primary/10 rounded-r-none"
+            onClick={handleStudyClick}
+            title="Study now (Spaced Repetition)"
+          >
+            <Play className="w-5 h-5 fill-primary text-primary" />
+          </Button>
+          <StudyModeDropdown
+            deckId={deck.id}
+            onSelectMode={handleModeSelect}
+            variant="ghost"
+            size="sm"
+          />
+        </div>
 
         {/* Star button */}
         <Button

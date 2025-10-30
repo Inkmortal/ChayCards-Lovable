@@ -230,7 +230,7 @@ export const useDocumentTabs = (
       const state: TabState = JSON.parse(stored);
 
       // Validate tabs
-      const validTabs: DocumentTabType[] = [];
+      let validTabs: DocumentTabType[] = [];
 
       for (const tab of state.tabs) {
         if (tab.type === 'grid') {
@@ -243,7 +243,11 @@ export const useDocumentTabs = (
             const handler = documentsService.getHandlerForFile(file);
             if (handler) {
               validTabs.push(tab);
+            } else {
+              console.warn(`[DocumentTabs] Removing tab - no handler for file: ${tab.fileId}`);
             }
+          } else {
+            console.warn(`[DocumentTabs] Removing tab - file not found: ${tab.fileId}`);
           }
         }
       }
@@ -254,12 +258,17 @@ export const useDocumentTabs = (
       }
 
       // Ensure first grid tab is not closeable ONLY if it's the only grid tab
-      const gridTabs = validTabs.filter(t => t.type === 'grid') as GridTab[];
+      const gridTabs = validTabs.filter(t => t.type === 'grid');
       if (gridTabs.length === 1) {
-        gridTabs[0].closeable = false;
+        // Make only grid tab uncloseable
+        validTabs = validTabs.map(tab =>
+          tab.type === 'grid' ? { ...tab, closeable: false } : tab
+        );
       } else if (gridTabs.length > 1) {
-        // Allow all grid tabs to be closeable when there are multiple
-        gridTabs.forEach(tab => tab.closeable = true);
+        // Make all grid tabs closeable when there are multiple
+        validTabs = validTabs.map(tab =>
+          tab.type === 'grid' ? { ...tab, closeable: true } : tab
+        );
       }
 
       // Validate active tab ID

@@ -21,8 +21,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PluginManager } from '@/shared/plugin-system';
+import { useNavigation } from '@/plugins/core-documents/hooks/useNavigation';
 import { useFlashcards } from '../hooks/useFlashcards';
 import { usePersistentState, useFolderTree, useDueCards, FocusMode } from '../hooks';
+import type { StudyMode } from '../types';
 import {
   Plus,
   Upload,
@@ -33,7 +35,9 @@ import {
   Calendar,
   TrendingUp,
   Clipboard,
-  Play
+  Play,
+  Flame,
+  Trophy
 } from 'lucide-react';
 import { Button } from '@/renderer/components/ui/button';
 import { Input } from '@/renderer/components/ui/input';
@@ -49,6 +53,8 @@ import type { DocumentsService } from '@/plugins/core-documents';
 import type { ViewMode, FocusMode as FocusModeType } from '../types';
 import { DeckRow } from './DeckRow';
 import { FolderTreeNode } from './FolderTreeNode';
+import { ActivityHeatmap } from './ActivityHeatmap';
+import { useActivityData } from '../hooks/useActivityData';
 
 export default function FlashcardHome() {
   const navigate = useNavigate();
@@ -67,6 +73,9 @@ export default function FlashcardHome() {
     deleteDeck,
     updateDeck,
   } = useFlashcards(flashcardService);
+
+  // Activity data for heatmap
+  const { sessions, stats, loading: loadingActivity } = useActivityData(flashcardService);
 
   // Documents integration
   const [folders, setFolders] = useState<any[]>([]);
@@ -154,8 +163,21 @@ export default function FlashcardHome() {
     navigate(`/app/flashcards/deck/${deckId}`);
   };
 
-  const handleStudyDeck = (deckId: string) => {
-    navigate(`/app/flashcards/study/${deckId}`);
+  const navigation = useNavigation();
+
+  const handleStudyDeck = (deckId: string, mode?: StudyMode) => {
+    // Navigate to study session with optional mode
+    if (mode) {
+      // If mode is provided, use navigation.push with props
+      navigation.push({
+        type: 'component',
+        component: 'chaycards/core-flashcards/StudySession',
+        props: { deckId, mode }
+      });
+    } else {
+      // Default to spaced-repetition via URL route
+      navigate(`/app/flashcards/study/${deckId}`);
+    }
   };
 
   const handleStudyFolder = (folderId: string) => {
@@ -318,17 +340,30 @@ export default function FlashcardHome() {
             )}
           </div>
 
-          {/* Activity Heatmap - Placeholder */}
+          {/* Activity Heatmap */}
           <div className="rounded-lg border-2 border-border bg-card p-4 shadow-sm">
-            <h2 className="text-lg font-semibold flex items-center gap-2 mb-3 text-foreground">
-              <TrendingUp className="w-5 h-5 text-success" />
-              Activity Streak
-            </h2>
-            <div className="text-center py-8 px-6 rounded-lg bg-muted/30">
-              <p className="text-4xl mb-2">📊</p>
-              <p className="text-base font-medium text-foreground">Activity heatmap coming soon</p>
-              <p className="text-sm mt-1 text-muted-foreground">Track your learning journey</p>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
+                <Flame className="w-5 h-5 text-accent" />
+                Activity
+              </h2>
+              <div className="flex items-center gap-3">
+                {/* Current Streak */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-accent/10 to-tertiary/10 border border-accent/20">
+                  <Flame className="w-4 h-4 text-accent animate-pulse" />
+                  <span className="text-sm font-bold text-foreground">{stats.currentStreak}</span>
+                  <span className="text-xs text-muted-foreground">day streak</span>
+                </div>
+                {/* Longest Streak */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/30">
+                  <Trophy className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-bold text-foreground">{stats.longestStreak}</span>
+                  <span className="text-xs text-muted-foreground">best</span>
+                </div>
+              </div>
             </div>
+
+            <ActivityHeatmap />
           </div>
 
           {/* All Decks Section */}

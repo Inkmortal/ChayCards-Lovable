@@ -54,7 +54,14 @@ export class PluginManager implements IPluginManager {
 
   // Component management
   getComponent(name: string): ComponentType<any> | undefined {
-    return this.components.get(name);
+    const component = this.components.get(name);
+    if (!component) {
+      console.warn(
+        `⚠️ Component '${name}' not found in registry.\n` +
+        `Available components: ${Array.from(this.components.keys()).join(', ')}`
+      );
+    }
+    return component;
   }
 
   setComponent(name: string, component: ComponentType<any>): void {
@@ -76,7 +83,14 @@ export class PluginManager implements IPluginManager {
 
   // Service management
   getService(name: string): any {
-    return this.services.get(name);
+    const service = this.services.get(name);
+    if (!service) {
+      console.warn(
+        `⚠️ Service '${name}' not found in registry.\n` +
+        `Available services: ${Array.from(this.services.keys()).join(', ')}`
+      );
+    }
+    return service;
   }
 
   setService(name: string, service: any): void {

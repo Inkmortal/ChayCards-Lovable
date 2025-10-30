@@ -104,6 +104,11 @@
     @apply border-border;
   }
 
+  html {
+    /* Fluid typography: scales from 12px (small screens) to 16px (large screens) */
+    font-size: clamp(0.75rem, 0.5rem + 0.4vw, 1rem);
+  }
+
   body {
     @apply bg-background text-foreground;
   }

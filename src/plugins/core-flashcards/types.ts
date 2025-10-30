@@ -135,6 +135,7 @@ export interface CardTemplate {
   tags: string[];
   isBuiltIn: boolean;
   isPublic?: boolean;             // For community sharing (future)
+  derivedFrom?: string;           // Parent template ID (for "Basic Copy", "My Template v2")
 
   createdAt: number;
   updatedAt: number;
@@ -162,6 +163,15 @@ export interface Card {
   // Media file references (Files as Entity Properties pattern)
   // fieldName -> storage key (e.g., 'Audio' -> 'core-flashcards:media:card-123:Audio')
   mediaFiles?: Record<string, string>;
+
+  // Template overrides (per-card customization)
+  // When present, overrides the template's HTML/CSS for THIS card only
+  // Use case: One-off styling without creating a new template
+  templateOverrides?: {
+    front?: string;   // Override template.front HTML
+    back?: string;    // Override template.back HTML
+    css?: string;     // Additional CSS (merged with template.css)
+  };
 
   // Spaced repetition state
   state: CardState;
@@ -311,9 +321,9 @@ export interface DeckStats {
 
 export type StudyMode =
   | 'spaced-repetition'           // Smart scheduling (SM-2)
-  | 'classic'                     // Manual pace, no scheduling
-  | 'shuffle'                     // Random order
-  | 'cram'                        // Quick review, no scheduling changes
+  | 'cram'                        // Review all cards, no scheduling changes
+  | 'cram-seen'                   // Review only previously studied cards
+  | 'shuffle'                     // Random order review
   | 'match'                       // Game: match terms/definitions
   | 'type-race'                   // Game: type before timer
   | 'memory-grid'                 // Game: flip and match

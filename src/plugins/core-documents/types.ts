@@ -24,9 +24,6 @@ export interface StoredFile {
   /** File size in bytes */
   size: number;
 
-  /** Storage key for file content in File Storage API */
-  fileStorageKey: string;
-
   /** Parent folder ID (null = root) */
   folderId: string | null;
 
@@ -283,7 +280,6 @@ export type TreeNode =
       extension: string;
       mimeType: string;
       size: number;
-      fileStorageKey: string;
       folderId: string | null;
       order: number;
       tags: string[];

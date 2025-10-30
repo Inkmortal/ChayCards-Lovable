@@ -193,22 +193,22 @@ To make your document type work with the Documents tab system:
 
 ```typescript
 // In your plugin's onLoad() hook
-const documentsService = manager.getService('core-documents/documentsService');
+const documentsService = manager.getService('chaycards/core-documents/documentsService');
 
 documentsService.registerFileHandler({
   id: 'flashcard-deck-handler',
-  pluginId: 'core-flashcards',
+  pluginId: 'chaycards/core-flashcards',
   name: 'Flashcard Deck',
   extensions: ['.deck'],
   mimeTypes: ['application/x-chaycards-deck'],
   icon: { type: 'emoji', emoji: '🎴' },
 
   // REQUIRED: Your viewer component (Documents renders it in tabs)
-  viewerComponent: 'core-flashcards/DeckView',
+  viewerComponent: 'chaycards/core-flashcards/DeckView',
 
   // Optional components
-  editorComponent: 'core-flashcards/DeckView',  // Same component for now
-  settingsComponent: 'core-flashcards/DeckSettings',  // Settings modal
+  editorComponent: 'chaycards/core-flashcards/DeckView',  // Same component for now
+  settingsComponent: 'chaycards/core-flashcards/DeckSettings',  // Settings modal
 
   priority: 100,  // Higher = preferred if multiple handlers match
   canHandle: (file) => {
@@ -499,14 +499,13 @@ const uploadFile = async (file: File, options: SaveDocumentOptions) => {
   const arrayBuffer = await file.arrayBuffer();
   const content = new Uint8Array(arrayBuffer);
 
-  // 2. Create metadata entry
+  // 2. Create metadata entry (no fileStorageKey field!)
   const storedFile: StoredFile = {
     id: generateId(),
     filename: file.name,
     extension: getExtension(file.name),
     mimeType: file.type,
     size: file.size,
-    fileStorageKey: `documents:files:${fileId}`,
     folderId: options.folderId ?? null,
     order: await getNextOrderValue(options.folderId),
     tags: options.tags ?? [],
@@ -516,9 +515,10 @@ const uploadFile = async (file: File, options: SaveDocumentOptions) => {
     accessedAt: Date.now()
   };
 
-  // 3. Store metadata + file content in single operation
+  // 3. Store metadata + file content in single atomic operation (Files as Entity Properties)
+  const fileKey = buildPluginStorageKey('chaycards/core-documents', `files/${storedFile.id}`);
   await storage.set(
-    `documents:metadata:${storedFile.id}`,
+    fileKey,
     storedFile,
     { content }  // File stored as property
   );
@@ -530,10 +530,11 @@ const uploadFile = async (file: File, options: SaveDocumentOptions) => {
 ### Read File
 ```typescript
 const getFileContent = async (fileId: string): Promise<Uint8Array | null> => {
-  const result = await storage.get(`documents:metadata:${fileId}`);
+  const fileKey = buildPluginStorageKey('chaycards/core-documents', `files/${fileId}`);
+  const result = await storage.get(fileKey);
   if (!result) return null;
 
-  return result.files.content;  // Extract file from properties
+  return result.files?.content || null;  // Extract file from properties
 };
 ```
 

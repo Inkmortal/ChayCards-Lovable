@@ -10,12 +10,14 @@
  * - SM-2 algorithm integration
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { PluginManager } from '@/shared/plugin-system';
 import { useNavigation } from '@/plugins/core-documents/hooks/useNavigation';
 import { useFlashcards } from '../hooks/useFlashcards';
-import { ArrowLeft, RotateCcw, Clock, TrendingUp } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Clock, TrendingUp, Flame, Zap, Target, Brain, Settings } from 'lucide-react';
+import { StudyModeDropdown } from './StudyModeDropdown';
+import { STUDY_MODE_CONFIGS } from '../constants';
 import { Button } from '@/renderer/components/ui/button';
 import {
   Card,
@@ -47,6 +49,7 @@ export default function StudySession({ deckId: propDeckId, mode: propMode }: Stu
   const service = manager.getService('chaycards/core-flashcards/flashcardService') as FlashcardService;
 
   const {
+    decks,
     templates,
     getDueCards,
     gradeCard,
@@ -64,6 +67,12 @@ export default function StudySession({ deckId: propDeckId, mode: propMode }: Stu
   const [loading, setLoading] = useState(true);
   const [sessionComplete, setSessionComplete] = useState(false);
 
+  // Get current deck for stats
+  const currentDeck = useMemo(
+    () => decks.find(d => d.id === deckId),
+    [decks, deckId]
+  );
+
   // Current card
   const currentCard = dueCards[currentCardIndex];
   const currentTemplate = useMemo(
@@ -76,41 +85,79 @@ export default function StudySession({ deckId: propDeckId, mode: propMode }: Stu
   const totalCards = dueCards.length;
   const progressPercent = totalCards > 0 ? (cardsCompleted / totalCards) * 100 : 0;
 
-  // Load due cards and start session
-  useEffect(() => {
-    if (!deckId) return;
+  // Initialize/restart session (shared logic for mount and Study Again)
+  const initSession = useCallback(async () => {
+    // Guard against missing dependencies
+    if (!deckId || !startStudySession) {
+      console.warn('[StudySession] Cannot initialize: missing dependencies', { deckId, startStudySession: !!startStudySession });
+      return;
+    }
 
-    const initSession = async () => {
-      setLoading(true);
+    setLoading(true);
 
-      try {
-        // Get due cards
-        const cards = await getDueCards(deckId);
-        setDueCards(cards);
+    try {
+      // Get cards based on study mode
+      const cards = await service.getCardsForMode(deckId, mode);
+      setDueCards(cards);
 
-        if (cards.length === 0) {
-          setSessionComplete(true);
-          setLoading(false);
-          return;
-        }
+      // Reset all session state
+      setCurrentCardIndex(0);
+      setShowingBack(false);
+      setCardStartTime(Date.now());
+      setRevealedClozes(new Set());
+      setSessionComplete(false);
 
-        // Start session
-        const newSession = await startStudySession(deckId, mode);
-        setSession(newSession);
-      } catch (error) {
-        console.error('[StudySession] Failed to initialize:', error);
-      } finally {
+      if (cards.length === 0) {
+        setSessionComplete(true);
         setLoading(false);
+        return;
       }
-    };
 
+      // Start session
+      const newSession = await startStudySession(deckId, mode);
+      setSession(newSession);
+    } catch (error) {
+      console.error('[StudySession] Failed to initialize:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [deckId, mode, service, startStudySession]);
+
+  // Load due cards and start session on mount
+  useEffect(() => {
     initSession();
-  }, [deckId, mode, getDueCards, startStudySession]);
+  }, [initSession]);
 
   // Handle card flip
   const handleShowAnswer = () => {
     setShowingBack(true);
   };
+
+  // Handle card click to flip (bi-directional)
+  const handleCardClick = () => {
+    setShowingBack(prev => !prev);
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Spacebar to flip card (bi-directional)
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setShowingBack(prev => !prev);
+      }
+      // Number keys for grading (only when showing back)
+      if (showingBack) {
+        if (e.code === 'Digit1' || e.code === 'Numpad1') handleGrade(1);
+        if (e.code === 'Digit2' || e.code === 'Numpad2') handleGrade(2);
+        if (e.code === 'Digit3' || e.code === 'Numpad3') handleGrade(3);
+        if (e.code === 'Digit4' || e.code === 'Numpad4') handleGrade(4);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showingBack, currentCard]);
 
   // Handle grade
   const handleGrade = async (grade: 1 | 2 | 3 | 4) => {
@@ -119,8 +166,8 @@ export default function StudySession({ deckId: propDeckId, mode: propMode }: Stu
     const timeSpent = Date.now() - cardStartTime;
 
     try {
-      // Grade the card (updates CardState via SM-2)
-      await gradeCard(currentCard.id, grade, timeSpent);
+      // Grade the card (updates CardState via SM-2, only for spaced-repetition mode)
+      await service.gradeCard(currentCard.id, grade, timeSpent, mode);
 
       // Update session stats
       setSession(prev => {
@@ -207,25 +254,93 @@ export default function StudySession({ deckId: propDeckId, mode: propMode }: Stu
     );
   }
 
-  // No due cards
+  // No due cards - suggest alternative study modes
   if (sessionComplete && dueCards.length === 0) {
+    const handleModeSelect = async (newMode: StudyMode) => {
+      // Update mode and restart session
+      navigation.push({
+        type: 'component',
+        component: 'chaycards/core-flashcards/StudySession',
+        props: { deckId, mode: newMode }
+      });
+    };
+
     return (
       <div className="container max-w-4xl mx-auto p-6">
         <Card>
           <CardHeader>
-            <CardTitle>All Caught Up! 🎉</CardTitle>
+            <CardTitle>
+              {mode === 'spaced-repetition' ? 'All Caught Up! 🎉' : 'No Cards Available'}
+            </CardTitle>
             <CardDescription>
-              No cards due for review right now
+              {mode === 'spaced-repetition'
+                ? 'No cards due for spaced repetition right now'
+                : `No cards available for ${mode} mode`
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-center py-8">
-              <div className="text-6xl mb-4">✅</div>
-              <p className="text-lg text-muted-foreground">
-                Great job! Come back later for more reviews.
+              <div className="text-6xl mb-4">
+                {mode === 'spaced-repetition' ? '✅' : '📚'}
+              </div>
+              <p className="text-lg text-muted-foreground mb-6">
+                {mode === 'spaced-repetition'
+                  ? 'Great job! Want to study more?'
+                  : 'Try a different study mode:'
+                }
               </p>
+
+              {/* Alternative study mode suggestions */}
+              <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
+                {mode !== 'cram' && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleModeSelect('cram')}
+                    className="h-auto py-4 flex-col gap-2"
+                  >
+                    <span className="text-2xl">⚡</span>
+                    <span className="font-semibold">Cram All Cards</span>
+                    <span className="text-xs text-muted-foreground">Review everything</span>
+                  </Button>
+                )}
+                {mode !== 'cram-seen' && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleModeSelect('cram-seen')}
+                    className="h-auto py-4 flex-col gap-2"
+                  >
+                    <span className="text-2xl">🔄</span>
+                    <span className="font-semibold">Cram Seen Cards</span>
+                    <span className="text-xs text-muted-foreground">Review studied cards</span>
+                  </Button>
+                )}
+                {mode !== 'shuffle' && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleModeSelect('shuffle')}
+                    className="h-auto py-4 flex-col gap-2"
+                  >
+                    <span className="text-2xl">🔀</span>
+                    <span className="font-semibold">Shuffle Mode</span>
+                    <span className="text-xs text-muted-foreground">Random order</span>
+                  </Button>
+                )}
+                {mode === 'spaced-repetition' && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleModeSelect('spaced-repetition')}
+                    className="h-auto py-4 flex-col gap-2"
+                  >
+                    <span className="text-2xl">🧠</span>
+                    <span className="font-semibold">Spaced Repetition</span>
+                    <span className="text-xs text-muted-foreground">Optimal learning</span>
+                  </Button>
+                )}
+              </div>
             </div>
-            <Button onClick={handleExit} className="w-full">
+
+            <Button onClick={handleExit} variant="ghost" className="w-full">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Deck
             </Button>
@@ -304,7 +419,7 @@ export default function StudySession({ deckId: propDeckId, mode: propMode }: Stu
               </Button>
               <Button
                 variant="outline"
-                onClick={() => window.location.reload()}
+                onClick={initSession}
                 className="flex-1"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
@@ -322,99 +437,278 @@ export default function StudySession({ deckId: propDeckId, mode: propMode }: Stu
     return <div>Error: Card not found</div>;
   }
 
+  // Calculate session stats for display
+  const sessionAccuracy = session
+    ? session.totalCards > 0
+      ? Math.round(((session.goodCount + session.easyCount) / session.totalCards) * 100)
+      : 0
+    : 0;
+
+  const handleMidSessionModeChange = (newMode: StudyMode) => {
+    // Navigate to new study session with different mode
+    navigation.push({
+      type: 'component',
+      component: 'chaycards/core-flashcards/StudySession',
+      props: { deckId, mode: newMode }
+    });
+  };
+
+  const currentModeConfig = STUDY_MODE_CONFIGS[mode] || STUDY_MODE_CONFIGS['spaced-repetition'];
+
   return (
     <div className="container max-w-4xl mx-auto p-6 space-y-4">
-      {/* Header with progress */}
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={handleExit}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Exit
-        </Button>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4" />
-            {Math.round((Date.now() - cardStartTime) / 1000)}s
+      {/* Gamified Header with Stats */}
+      <div className="flex items-center justify-between gap-4">
+        {/* Left side: Exit button + Mode indicator */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="3d"
+            size="sm"
+            onClick={handleExit}
+            className="bg-gradient-to-r from-tertiary to-accent hover:from-tertiary/90 hover:to-accent/90 text-white border-0 shadow-lg"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Complete
+          </Button>
+
+          {/* Mode switcher dropdown */}
+          <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-muted/50 border border-border">
+            <span className="text-lg">{currentModeConfig.icon}</span>
+            <span className="text-sm font-medium">{currentModeConfig.name}</span>
+            <StudyModeDropdown
+              deckId={deckId!}
+              onSelectMode={handleMidSessionModeChange}
+              variant="ghost"
+              size="sm"
+            />
           </div>
-          <div>{cardsCompleted + 1} / {totalCards}</div>
+        </div>
+
+        {/* Stats Bar */}
+        <div className="flex items-center gap-3 flex-1 justify-end">
+          {/* Fire Streak */}
+          {currentDeck && currentDeck.stats.currentStreak > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-accent/10 to-tertiary/10 border border-accent/20">
+              <Flame className="w-4 h-4 text-accent animate-pulse" />
+              <span className="text-sm font-bold text-accent">{currentDeck.stats.currentStreak}</span>
+              <span className="text-xs text-muted-foreground">day streak</span>
+            </div>
+          )}
+
+          {/* Accuracy */}
+          {session && session.totalCards > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-success/10 border border-success/20">
+              <Target className="w-4 h-4 text-success" />
+              <span className="text-sm font-bold text-success">{sessionAccuracy}%</span>
+            </div>
+          )}
+
+          {/* New Cards */}
+          {currentDeck && currentDeck.stats.newCards > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-info/10 border border-info/20">
+              <Zap className="w-4 h-4 text-info" />
+              <span className="text-sm font-bold text-info">{currentDeck.stats.newCards}</span>
+              <span className="text-xs text-muted-foreground">new</span>
+            </div>
+          )}
+
+          {/* Timer */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-warning/10 border border-warning/20">
+            <Clock className="w-4 h-4 text-warning" />
+            <span className="text-sm font-bold text-warning">{Math.round((Date.now() - cardStartTime) / 1000)}s</span>
+          </div>
+
+          {/* Progress Counter */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+            <Brain className="w-4 h-4 text-primary" />
+            <span className="text-sm font-bold text-primary">{cardsCompleted + 1}</span>
+            <span className="text-xs text-muted-foreground">/ {totalCards}</span>
+          </div>
         </div>
       </div>
 
-      {/* Progress bar */}
-      <Progress value={progressPercent} className="h-2" />
+      {/* Colorful Progress bar */}
+      <div className="relative">
+        <Progress
+          value={progressPercent}
+          className="h-3"
+          style={{
+            background: 'linear-gradient(to right, hsl(var(--muted)) 0%, hsl(var(--muted)) 100%)'
+          }}
+        />
+        <div
+          className="absolute top-0 left-0 h-3 rounded-full transition-all duration-300"
+          style={{
+            width: `${progressPercent}%`,
+            background: 'linear-gradient(to right, hsl(var(--accent)), hsl(var(--primary)), hsl(var(--success)))'
+          }}
+        />
+      </div>
 
-      {/* Card display */}
-      <Card className="min-h-[400px] flex flex-col">
-        <CardContent className="flex-1 flex items-center justify-center p-8">
-          <CardRenderer
-            card={currentCard}
-            template={currentTemplate}
-            side={showingBack ? 'back' : 'front'}
-            onRevealCloze={handleRevealCloze}
-            revealedClozes={revealedClozes}
-            className="w-full"
-          />
-        </CardContent>
-      </Card>
+      {/* Flip hint */}
+      <div className="text-center">
+        <p className="text-sm text-muted-foreground">
+          {!showingBack ? (
+            <span className="animate-pulse">
+              Click card or press <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Space</kbd> to reveal answer
+            </span>
+          ) : (
+            <span>
+              Click again or press <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Space</kbd> to flip back
+            </span>
+          )}
+        </p>
+      </div>
 
-      {/* Action buttons */}
-      {!showingBack ? (
-        <Button onClick={handleShowAnswer} size="lg" className="w-full">
-          Show Answer
+      {/* Card display with 3D flip animation */}
+      <div className="perspective-1000 min-h-[450px] cursor-pointer" onClick={handleCardClick}>
+        <div
+          className={`flip-card-inner relative w-full h-full transition-transform duration-600 ${
+            showingBack ? 'rotate-y-180' : ''
+          }`}
+          style={{ transformStyle: 'preserve-3d' }}
+        >
+          {/* Front side */}
+          <Card
+            className="flip-card-face absolute inset-0 min-h-[450px] flex flex-col backface-hidden border-2 border-border shadow-xl hover:shadow-2xl transition-shadow"
+            style={{ backfaceVisibility: 'hidden' }}
+          >
+            <CardContent className="flex-1 flex items-center justify-center p-8">
+              <CardRenderer
+                card={currentCard}
+                template={currentTemplate}
+                side="front"
+                onRevealCloze={handleRevealCloze}
+                revealedClozes={revealedClozes}
+                className="w-full text-2xl"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Back side */}
+          <Card
+            className="flip-card-face absolute inset-0 min-h-[450px] flex flex-col backface-hidden border-2 border-primary/50 shadow-xl bg-gradient-to-br from-background to-primary/5"
+            style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+          >
+            <CardContent className="flex-1 flex items-center justify-center p-8">
+              <CardRenderer
+                card={currentCard}
+                template={currentTemplate}
+                side="back"
+                onRevealCloze={handleRevealCloze}
+                revealedClozes={revealedClozes}
+                className="w-full text-2xl"
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Rating buttons - Always visible */}
+      <div className="grid grid-cols-4 gap-3">
+        {/* Again */}
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleGrade(1);
+          }}
+          disabled={!showingBack}
+          className="flex-col h-auto py-5 border-2 border-destructive/20 hover:border-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <span className="text-3xl font-bold text-destructive mb-1">1</span>
+          <span className="text-xs font-semibold uppercase">{GRADE_LABELS[1]}</span>
         </Button>
-      ) : (
-        <div className="grid grid-cols-4 gap-2">
-          {/* Again */}
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => handleGrade(1)}
-            className="flex-col h-auto py-4 border-2 hover:border-destructive hover:bg-destructive/10"
-          >
-            <span className="text-2xl font-bold">1</span>
-            <span className="text-xs">{GRADE_LABELS[1]}</span>
-          </Button>
 
-          {/* Hard */}
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => handleGrade(2)}
-            className="flex-col h-auto py-4 border-2 hover:border-orange-500 hover:bg-orange-500/10"
-          >
-            <span className="text-2xl font-bold">2</span>
-            <span className="text-xs">{GRADE_LABELS[2]}</span>
-          </Button>
+        {/* Hard */}
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleGrade(2);
+          }}
+          disabled={!showingBack}
+          className="flex-col h-auto py-5 border-2 border-warning/20 hover:border-warning hover:bg-warning/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <span className="text-3xl font-bold text-warning mb-1">2</span>
+          <span className="text-xs font-semibold uppercase">{GRADE_LABELS[2]}</span>
+        </Button>
 
-          {/* Good */}
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => handleGrade(3)}
-            className="flex-col h-auto py-4 border-2 hover:border-success hover:bg-success/10"
-          >
-            <span className="text-2xl font-bold">3</span>
-            <span className="text-xs">{GRADE_LABELS[3]}</span>
-          </Button>
+        {/* Good */}
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleGrade(3);
+          }}
+          disabled={!showingBack}
+          className="flex-col h-auto py-5 border-2 border-success/20 hover:border-success hover:bg-success/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <span className="text-3xl font-bold text-success mb-1">3</span>
+          <span className="text-xs font-semibold uppercase">{GRADE_LABELS[3]}</span>
+        </Button>
 
-          {/* Easy */}
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => handleGrade(4)}
-            className="flex-col h-auto py-4 border-2 hover:border-primary hover:bg-primary/10"
-          >
-            <span className="text-2xl font-bold">4</span>
-            <span className="text-xs">{GRADE_LABELS[4]}</span>
-          </Button>
-        </div>
-      )}
+        {/* Easy */}
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleGrade(4);
+          }}
+          disabled={!showingBack}
+          className="flex-col h-auto py-5 border-2 border-primary/20 hover:border-primary hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <span className="text-3xl font-bold text-primary mb-1">4</span>
+          <span className="text-xs font-semibold uppercase">{GRADE_LABELS[4]}</span>
+        </Button>
+      </div>
 
-      {/* Keyboard shortcuts hint */}
-      {showingBack && (
-        <div className="text-center text-xs text-muted-foreground">
-          Keyboard: 1 (Again) · 2 (Hard) · 3 (Good) · 4 (Easy)
-        </div>
-      )}
+      {/* Colorful Keyboard shortcuts hint */}
+      <div className="text-center text-sm">
+        {!showingBack ? (
+          <span className="text-muted-foreground">
+            Press <kbd className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-mono border border-primary/20">Space</kbd> to flip
+          </span>
+        ) : (
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <kbd className="px-2 py-1 bg-destructive/10 text-destructive rounded text-xs font-mono border border-destructive/20">1</kbd>
+            <span className="text-destructive text-xs">Again</span>
+            <span className="text-muted-foreground">·</span>
+            <kbd className="px-2 py-1 bg-warning/10 text-warning rounded text-xs font-mono border border-warning/20">2</kbd>
+            <span className="text-warning text-xs">Hard</span>
+            <span className="text-muted-foreground">·</span>
+            <kbd className="px-2 py-1 bg-success/10 text-success rounded text-xs font-mono border border-success/20">3</kbd>
+            <span className="text-success text-xs">Good</span>
+            <span className="text-muted-foreground">·</span>
+            <kbd className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-mono border border-primary/20">4</kbd>
+            <span className="text-primary text-xs">Easy</span>
+          </div>
+        )}
+      </div>
+
+      {/* Custom CSS for flip animation */}
+      <style>{`
+        .perspective-1000 {
+          perspective: 1000px;
+        }
+
+        .rotate-y-180 {
+          transform: rotateY(180deg);
+        }
+
+        .duration-600 {
+          transition-duration: 0.6s;
+        }
+
+        .backface-hidden {
+          -webkit-backface-visibility: hidden;
+          backface-visibility: hidden;
+        }
+      `}</style>
     </div>
   );
 }

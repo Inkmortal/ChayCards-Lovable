@@ -10,7 +10,7 @@ import { useParams } from 'react-router-dom';
 import { PluginManager } from '@/shared/plugin-system';
 import { useFlashcards } from '../hooks/useFlashcards';
 import { useNavigation } from '@/plugins/core-documents/hooks/useNavigation';
-import { ArrowLeft, Save, Eye, EyeOff, Repeat } from 'lucide-react';
+import { ArrowLeft, Save, Eye, EyeOff, Repeat, Palette } from 'lucide-react';
 import { Button } from '@/renderer/components/ui/button';
 import {
   Card,
@@ -19,6 +19,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/renderer/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/renderer/components/ui/dialog';
 import { Input } from '@/renderer/components/ui/input';
 import { Textarea } from '@/renderer/components/ui/textarea';
 import { Label } from '@/renderer/components/ui/label';
@@ -31,6 +38,8 @@ import {
 } from '@/renderer/components/ui/select';
 import { useToast } from '@/renderer/hooks/use-toast';
 import CardRenderer from './CardRenderer';
+import TemplateEditor from './TemplateEditor';
+import SaveTemplateDialog, { type SaveOption } from './SaveTemplateDialog';
 import type { CardTemplate, TemplateField, FieldValue } from '../types';
 import type { FlashcardService } from '../services/FlashcardService';
 import type { Card as FlashcardType } from '../types';
@@ -74,6 +83,16 @@ export default function CardEditor({ deckId: propDeckId, cardId: propCardId, mod
   const [showPreview, setShowPreview] = useState(false);
   const [previewSide, setPreviewSide] = useState<'front' | 'back'>('front');
   const [mediaFiles, setMediaFiles] = useState<Record<string, File>>({});
+
+  // Template customization state
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [pendingTemplateChanges, setPendingTemplateChanges] = useState<{
+    front?: string;
+    back?: string;
+    css?: string;
+  } | null>(null);
+  const [cardCount, setCardCount] = useState(0);
 
   // Load existing card if editing
   useEffect(() => {
@@ -231,6 +250,101 @@ export default function CardEditor({ deckId: propDeckId, cardId: propCardId, mod
     });
   };
 
+  // Handle template customization
+  const handleOpenTemplateEditor = async () => {
+    if (!selectedTemplateId) return;
+
+    // Get card count for this template
+    const count = await service.countCardsUsingTemplate(selectedTemplateId);
+    setCardCount(count);
+    setShowTemplateEditor(true);
+  };
+
+  const handleTemplateEditorSave = (updates: { front?: string; back?: string; css?: string }) => {
+    setPendingTemplateChanges(updates);
+    setShowTemplateEditor(false);
+    setShowSaveDialog(true);
+  };
+
+  const handleSaveOptionSelected = async (option: SaveOption, templateName?: string) => {
+    if (!pendingTemplateChanges || !selectedTemplateId || !selectedTemplate) return;
+
+    try {
+      const currentCard = mode === 'edit' && cardId
+        ? await service.getCard(cardId)
+        : null;
+
+      switch (option) {
+        case 'custom':
+          // Save as per-card override
+          if (mode === 'edit' && cardId) {
+            await service.applyCardOverride(cardId, pendingTemplateChanges);
+            toast({
+              title: '✓ Custom styling saved',
+              description: 'This card now has custom styling.',
+            });
+          } else {
+            // For new cards, we'll apply overrides when saving the card
+            // Store in component state for now
+            // This will be handled in handleSave
+          }
+          break;
+
+        case 'update':
+          // Update existing template (affects all cards)
+          await service.updateTemplateAndCards(selectedTemplateId, pendingTemplateChanges, true);
+          toast({
+            title: '✓ Template updated',
+            description: `Updated ${cardCount} cards using this template.`,
+          });
+          break;
+
+        case 'create':
+        case 'variant':
+          // Create new template
+          if (!templateName) return;
+          const newTemplate = await service.duplicateTemplate(selectedTemplateId, templateName);
+          await service.updateTemplate(newTemplate.id, pendingTemplateChanges);
+          setSelectedTemplateId(newTemplate.id);
+          toast({
+            title: '✓ Template created',
+            description: `Created new template "${templateName}".`,
+          });
+          break;
+
+        case 'promote':
+          // Promote card override to template
+          if (!templateName || !cardId) return;
+          await service.promoteOverrideToTemplate(cardId, templateName);
+          toast({
+            title: '✓ Template created',
+            description: `Promoted custom styling to template "${templateName}".`,
+          });
+          break;
+
+        case 'revert':
+          // Revert card to template
+          if (cardId) {
+            await service.revertCardToTemplate(cardId);
+            toast({
+              title: '✓ Reverted',
+              description: 'Custom styling removed.',
+            });
+          }
+          break;
+      }
+
+      setPendingTemplateChanges(null);
+    } catch (error) {
+      console.error('Failed to save template changes:', error);
+      toast({
+        title: '✗ Save failed',
+        description: 'Failed to save template changes.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Render field input based on field type
   const renderFieldInput = (field: TemplateField) => {
     const value = fieldValues[field.name] || '';
@@ -340,6 +454,15 @@ export default function CardEditor({ deckId: propDeckId, cardId: propCardId, mod
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenTemplateEditor}
+            disabled={!selectedTemplate}
+          >
+            <Palette className="w-4 h-4 mr-2" />
+            Customize Template
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -510,6 +633,32 @@ export default function CardEditor({ deckId: propDeckId, cardId: propCardId, mod
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Template Editor Dialog */}
+      <Dialog open={showTemplateEditor} onOpenChange={setShowTemplateEditor}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden p-0">
+          {selectedTemplate && mockCard && (
+            <TemplateEditor
+              template={selectedTemplate}
+              card={mockCard}
+              onSave={handleTemplateEditorSave}
+              onCancel={() => setShowTemplateEditor(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Template Dialog */}
+      {selectedTemplate && mockCard && (
+        <SaveTemplateDialog
+          open={showSaveDialog}
+          onOpenChange={setShowSaveDialog}
+          template={selectedTemplate}
+          card={mockCard}
+          cardCount={cardCount}
+          onSave={handleSaveOptionSelected}
+        />
       )}
     </div>
   );

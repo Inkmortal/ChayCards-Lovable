@@ -15,6 +15,7 @@ echo   ✅ PostgreSQL (port 5433)
 echo   ✅ Backend Express API (port 7243)
 echo   ✅ Notion PM Server (port 3001)
 echo   ✅ Cloudflare Tunnel (api.chaycards.com + dev.chaycards.com)
+echo   ✅ RAG Embedding Server (port 8765) - Auto-setup on first run
 echo.
 echo 💡 Close the tmux window or press Ctrl+C to stop all servers
 echo    (Auto-cleanup will run automatically)

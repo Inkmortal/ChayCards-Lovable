@@ -125,23 +125,24 @@ export class ThemeService {
    * Called after plugins:all-loaded event or by PluginManager post-load
    */
   async applyStoredTheme(): Promise<void> {
-    if (!this.pendingThemeId) {
-      return;
-    }
+    // If no pending theme, apply default theme
+    const themeIdToApply = this.pendingThemeId || DEFAULT_THEME.id;
 
-    const theme = await this.getThemeById(this.pendingThemeId);
+    const theme = await this.getThemeById(themeIdToApply);
     if (theme) {
-      await this.setTheme(this.pendingThemeId);
+      await this.setTheme(themeIdToApply);
       this.pendingThemeId = null; // Clear pending
     } else {
-      console.warn('[ThemeService] Stored theme not found:', this.pendingThemeId);
+      console.warn('[ThemeService] Stored theme not found:', themeIdToApply);
       const availableThemes = await this.getAvailableThemes();
       console.warn('[ThemeService] Available themes:', availableThemes.map(t => t.id));
       // Reset to default theme
-      if (this.storage && this.pendingThemeId) {
+      if (this.storage) {
         await this.storage.set(STORAGE_KEYS.CORE_THEME, DEFAULT_THEME.id);
       }
       this.pendingThemeId = null; // Clear invalid pending
+      // Apply default theme as fallback
+      this.applyTheme(DEFAULT_THEME);
     }
   }
 

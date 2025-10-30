@@ -17,22 +17,22 @@ import type {
 
 export const STORAGE_KEYS = {
   // Core data
-  DECKS: 'core-flashcards:decks',
-  CARDS: 'core-flashcards:cards',
-  TEMPLATES: 'core-flashcards:templates',
+  DECKS: 'chaycards/core-flashcards:decks',
+  CARDS: 'chaycards/core-flashcards:cards',
+  TEMPLATES: 'chaycards/core-flashcards:templates',
 
   // Study data
-  SESSIONS: 'core-flashcards:sessions',
-  STATISTICS: 'core-flashcards:statistics',
-  USER_STATS: 'core-flashcards:user-stats',
+  SESSIONS: 'chaycards/core-flashcards:sessions',
+  STATISTICS: 'chaycards/core-flashcards:statistics',
+  USER_STATS: 'chaycards/core-flashcards:user-stats',
 
   // Settings
-  GLOBAL_SETTINGS: 'core-flashcards:global-settings',
-  ACTIVE_DECKS: 'core-flashcards:active-decks',
+  GLOBAL_SETTINGS: 'chaycards/core-flashcards:global-settings',
+  ACTIVE_DECKS: 'chaycards/core-flashcards:active-decks',
 
   // Media files (uses Files as Entity Properties pattern)
-  // Actual key format: 'core-flashcards:media:card-{cardId}:{fieldName}'
-  MEDIA_PREFIX: 'core-flashcards:media',
+  // Actual key format: 'chaycards/core-flashcards:media:card-{cardId}:{fieldName}'
+  MEDIA_PREFIX: 'chaycards/core-flashcards:media',
 } as const;
 
 // ============================================================================
@@ -259,7 +259,6 @@ export const BUILT_IN_TEMPLATES: CardTemplate[] = [
 
     back: `
 <div class="card-back">
-  <div class="field-label">Answer:</div>
   <div class="field-content">{{Back}}</div>
 </div>
     `.trim(),
@@ -807,22 +806,22 @@ export const STUDY_MODE_CONFIGS = {
     icon: '🧠',
     modifiesSchedule: true,
   },
-  'classic': {
-    name: 'Classic Study',
-    description: 'Manual pace through all cards',
-    icon: '📚',
+  'cram': {
+    name: 'Cram All Cards',
+    description: 'Review all cards without affecting schedule',
+    icon: '⚡',
+    modifiesSchedule: false,
+  },
+  'cram-seen': {
+    name: 'Cram Seen Cards',
+    description: 'Review only cards you\'ve studied before',
+    icon: '🔄',
     modifiesSchedule: false,
   },
   'shuffle': {
-    name: 'Shuffle',
-    description: 'Random order for variety',
+    name: 'Shuffle Mode',
+    description: 'Random order review of all cards',
     icon: '🔀',
-    modifiesSchedule: false,
-  },
-  'cram': {
-    name: 'Cram Mode',
-    description: 'Quick review without affecting schedule',
-    icon: '⚡',
     modifiesSchedule: false,
   },
   'match': {

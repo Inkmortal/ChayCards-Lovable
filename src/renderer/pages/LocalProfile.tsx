@@ -16,7 +16,7 @@ const LocalProfile = () => {
   const pluginManager = PluginManager.getInstance();
 
   // Get ThemeSelector from plugin
-  const ThemeSelector = pluginManager.getComponent('core-theme/ThemeSelector');
+  const ThemeSelector = pluginManager.getComponent('chaycards/core-theme/ThemeSelector');
 
   const [profiles, setProfiles] = useState<any[]>([]);
   const [currentStep, setCurrentStep] = useState<ProfileCreationStep>('select');

@@ -81,7 +81,60 @@ export class FlashcardService {
     this.eventBus.on('documents:folder:deleted', this.handleFolderDeleted.bind(this));
 
     this.initialized = true;
+    await this.migrateStorageKeys();
     console.log('[FlashcardService] Initialized successfully');
+  }
+
+  /**
+   * Migrate old storage keys to new namespaced format
+   * OLD: 'core-flashcards:decks/deck-123'
+   * NEW: 'chaycards/core-flashcards:decks/deck-123'
+   */
+  private async migrateStorageKeys(): Promise<void> {
+    if (!this.storage) return;
+
+    console.log('[FlashcardService] Checking for old storage keys to migrate...');
+
+    // Migrate decks
+    const oldDeckKeys = await this.storage.list('core-flashcards:decks/');
+    for (const oldKey of oldDeckKeys) {
+      const result = await this.storage.get(oldKey);
+      if (result) {
+        const deckId = oldKey.split('/').pop();
+        const newKey = buildPluginStorageKey('chaycards/core-flashcards', `decks/${deckId}`);
+        await this.storage.set(newKey, result.data, result.files);
+        await this.storage.delete(oldKey);
+        console.log(`[FlashcardService] Migrated deck: ${oldKey} → ${newKey}`);
+      }
+    }
+
+    // Migrate cards
+    const oldCardKeys = await this.storage.list('core-flashcards:cards/');
+    for (const oldKey of oldCardKeys) {
+      const result = await this.storage.get(oldKey);
+      if (result) {
+        const cardId = oldKey.split('/').pop();
+        const newKey = buildPluginStorageKey('chaycards/core-flashcards', `cards/${cardId}`);
+        await this.storage.set(newKey, result.data, result.files);
+        await this.storage.delete(oldKey);
+        console.log(`[FlashcardService] Migrated card: ${oldKey} → ${newKey}`);
+      }
+    }
+
+    // Migrate templates
+    const oldTemplateKeys = await this.storage.list('core-flashcards:templates/');
+    for (const oldKey of oldTemplateKeys) {
+      const result = await this.storage.get(oldKey);
+      if (result) {
+        const templateId = oldKey.split('/').pop();
+        const newKey = buildPluginStorageKey('chaycards/core-flashcards', `templates/${templateId}`);
+        await this.storage.set(newKey, result.data, result.files);
+        await this.storage.delete(oldKey);
+        console.log(`[FlashcardService] Migrated template: ${oldKey} → ${newKey}`);
+      }
+    }
+
+    console.log('[FlashcardService] Migration complete');
   }
 
   /**
@@ -180,7 +233,7 @@ export class FlashcardService {
     }
 
     // List all deck keys (Files as Entity Properties pattern)
-    const keys = await this.storage.list('core-flashcards:decks/');
+    const keys = await this.storage.list('chaycards/core-flashcards:decks/');
 
     const decks: Deck[] = [];
     for (const key of keys) {
@@ -209,7 +262,7 @@ export class FlashcardService {
       throw new Error('Storage not initialized');
     }
 
-    const key = buildPluginStorageKey('core-flashcards', `decks/${deckId}`);
+    const key = buildPluginStorageKey('chaycards/core-flashcards', `decks/${deckId}`);
     const result = await this.storage.get<Deck>(key);
 
     if (!result?.data) return null;
@@ -271,7 +324,7 @@ export class FlashcardService {
     };
 
     // Store deck using Files as Entity Properties pattern
-    const deckKey = buildPluginStorageKey('core-flashcards', `decks/${deckId}`);
+    const deckKey = buildPluginStorageKey('chaycards/core-flashcards', `decks/${deckId}`);
     await this.storage.set(deckKey, deck);
 
     // Create StoredFile record for Documents integration
@@ -302,7 +355,7 @@ export class FlashcardService {
     };
 
     // Store updated deck
-    const deckKey = buildPluginStorageKey('core-flashcards', `decks/${deckId}`);
+    const deckKey = buildPluginStorageKey('chaycards/core-flashcards', `decks/${deckId}`);
     await this.storage.set(deckKey, updatedDeck);
 
     // Update StoredFile record if folder or name changed
@@ -340,7 +393,7 @@ export class FlashcardService {
 
     // Only update if there are changes
     if (Object.keys(deckUpdates).length > 0) {
-      const deckKey = buildPluginStorageKey('core-flashcards', `decks/${deckId}`);
+      const deckKey = buildPluginStorageKey('chaycards/core-flashcards', `decks/${deckId}`);
       Object.assign(deck, deckUpdates);
       deck.updatedAt = Date.now();
       await this.storage!.set(deckKey, deck);
@@ -367,7 +420,7 @@ export class FlashcardService {
     }
 
     // Delete the deck (CASCADE deletes attached files automatically)
-    const deckKey = buildPluginStorageKey('core-flashcards', `decks/${deckId}`);
+    const deckKey = buildPluginStorageKey('chaycards/core-flashcards', `decks/${deckId}`);
     await this.storage.delete(deckKey);
 
     // Delete StoredFile record from Documents
@@ -782,6 +835,127 @@ export class FlashcardService {
     this.eventBus.emit('flashcards:template:deleted', { templateId });
   }
 
+  /**
+   * Duplicate a template (for creating variants)
+   */
+  async duplicateTemplate(templateId: string, newName: string): Promise<CardTemplate> {
+    const template = await this.getTemplate(templateId);
+    if (!template) {
+      throw new Error(`Template not found: ${templateId}`);
+    }
+
+    return this.createTemplate({
+      name: newName,
+      front: template.front,
+      back: template.back,
+      css: template.css,
+      js: template.js,
+      fields: template.fields,
+      derivedFrom: templateId,
+    });
+  }
+
+  /**
+   * Count how many cards use a specific template
+   */
+  async countCardsUsingTemplate(templateId: string): Promise<number> {
+    const allCards = await this.getAllCards();
+    return allCards.filter(c => c.templateId === templateId && !c.templateOverrides).length;
+  }
+
+  /**
+   * Apply template overrides to a single card
+   */
+  async applyCardOverride(
+    cardId: string,
+    overrides: { front?: string; back?: string; css?: string }
+  ): Promise<Card> {
+    const card = await this.getCard(cardId);
+    if (!card) {
+      throw new Error(`Card not found: ${cardId}`);
+    }
+
+    // Merge with existing overrides
+    const templateOverrides = {
+      ...card.templateOverrides,
+      ...overrides,
+    };
+
+    return this.updateCard(cardId, { templateOverrides });
+  }
+
+  /**
+   * Promote a card's overrides to a new template
+   */
+  async promoteOverrideToTemplate(cardId: string, templateName: string): Promise<CardTemplate> {
+    const card = await this.getCard(cardId);
+    if (!card || !card.templateOverrides) {
+      throw new Error('Card not found or has no overrides');
+    }
+
+    const baseTemplate = await this.getTemplate(card.templateId);
+    if (!baseTemplate) {
+      throw new Error('Base template not found');
+    }
+
+    // Create new template from overrides
+    const newTemplate = await this.createTemplate({
+      name: templateName,
+      front: card.templateOverrides.front || baseTemplate.front,
+      back: card.templateOverrides.back || baseTemplate.back,
+      css: card.templateOverrides.css
+        ? baseTemplate.css + '\n/* Promoted overrides */\n' + card.templateOverrides.css
+        : baseTemplate.css,
+      js: baseTemplate.js,
+      fields: baseTemplate.fields,
+      derivedFrom: card.templateId,
+    });
+
+    // Update the card to use new template and remove overrides
+    await this.updateCard(cardId, {
+      templateId: newTemplate.id,
+      templateOverrides: undefined,
+    });
+
+    return newTemplate;
+  }
+
+  /**
+   * Revert a card's overrides back to its template
+   */
+  async revertCardToTemplate(cardId: string): Promise<Card> {
+    return this.updateCard(cardId, { templateOverrides: undefined });
+  }
+
+  /**
+   * Update a template and optionally apply changes to all cards using it
+   */
+  async updateTemplateAndCards(
+    templateId: string,
+    updates: Partial<CardTemplate>,
+    applyToCards: boolean = false
+  ): Promise<{ template: CardTemplate; cardsUpdated: number }> {
+    const template = await this.updateTemplate(templateId, updates);
+
+    let cardsUpdated = 0;
+    if (applyToCards) {
+      const allCards = await this.getAllCards();
+      const affectedCards = allCards.filter(
+        c => c.templateId === templateId && !c.templateOverrides
+      );
+
+      // Cards with overrides are NOT affected by template updates
+      cardsUpdated = affectedCards.length;
+
+      // Emit event for each card (triggers re-renders)
+      affectedCards.forEach(card => {
+        this.eventBus.emit('flashcards:card:updated', { card });
+      });
+    }
+
+    return { template, cardsUpdated };
+  }
+
   // ==========================================================================
   // SPACED REPETITION (SM-2 Algorithm)
   // ==========================================================================
@@ -819,9 +993,69 @@ export class FlashcardService {
   }
 
   /**
-   * Grade a card and update its state using SM-2 algorithm
+   * Get cards for a specific study mode
+   * @param deckId - The deck ID
+   * @param mode - The study mode (spaced-repetition, cram, shuffle, etc.)
+   * @param limit - Optional limit on number of cards
+   * @returns Cards filtered and ordered according to the mode
    */
-  async gradeCard(cardId: string, grade: 1 | 2 | 3 | 4, timeSpent: number): Promise<CardState> {
+  async getCardsForMode(deckId: string, mode: StudyMode, limit?: number): Promise<Card[]> {
+    // For spaced repetition, use the existing getDueCards logic
+    if (mode === 'spaced-repetition') {
+      return this.getDueCards(deckId, limit);
+    }
+
+    const deck = await this.getDeck(deckId);
+    if (!deck) return [];
+
+    const cards = await this.getCards(deckId);
+    const now = Date.now();
+
+    let filteredCards: Card[] = [];
+
+    switch (mode) {
+      case 'cram':
+        // Cram All: Review ALL cards in deck (new + seen)
+        filteredCards = cards;
+        break;
+
+      case 'cram-seen':
+        // Cram Seen: Only cards that have been in rotation (dueDate in past)
+        filteredCards = cards.filter(c => c.state.dueDate < now);
+        break;
+
+      case 'shuffle':
+        // Shuffle: All cards in random order
+        filteredCards = this.shuffleArray([...cards]);
+        break;
+
+      default:
+        // For other modes (match, type-race, etc.), include all cards
+        filteredCards = cards;
+        break;
+    }
+
+    // Apply limit if specified
+    if (limit && filteredCards.length > limit) {
+      filteredCards = filteredCards.slice(0, limit);
+    }
+
+    return filteredCards;
+  }
+
+  /**
+   * Grade a card and update its state using SM-2 algorithm
+   * @param cardId - The card ID
+   * @param grade - Grade (1=Again, 2=Hard, 3=Good, 4=Easy)
+   * @param timeSpent - Time spent on card in milliseconds
+   * @param mode - Study mode (only 'spaced-repetition' updates schedule)
+   */
+  async gradeCard(
+    cardId: string,
+    grade: 1 | 2 | 3 | 4,
+    timeSpent: number,
+    mode: StudyMode = 'spaced-repetition'
+  ): Promise<CardState> {
     const card = await this.getCard(cardId);
     if (!card) throw new Error(`Card not found: ${cardId}`);
 
@@ -829,17 +1063,25 @@ export class FlashcardService {
     if (!deck) throw new Error(`Deck not found: ${card.deckId}`);
 
     const oldState = { ...card.state };
-    const newState = this.calculateNextState(oldState, grade, deck.settings);
 
-    await this.updateCard(cardId, { state: newState });
+    // Only update schedule for spaced repetition mode
+    let newState: CardState;
+    if (mode === 'spaced-repetition') {
+      newState = this.calculateNextState(oldState, grade, deck.settings);
+      await this.updateCard(cardId, { state: newState });
+    } else {
+      // For other modes, don't modify card state
+      newState = oldState;
+    }
 
-    // Record review
+    // Record review (for all modes, for statistics)
     this.eventBus.emit('flashcards:card:reviewed', {
       cardId,
       grade,
       timeSpent,
       oldState,
       newState,
+      mode, // Include mode in event for tracking
     });
 
     return newState;
@@ -975,6 +1217,28 @@ export class FlashcardService {
 
     this.eventBus.emit('flashcards:session:started', { session });
     return session;
+  }
+
+  /**
+   * Get all study sessions
+   */
+  async getSessions(): Promise<StudySession[]> {
+    if (!this.storage) {
+      throw new Error('Storage not initialized');
+    }
+
+    const result = await this.storage.get<StudySession[]>(STORAGE_KEYS.SESSIONS);
+    return result?.data || [];
+  }
+
+  /**
+   * Get sessions within a date range
+   */
+  async getSessionsInDateRange(startDate: number, endDate: number): Promise<StudySession[]> {
+    const allSessions = await this.getSessions();
+    return allSessions.filter(
+      s => s.startTime >= startDate && s.startTime <= endDate
+    );
   }
 
   /**
@@ -1120,7 +1384,6 @@ export class FlashcardService {
       extension: '.deck',
       mimeType: 'application/x-flashcard-deck',
       size: JSON.stringify(deck).length,
-      fileStorageKey: buildPluginStorageKey('core-flashcards', `decks/${deck.id}`),
       folderId: deck.folderId,
       order: maxOrder + FOLDER_CONFIG.ORDER_GAP,
       tags: [],
@@ -1136,7 +1399,7 @@ export class FlashcardService {
 
     // Add to documents files array
     files.push(storedFile);
-    await this.storage!.set('core-documents:files', files);
+    await this.storage!.set('chaycards/core-documents:files', files);
 
     // Emit event so UI updates
     this.eventBus.emit('document:created', { file: storedFile });
@@ -1175,7 +1438,7 @@ export class FlashcardService {
       updatedAt: deck.updatedAt,
     };
 
-    await this.storage!.set('core-documents:files', files);
+    await this.storage!.set('chaycards/core-documents:files', files);
     this.eventBus.emit('document:updated', { file: files[fileIndex] });
   }
 
@@ -1193,7 +1456,7 @@ export class FlashcardService {
     const filteredFiles = files.filter(f => f.id !== deckId);
 
     if (filteredFiles.length < files.length) {
-      await this.storage!.set('core-documents:files', filteredFiles);
+      await this.storage!.set('chaycards/core-documents:files', filteredFiles);
       this.eventBus.emit('document:deleted', { fileId: deckId });
     }
   }

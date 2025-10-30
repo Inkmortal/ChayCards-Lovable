@@ -91,9 +91,22 @@ auth.json
 # Local user data and preferences
 /user-data/
 *.user.json
-.claude/
 local-settings.json
+
+# Claude Code - ignore settings and hooks, but allow agent configs
+.claude/settings.local.json
+.claude/hooks/
+.claude/*.log
+.claude/cache/
 
 # Notion API tokens (if stored locally)
 .notion-token
 notion-credentials.json
+
+# RAG / Embedding Server (Claude hook pipeline)
+qdrant_storage/
+venv-embedding/
+*.qdrant_fs_check
+memory-bank/**/*.embedding
+memory-bank/**/*.vector
+.qdrant/

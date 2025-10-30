@@ -8,6 +8,7 @@
 #   - Backend Express API (port 7243)
 #   - Notion PM Server (port 3001)
 #   - Cloudflare Tunnel (api.chaycards.com + dev.chaycards.com)
+#   - RAG Embedding Server (port 8765) - Auto-setup on first run
 
 set -e
 
@@ -41,25 +42,28 @@ echo "  ✅ PostgreSQL (port 5433)"
 echo "  ✅ Backend Express API (port 7243)"
 echo "  ✅ Notion PM Server (port 3001)"
 echo "  ✅ Cloudflare Tunnel (api.chaycards.com + dev.chaycards.com)"
+echo "  ✅ RAG Embedding Server (port 8765)"
 echo ""
 echo "Press Ctrl+C or close window to stop all servers"
 echo ""
 sleep 2
 
-# Create new tmux session with 5 panes
+# Create new tmux session with 6 panes
 tmux new-session -s "$SESSION_NAME" -d
 
-# Fixed 5-pane layout: PostgreSQL | Backend API | Notion PM | Tunnel | Control
+# Fixed 6-pane layout: PostgreSQL | Backend API | Notion PM | Tunnel | RAG | Control
 tmux split-window -h -t "$SESSION_NAME:0"
 tmux split-window -v -t "$SESSION_NAME:0.0"
 tmux split-window -v -t "$SESSION_NAME:0.2"
 tmux split-window -v -t "$SESSION_NAME:0.3"
+tmux split-window -v -t "$SESSION_NAME:0.4"
 
 PANE_POSTGRES=0
 PANE_BACKEND=1
 PANE_NOTION=2
 PANE_TUNNEL=3
-PANE_CONTROL=4
+PANE_RAG=4
+PANE_CONTROL=5
 
 # ═══════════════════════════════════════════════════════════
 # PANE: PostgreSQL
@@ -137,6 +141,17 @@ tmux send-keys -t "$SESSION_NAME:0.$PANE_TUNNEL" "echo ''" C-m
 tmux send-keys -t "$SESSION_NAME:0.$PANE_TUNNEL" "cmd.exe /c cloudflared tunnel run chaycards-api" C-m
 
 # ═══════════════════════════════════════════════════════════
+# PANE: RAG Embedding Server
+# ═══════════════════════════════════════════════════════════
+tmux send-keys -t "$SESSION_NAME:0.$PANE_RAG" "cd $PROJECT_DIR" C-m
+tmux send-keys -t "$SESSION_NAME:0.$PANE_RAG" "clear" C-m
+tmux send-keys -t "$SESSION_NAME:0.$PANE_RAG" "echo '🤖 RAG Embedding Server'" C-m
+tmux send-keys -t "$SESSION_NAME:0.$PANE_RAG" "echo '   Auto-setup will run on first start (~30s one-time)'" C-m
+tmux send-keys -t "$SESSION_NAME:0.$PANE_RAG" "echo ''" C-m
+tmux send-keys -t "$SESSION_NAME:0.$PANE_RAG" "sleep 3" C-m
+tmux send-keys -t "$SESSION_NAME:0.$PANE_RAG" "./memory-bank/scripts/auto-start-rag.sh" C-m
+
+# ═══════════════════════════════════════════════════════════
 # PANE: Control & Status
 # ═══════════════════════════════════════════════════════════
 tmux send-keys -t "$SESSION_NAME:0.$PANE_CONTROL" "cd $PROJECT_DIR" C-m
@@ -153,6 +168,7 @@ tmux send-keys -t "$SESSION_NAME:0.$PANE_CONTROL" "   ✅ Backend API:       loc
 tmux send-keys -t "$SESSION_NAME:0.$PANE_CONTROL" "   ✅ Notion PM Server:  localhost:3001" C-m
 tmux send-keys -t "$SESSION_NAME:0.$PANE_CONTROL" "   ✅ Cloudflare Tunnel: https://api.chaycards.com" C-m
 tmux send-keys -t "$SESSION_NAME:0.$PANE_CONTROL" "                         https://dev.chaycards.com" C-m
+tmux send-keys -t "$SESSION_NAME:0.$PANE_CONTROL" "   ✅ RAG Embedding:     localhost:8765" C-m
 tmux send-keys -t "$SESSION_NAME:0.$PANE_CONTROL" "" C-m
 tmux send-keys -t "$SESSION_NAME:0.$PANE_CONTROL" "🎯 Tmux Commands:" C-m
 tmux send-keys -t "$SESSION_NAME:0.$PANE_CONTROL" "   Ctrl+B then:" C-m
@@ -184,6 +200,7 @@ tmux select-pane -t "$SESSION_NAME:0.$PANE_POSTGRES" -T "PostgreSQL"
 tmux select-pane -t "$SESSION_NAME:0.$PANE_BACKEND" -T "Backend API"
 tmux select-pane -t "$SESSION_NAME:0.$PANE_NOTION" -T "Notion PM"
 tmux select-pane -t "$SESSION_NAME:0.$PANE_TUNNEL" -T "Cloudflare"
+tmux select-pane -t "$SESSION_NAME:0.$PANE_RAG" -T "RAG"
 tmux select-pane -t "$SESSION_NAME:0.$PANE_CONTROL" -T "Control"
 
 # Enable pane titles display
@@ -214,5 +231,11 @@ pkill -f "tsx scripts/notion-pm-server.ts" 2>/dev/null || true
 
 # Stop Cloudflare Tunnel
 cmd.exe /c "taskkill /F /IM cloudflared.exe 2>nul" || true
+
+# Stop RAG Embedding Server
+pkill -f "embedding-server.py" 2>/dev/null || true
+
+# Stop Qdrant container
+docker-compose -f docker-compose.qdrant.yml down 2>/dev/null || true
 
 echo "✅ All servers stopped"

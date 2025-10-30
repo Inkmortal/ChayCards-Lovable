@@ -17,7 +17,7 @@ const Login = () => {
 
   // Get ThemeSelector from plugin
   const manager = PluginManager.getInstance();
-  const ThemeSelector = manager.getComponent('core-theme/ThemeSelector');
+  const ThemeSelector = manager.getComponent('chaycards/core-theme/ThemeSelector');
 
   const handleLogin = async () => {
     setError("");

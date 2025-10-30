@@ -333,6 +333,11 @@ export const FileBrowser: React.FC = () => {
   const DropdownMenu = manager.getComponent('chaycards/core-ui/DropdownMenu');
   const DropdownMenuItem = manager.getComponent('chaycards/core-ui/DropdownMenuItem');
 
+  // Early return if components aren't loaded yet
+  if (!PageHeader || !EmptyState || !Card || !Dialog || !Button || !Popover || !DropdownMenu || !DropdownMenuItem) {
+    return <div>Loading UI components...</div>;
+  }
+
   // Calculate placeholder preview when dialog opens
   React.useEffect(() => {
     if (createFolderOpen && documentsService) {

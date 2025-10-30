@@ -27,7 +27,7 @@ plugin-name/
 export const MyPlugin: Plugin = {
   id: 'my-plugin',
   name: 'My Plugin',
-  requires: ['core-ui'],  // Dependencies
+  requires: ['chaycards/core-ui'],  // Dependencies
 
   components: {
     'MyList': MyList,  // Registry name: 'my-plugin/MyList'
@@ -58,7 +58,7 @@ export const MyPlugin: Plugin = {
 ```typescript
 export const ComplexPlugin: Plugin = {
   id: 'my-plugin',
-  requires: ['core-settings'],  // Hard dependency
+  requires: ['chaycards/core-settings'],  // Hard dependency
 
   services: {
     'myService': new MyService()
@@ -89,19 +89,19 @@ export const ComplexPlugin: Plugin = {
 
 ## Using Other Plugins
 ```typescript
-// Components are always namespaced as 'plugin-id/ComponentName'
+// Components are always namespaced as 'author/plugin-id/ComponentName'
 const manager = PluginManager.getInstance();
 
 // Get core UI components
-const Card = manager.getComponent('core-ui/Card');
-const PageHeader = manager.getComponent('core-ui/PageHeader');
+const Card = manager.getComponent('chaycards/core-ui/Card');
+const PageHeader = manager.getComponent('chaycards/core-ui/PageHeader');
 
 // Get components from other plugins
-const DocCard = manager.getComponent('core.documents/DocumentCard');
+const DocCard = manager.getComponent('chaycards/core-documents/DocumentCard');
 
 // Or use the usePlugin hook (wrapper around manager)
 const { getComponent } = usePlugin();
-const TaskList = getComponent('core.tasks/TaskList');
+const TaskList = getComponent('chaycards/core-tasks/TaskList');
 ```
 
 ## Plugin Lifecycle (Avoiding Race Conditions)
@@ -121,14 +121,14 @@ onLoad: async (manager) => {
 // ✅ GOOD: Load data in onLoad, apply in onPluginsReady
 onLoad: async (manager) => {
   const storage = manager.getStorage();
-  const themeService = manager.getService('core-theme/themeService');
+  const themeService = manager.getService('chaycards/core-theme/themeService');
 
   // Load theme ID from storage (safe - just reading data)
   await themeService.initialize(storage);
 },
 
 onPluginsReady: async (manager) => {
-  const themeService = manager.getService('core-theme/themeService');
+  const themeService = manager.getService('chaycards/core-theme/themeService');
 
   // Apply theme now - all theme plugins have registered their definitions
   await themeService.applyStoredTheme();
@@ -190,31 +190,35 @@ onPluginsReady: async (manager) => {
 
 ## Working with Files
 
-### Current Pattern (Dual-Storage - Before Phase 1)
+### Canonical Pattern (Files as Entity Properties)
 
-When your plugin needs to store binary files (PDFs, images, documents), use the pattern from Documents plugin:
+When your plugin needs to store binary files (PDFs, images, documents), use the Files as Entity Properties pattern:
 
 ```typescript
 // Example: Storing a file with metadata
 async function saveFile(file: File): Promise<{id: string, metadata: FileMetadata}> {
   const fileId = crypto.randomUUID();
 
-  // 1. Create metadata object
+  // 1. Create metadata object (no fileStorageKey field needed!)
   const metadata = {
     id: fileId,
     filename: file.name,
     size: file.size,
     mimeType: file.type,
-    // Store the content key for later retrieval
-    fileStorageKey: buildPluginStorageKey('my-plugin', `files/${fileId}`),
     createdAt: Date.now()
   };
 
-  // 2. Save file content separately (binary data)
-  const arrayBuffer = await file.arrayBuffer();
-  await storage.set(metadata.fileStorageKey, new Uint8Array(arrayBuffer));
+  // 2. Save metadata + file content in single atomic operation
+  const content = new Uint8Array(await file.arrayBuffer());
+  const fileKey = buildPluginStorageKey('my-plugin', `files/${fileId}`);
 
-  // 3. Save metadata to index
+  await storage.set(
+    fileKey,
+    metadata,
+    { content }  // Files as properties
+  );
+
+  // 3. Update metadata index
   const allFiles = await storage.get<FileMetadata[]>('my-plugin:files') || [];
   allFiles.push(metadata);
   await storage.set('my-plugin:files', allFiles);
@@ -224,82 +228,38 @@ async function saveFile(file: File): Promise<{id: string, metadata: FileMetadata
 
 // Example: Retrieving file content
 async function getFileContent(fileId: string): Promise<Uint8Array | null> {
-  // 1. Get metadata to find storage key
-  const allFiles = await storage.get<FileMetadata[]>('my-plugin:files') || [];
-  const file = allFiles.find(f => f.id === fileId);
+  const fileKey = buildPluginStorageKey('my-plugin', `files/${fileId}`);
+  const result = await storage.get(fileKey);
 
-  if (!file) return null;
-
-  // 2. Fetch content using storage key
-  return await storage.get<Uint8Array>(file.fileStorageKey);
+  // Extract file content from files property
+  return result?.files?.content || null;
 }
 
-// Example: Deleting a file (MUST delete both metadata AND content)
+// Example: Deleting a file (CASCADE DELETE handles file content automatically)
 async function deleteFile(fileId: string): Promise<void> {
-  // 1. Find and remove from metadata index
+  // 1. Delete file (CASCADE DELETE removes content automatically)
+  const fileKey = buildPluginStorageKey('my-plugin', `files/${fileId}`);
+  await storage.delete(fileKey);
+
+  // 2. Remove from metadata index
   const allFiles = await storage.get<FileMetadata[]>('my-plugin:files') || [];
   const fileIndex = allFiles.findIndex(f => f.id === fileId);
 
-  if (fileIndex === -1) return;
-
-  const file = allFiles[fileIndex];
-
-  // 2. Delete file content
-  await storage.delete(file.fileStorageKey);
-
-  // 3. Remove from metadata index
-  allFiles.splice(fileIndex, 1);
-  await storage.set('my-plugin:files', allFiles);
+  if (fileIndex !== -1) {
+    allFiles.splice(fileIndex, 1);
+    await storage.set('my-plugin:files', allFiles);
+  }
 }
 ```
 
 **Key Points**:
-- Metadata (JSON) stored at: `my-plugin:files` → `FileMetadata[]`
-- File content (binary) stored at: `my-plugin:files/{fileId}` → `Uint8Array`
-- Use `fileStorageKey` field to link metadata to content
-- **IMPORTANT**: Must manually delete both metadata AND content to avoid orphans
+- Metadata (JSON) + file content stored together at: `my-plugin:files/{fileId}`
+- File content accessed via `result.files.content` property
+- **CASCADE DELETE**: Deleting the key automatically removes file content
+- **Atomic operations**: Metadata + file saved in single transaction
+- **No manual linking**: No `fileStorageKey` field needed
 
-### Future Pattern (Files as Entity Properties - After Phase 1)
-
-Once Phase 1 of FILE_STORAGE_SPEC.md is implemented, this becomes much simpler:
-
-```typescript
-// Future: Store file with metadata in single call
-async function saveFile_Future(file: File): Promise<{id: string, metadata: any}> {
-  const fileId = crypto.randomUUID();
-  const metadata = {
-    filename: file.name,
-    size: file.size,
-    mimeType: file.type,
-    createdAt: Date.now()
-  };
-
-  const content = new Uint8Array(await file.arrayBuffer());
-
-  // Single atomic operation - no manual linking!
-  await storage.set(`my-plugin:file:${fileId}`,
-    metadata,
-    { content }  // Files as properties
-  );
-
-  return { id: fileId, metadata };
-}
-
-// Future: Retrieve returns both metadata and files
-async function getFile_Future(fileId: string) {
-  const result = await storage.get(`my-plugin:file:${fileId}`);
-  // Returns: { data: metadata, files: { content: Uint8Array } }
-  return result;
-}
-
-// Future: Delete automatically cascades to files
-async function deleteFile_Future(fileId: string): Promise<void> {
-  await storage.delete(`my-plugin:file:${fileId}`);
-  // Done! File content automatically deleted (CASCADE DELETE)
-}
-```
-
-**Benefits of Future API**:
+### Benefits of This Pattern:
 - ✅ Single storage call (atomic)
 - ✅ Automatic CASCADE DELETE (no orphaned files)
 - ✅ No manual linking via `fileStorageKey`
@@ -312,11 +272,11 @@ async function deleteFile_Future(fileId: string): Promise<void> {
 // components/MyList.tsx
 export const MyList = () => {
   const manager = PluginManager.getInstance();
-  
+
   // Get UI components (always use full namespace)
-  const PageHeader = manager.getComponent('core-ui/PageHeader');
-  const Card = manager.getComponent('core-ui/Card');
-  const EmptyState = manager.getComponent('core-ui/EmptyState');
+  const PageHeader = manager.getComponent('chaycards/core-ui/PageHeader');
+  const Card = manager.getComponent('chaycards/core-ui/Card');
+  const EmptyState = manager.getComponent('chaycards/core-ui/EmptyState');
   
   // Get own service (also namespaced)
   const myService = manager.getService('my-plugin/myService');

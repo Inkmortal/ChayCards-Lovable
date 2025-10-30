@@ -30,7 +30,7 @@ import type {
 import { FOLDER_CONFIG, STORAGE_KEYS } from '../constants';
 
 export class DocumentsService {
-  private readonly PLUGIN_ID = 'core-documents';
+  private readonly PLUGIN_ID = 'chaycards/core-documents';
   private readonly FILES_KEY = STORAGE_KEYS.FILES;
   private readonly FOLDERS_KEY = STORAGE_KEYS.FOLDERS;
 
@@ -61,6 +61,7 @@ export class DocumentsService {
     await this.migrateToV3();
     await this.migrateToV4();
     await this.migrateToV5();
+    await this.migrateToV6();
 
     this.initialized = true;
 
@@ -141,14 +142,13 @@ export class DocumentsService {
 
     const maxOrder = itemsInParent.reduce((max, item) => Math.max(max, item.order || 0), -1);
 
-    // 1. Create metadata object
+    // 1. Create metadata object (no fileStorageKey field!)
     const metadata: StoredFile = {
       id: fileId,
       filename: file.name,
       extension,
       mimeType: file.type || 'application/octet-stream',
       size: file.size,
-      fileStorageKey: buildPluginStorageKey(this.PLUGIN_ID, `files/${fileId}`),
       folderId,
       order: maxOrder + FOLDER_CONFIG.ORDER_GAP,
       tags: options.tags || [],
@@ -158,11 +158,16 @@ export class DocumentsService {
       accessedAt: Date.now()
     };
 
-    // 2. Save file content (File Storage API)
+    // 2. Save metadata + file content in single atomic operation (Files as Entity Properties)
     const arrayBuffer = await file.arrayBuffer();
-    await this.storage.set(metadata.fileStorageKey, new Uint8Array(arrayBuffer));
+    const fileKey = buildPluginStorageKey(this.PLUGIN_ID, `files/${fileId}`);
+    await this.storage.set(
+      fileKey,
+      metadata,
+      { content: new Uint8Array(arrayBuffer) }  // File as property
+    );
 
-    // 3. Update metadata index (JSON Storage API)
+    // 3. Update metadata index
     const files = await this.getFiles();
     files.push(metadata);
     await this.storage.set(this.FILES_KEY, files);
@@ -181,11 +186,30 @@ export class DocumentsService {
    */
   async getDocument(id: string): Promise<StoredFile | undefined> {
     const files = await this.getFiles();
-    return files.find(file => file.id === id);
+    const file = files.find(file => file.id === id);
+
+    if (!file) return undefined;
+
+    // Validate file content actually exists in storage
+    if (!this.storage) return file;
+
+    try {
+      const fileKey = buildPluginStorageKey(this.PLUGIN_ID, `files/${id}`);
+      const exists = await this.storage.has(fileKey);
+      if (!exists) {
+        console.warn(`[DocumentsService] File metadata exists but content missing: ${id}`);
+        return undefined;
+      }
+    } catch (error) {
+      console.error(`[DocumentsService] Error validating file existence: ${id}`, error);
+      // Return file anyway - don't block on validation errors
+    }
+
+    return file;
   }
 
   /**
-   * Get document file content from File Storage
+   * Get document file content from Files as Entity Properties
    */
   async getDocumentContent(id: string): Promise<Uint8Array | null> {
     if (!this.storage) {
@@ -199,8 +223,9 @@ export class DocumentsService {
     }
 
     try {
-      const result = await this.storage.get<Uint8Array>(file.fileStorageKey);
-      const content = result?.data;
+      const fileKey = buildPluginStorageKey(this.PLUGIN_ID, `files/${id}`);
+      const result = await this.storage.get(fileKey);
+      const content = result?.files?.content || null;
 
       // Update access timestamp
       const files = await this.getFiles();
@@ -256,7 +281,14 @@ export class DocumentsService {
       // Update file content if provided
       if (options.content) {
         const arrayBuffer = await options.content.arrayBuffer();
-        await this.storage.set(file.fileStorageKey, new Uint8Array(arrayBuffer));
+        const fileKey = buildPluginStorageKey(this.PLUGIN_ID, `files/${id}`);
+
+        // Re-save with new file content using canonical pattern
+        await this.storage.set(
+          fileKey,
+          file,
+          { content: new Uint8Array(arrayBuffer) }
+        );
 
         file.size = options.content.size;
         file.mimeType = options.content.type || file.mimeType;
@@ -264,7 +296,7 @@ export class DocumentsService {
 
       file.updatedAt = Date.now();
 
-      // Save to storage
+      // Save metadata to index
       await this.storage.set(this.FILES_KEY, files);
 
       // Invoke FileHandler callback if registered
@@ -309,8 +341,9 @@ export class DocumentsService {
         await handler.onFileDeleted(id);
       }
 
-      // 2. Delete file content from File Storage
-      await this.storage.delete(file.fileStorageKey);
+      // 2. Delete file using CASCADE DELETE (file content deleted automatically)
+      const fileKey = buildPluginStorageKey(this.PLUGIN_ID, `files/${id}`);
+      await this.storage.delete(fileKey);
 
       // 3. Remove from metadata index
       files.splice(fileIndex, 1);
@@ -869,7 +902,6 @@ export class DocumentsService {
           extension: file.extension,
           mimeType: file.mimeType,
           size: file.size,
-          fileStorageKey: file.fileStorageKey,
           folderId: file.folderId,
           order: file.order,
           tags: file.tags,
@@ -1397,6 +1429,84 @@ export class DocumentsService {
     await this.storage.set(STORAGE_KEYS.SCHEMA_VERSION, 5);
 
     console.log('[DocumentsService] Migrated to schema v5');
+  }
+
+  /**
+   * Migrate to v6: Dual-storage to Files as Entity Properties
+   * Migrates existing files from dual-storage pattern (separate metadata + content)
+   * to canonical Files as Entity Properties pattern (atomic storage)
+   */
+  private async migrateToV6(): Promise<void> {
+    if (!this.storage) return;
+
+    const versionResult = await this.storage.get<number>(STORAGE_KEYS.SCHEMA_VERSION);
+    const version = versionResult?.data;
+
+    if (version === 6) return; // Already migrated to v6
+
+    console.log('[DocumentsService] Migrating to schema v6 (Files as Entity Properties)...');
+
+    const filesResult = await this.storage.get<StoredFile[]>(this.FILES_KEY);
+    const files = filesResult?.data || [];
+
+    if (files.length === 0) {
+      console.log('[DocumentsService] No files to migrate');
+      await this.storage.set(STORAGE_KEYS.SCHEMA_VERSION, 6);
+      return;
+    }
+
+    let migratedCount = 0;
+    let errorCount = 0;
+
+    for (const file of files) {
+      try {
+        // Check if file has old fileStorageKey field (pre-v6)
+        const oldFileStorageKey = (file as any).fileStorageKey;
+
+        if (!oldFileStorageKey) {
+          // Already migrated or new file - skip
+          continue;
+        }
+
+        // 1. Read file content from old location
+        const oldContentResult = await this.storage.get<Uint8Array>(oldFileStorageKey);
+        const content = oldContentResult?.data;
+
+        if (!content) {
+          console.warn(`[DocumentsService] File content not found for ${file.id}, skipping`);
+          errorCount++;
+          continue;
+        }
+
+        // 2. Save to new location using Files as Entity Properties
+        const newFileKey = buildPluginStorageKey(this.PLUGIN_ID, `files/${file.id}`);
+
+        // Remove fileStorageKey field from metadata
+        delete (file as any).fileStorageKey;
+
+        await this.storage.set(
+          newFileKey,
+          file,
+          { content }
+        );
+
+        // 3. Delete old content location (cleanup)
+        await this.storage.delete(oldFileStorageKey);
+
+        migratedCount++;
+      } catch (error) {
+        console.error(`[DocumentsService] Failed to migrate file ${file.id}:`, error);
+        errorCount++;
+      }
+    }
+
+    // Save updated metadata (without fileStorageKey fields)
+    await this.storage.set(this.FILES_KEY, files);
+
+    // Save schema version
+    await this.storage.set(STORAGE_KEYS.SCHEMA_VERSION, 6);
+
+    console.log(`[DocumentsService] Migrated to schema v6 - ${migratedCount} files migrated, ${errorCount} errors`);
   }
 
   // ==================== FileHandler Registry ====================

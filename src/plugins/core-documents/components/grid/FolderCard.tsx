@@ -164,18 +164,6 @@ export const FolderCard = React.forwardRef<HTMLDivElement, FolderCardProps>(({
             className="w-16 h-16 drop-shadow-lg"
             style={{ color: folder.color || 'hsl(var(--primary))' }}
           />
-
-          {/* Content preview dots */}
-          {folderStats.fileCount > 0 && (
-            <div className="absolute -bottom-1 -right-1 flex gap-0.5">
-              {[...Array(Math.min(3, folderStats.fileCount))].map((_, i) => (
-                <div
-                  key={i}
-                  className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shadow-sm"
-                />
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Text content - centered below icon */}

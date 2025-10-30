@@ -20,7 +20,7 @@ export const AppShell: React.FC = () => {
   const pluginManager = PluginManager.getInstance();
 
   // Get ThemeSelector from plugin
-  const ThemeSelector = pluginManager.getComponent('core-theme/ThemeSelector');
+  const ThemeSelector = pluginManager.getComponent('chaycards/core-theme/ThemeSelector');
 
   // Auth guard and plugin loading - runs ONCE on mount
   useEffect(() => {

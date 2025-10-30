@@ -19,7 +19,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onGetStarted }) =>
 
   // Get ThemeSelector component from plugin
   const manager = PluginManager.getInstance();
-  const ThemeSelector = manager.getComponent('core-theme/ThemeSelector');
+  const ThemeSelector = manager.getComponent('chaycards/core-theme/ThemeSelector');
 
   // Development mode detection
   const isDevelopment = import.meta.env.DEV;

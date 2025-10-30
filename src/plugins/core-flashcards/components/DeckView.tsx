@@ -12,6 +12,8 @@ import { useParams } from 'react-router-dom';
 import { PluginManager } from '@/shared/plugin-system';
 import { useNavigation } from '@/plugins/core-documents/hooks/useNavigation';
 import { useFlashcards } from '../hooks/useFlashcards';
+import { StudyModeDropdown } from './StudyModeDropdown';
+import type { StudyMode } from '../types';
 import {
   ArrowLeft,
   Plus,
@@ -287,19 +289,32 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
           <Button variant="outline" size="sm" onClick={handleToggleActive}>
             {deck.isActive ? 'Remove from Focus' : 'Add to Focus'}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigation.push({
-              type: 'component',
-              component: 'chaycards/core-flashcards/StudySession',
-              props: { deckId: deck.id }
-            })}
-            disabled={dueCards.length === 0}
-          >
-            <Play className="w-4 h-4 mr-2" />
-            Study ({dueCards.length})
-          </Button>
+          {/* Study button - Split button with dropdown */}
+          <div className="flex items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-r-none border-r-0"
+              onClick={() => navigation.push({
+                type: 'component',
+                component: 'chaycards/core-flashcards/StudySession',
+                props: { deckId: deck.id, mode: 'spaced-repetition' as StudyMode }
+              })}
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Study ({dueCards.length})
+            </Button>
+            <StudyModeDropdown
+              deckId={deck.id}
+              onSelectMode={(mode) => navigation.push({
+                type: 'component',
+                component: 'chaycards/core-flashcards/StudySession',
+                props: { deckId: deck.id, mode }
+              })}
+              variant="outline"
+              size="sm"
+            />
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -509,7 +524,14 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{template?.name || 'Unknown'}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{template?.name || 'Unknown'}</Badge>
+                          {card.templateOverrides && (
+                            <span title="This card has custom styling" className="text-xs">
+                              🎨
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge

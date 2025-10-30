@@ -12,6 +12,10 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: true, // Show HMR errors in browser
     },
+    watch: {
+      usePolling: true, // Required for WSL2 when files are in /mnt/c (Windows filesystem)
+      interval: 100, // Poll every 100ms (default is 100ms anyway)
+    },
   },
   plugins: [
     react(),

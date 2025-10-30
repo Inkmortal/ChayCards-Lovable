@@ -19,7 +19,7 @@ const Setup = () => {
 
   // Get ThemeSelector from plugin
   const manager = PluginManager.getInstance();
-  const ThemeSelector = manager.getComponent('core-theme/ThemeSelector');
+  const ThemeSelector = manager.getComponent('chaycards/core-theme/ThemeSelector');
 
   // Platform detection - if we have profile data, we're definitely on desktop
   const platform = profileData

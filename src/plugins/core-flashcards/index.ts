@@ -122,7 +122,7 @@ export const flashcardsPlugin: Plugin = {
       // Register FileHandler for flashcard decks
       const deckHandler: FileHandler = {
         id: 'flashcard-deck-handler',
-        pluginId: 'core-flashcards',
+        pluginId: 'chaycards/core-flashcards',
         name: 'Flashcard Deck',
         icon: { type: 'emoji', emoji: '🎴' },
         extensions: ['.deck'],

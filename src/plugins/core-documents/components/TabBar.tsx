@@ -106,10 +106,8 @@ export const TabBar: React.FC<TabBarProps> = ({
   }, [tabs, activeTabId, onTabClick, onTabClose, onNewTab]);
 
   return (
-    <div className="flex items-center border-b bg-background">
-      {/* Tab list - scrollable */}
-      <div className="flex items-center flex-1 min-w-0 overflow-x-auto overflow-y-hidden">
-        {tabs.map((tab, index) => {
+    <div className="flex items-center border-b bg-background overflow-x-auto overflow-y-hidden">
+      {tabs.map((tab, index) => {
           const isActive = tab.id === activeTabId;
 
           return (
@@ -165,13 +163,12 @@ export const TabBar: React.FC<TabBarProps> = ({
             </div>
           );
         })}
-      </div>
 
-      {/* New tab button - sticky on right */}
+      {/* New tab button - hugs tabs when space available, sticky when overflow */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-9 w-9 shrink-0 rounded-none border-l"
+        className="h-9 w-9 shrink-0 rounded-none border-l sticky right-0 bg-background"
         onClick={onNewTab}
         title="New tab (Cmd/Ctrl+T)"
         aria-label="Open new tab"
