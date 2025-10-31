@@ -1,14 +1,15 @@
 /**
- * Embed Patterns - Manual embedding script
- * Re-embeds all patterns and docs from memory-bank/
- * Clears and rebuilds Qdrant collection
+ * Embed Patterns - Incremental embedding script
+ * Scans memory-bank/ and only embeds new/modified files
+ * Automatically detects changes using file modification times
+ * Deletes embeddings for removed files
  */
 
 import fs from 'fs';
 import path from 'path';
 import { glob } from 'glob';
 import { embedBatch } from './embedding-client.js';
-import { clearCollection, upsertDocuments, getStats } from './qdrant-client.js';
+import { getAllDocuments, upsertDocuments, deleteDocument, getStats, generateIdFromPath } from './qdrant-client.js';
 
 const MEMORY_BANK_ROOT = path.resolve('memory-bank');
 
@@ -63,6 +64,7 @@ function parseMetadata(content, filePath) {
 function processFile(filePath, relativePath, type) {
   const content = fs.readFileSync(filePath, 'utf8');
   const metadata = parseMetadata(content, filePath);
+  const stats = fs.statSync(filePath);
 
   return {
     path: relativePath,
@@ -71,7 +73,8 @@ function processFile(filePath, relativePath, type) {
     category: metadata.category,
     type: metadata.type || type,
     triggers: metadata.triggers,
-    word_count: content.split(/\s+/).length
+    word_count: content.split(/\s+/).length,
+    mtime: stats.mtimeMs  // File modification time for change detection
   };
 }
 
@@ -101,77 +104,135 @@ async function discoverFiles() {
 }
 
 /**
- * Main embedding process
+ * Main embedding process - Incremental
  */
 async function main() {
-  console.log('🚀 Starting pattern embedding process...\n');
+  console.log('🚀 Starting incremental pattern embedding...\n');
 
-  // Step 1: Discover files
+  // Step 1: Discover files on disk
   console.log('📂 Discovering patterns and docs...');
-  const documents = await discoverFiles();
+  const diskDocuments = await discoverFiles();
 
-  if (documents.length === 0) {
+  if (diskDocuments.length === 0) {
     console.log('⚠️  No documents found to embed');
     return;
   }
 
-  console.log(`✓ Found ${documents.length} documents\n`);
+  console.log(`✓ Found ${diskDocuments.length} documents on disk\n`);
 
-  // Show breakdown
-  const byType = documents.reduce((acc, doc) => {
-    acc[doc.type] = (acc[doc.type] || 0) + 1;
-    return acc;
-  }, {});
+  // Step 2: Get existing embeddings from Qdrant
+  console.log('📦 Fetching existing embeddings...');
+  const existingDocs = await getAllDocuments();
+  console.log(`✓ Found ${existingDocs.length} existing embeddings\n`);
 
-  console.log('Documents by type:');
-  for (const [type, count] of Object.entries(byType)) {
-    console.log(`  ${type}: ${count}`);
+  // Create lookup maps
+  const existingByPath = new Map(existingDocs.map(doc => [doc.path, doc]));
+  const diskByPath = new Map(diskDocuments.map(doc => [doc.path, doc]));
+
+  // Step 3: Determine what needs to be updated
+  const toEmbed = [];    // New or modified files
+  const toDelete = [];   // Removed files
+  let unchanged = 0;
+
+  // Check for new/modified files
+  for (const diskDoc of diskDocuments) {
+    const existing = existingByPath.get(diskDoc.path);
+
+    if (!existing) {
+      // New file
+      toEmbed.push({ ...diskDoc, reason: 'new' });
+    } else if (!existing.mtime || diskDoc.mtime > existing.mtime) {
+      // Modified file (or missing mtime in old embedding)
+      toEmbed.push({ ...diskDoc, reason: 'modified' });
+    } else {
+      // Unchanged
+      unchanged++;
+    }
   }
+
+  // Check for deleted files
+  for (const existingDoc of existingDocs) {
+    if (!diskByPath.has(existingDoc.path)) {
+      toDelete.push(existingDoc);
+    }
+  }
+
+  // Show summary
+  console.log('📊 Change detection:');
+  console.log(`  New files:      ${toEmbed.filter(d => d.reason === 'new').length}`);
+  console.log(`  Modified files: ${toEmbed.filter(d => d.reason === 'modified').length}`);
+  console.log(`  Deleted files:  ${toDelete.length}`);
+  console.log(`  Unchanged:      ${unchanged}`);
   console.log();
 
-  // Step 2: Clear existing collection
-  console.log('🗑️  Clearing existing embeddings...');
-  await clearCollection();
-  console.log('✓ Collection cleared\n');
-
-  // Step 3: Generate embeddings in batches
-  console.log('🔮 Generating embeddings...');
-  const BATCH_SIZE = 32;
-  const allEmbeddings = [];
-
-  for (let i = 0; i < documents.length; i += BATCH_SIZE) {
-    const batch = documents.slice(i, i + BATCH_SIZE);
-    const texts = batch.map(doc => doc.text);
-
-    process.stdout.write(`  Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(documents.length / BATCH_SIZE)}...`);
-
-    const embeddings = await embedBatch(texts);
-    allEmbeddings.push(...embeddings);
-
-    process.stdout.write(' ✓\n');
+  // Step 4: Delete removed files
+  if (toDelete.length > 0) {
+    console.log('🗑️  Deleting removed files...');
+    for (const doc of toDelete) {
+      const id = generateIdFromPath(doc.path);
+      await deleteDocument(id);
+      console.log(`  ✓ ${doc.path}`);
+    }
+    console.log();
   }
 
-  console.log(`✓ Generated ${allEmbeddings.length} embeddings\n`);
+  // Step 5: Embed new/modified files
+  if (toEmbed.length > 0) {
+    console.log('🔮 Generating embeddings...');
+    const BATCH_SIZE = 32;
+    const allEmbeddings = [];
+    const successfulDocs = [];
+    let failedCount = 0;
 
-  // Step 4: Upsert to Qdrant
-  console.log('💾 Storing in Qdrant...');
+    for (let i = 0; i < toEmbed.length; i += BATCH_SIZE) {
+      const batch = toEmbed.slice(i, i + BATCH_SIZE);
+      const texts = batch.map(doc => doc.text);
 
-  const qdrantDocs = documents.map((doc, i) => ({
-    vector: allEmbeddings[i],
-    payload: doc
-  }));
+      process.stdout.write(`  Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(toEmbed.length / BATCH_SIZE)}...`);
 
-  await upsertDocuments(qdrantDocs);
-  console.log('✓ Documents stored\n');
+      try {
+        const embeddings = await embedBatch(texts);
+        allEmbeddings.push(...embeddings);
+        successfulDocs.push(...batch);
+        process.stdout.write(' ✓\n');
+      } catch (error) {
+        failedCount += batch.length;
+        process.stdout.write(` ✗ (${error.message})\n`);
+        console.log(`    Failed files: ${batch.map(d => d.path).join(', ')}`);
+      }
+    }
 
-  // Step 5: Verify
+    if (failedCount > 0) {
+      console.log(`\n⚠️  Failed to embed ${failedCount} documents`);
+    }
+    console.log(`✓ Generated ${allEmbeddings.length} embeddings\n`);
+
+    // Step 6: Upsert to Qdrant
+    console.log('💾 Storing in Qdrant...');
+
+    const qdrantDocs = successfulDocs.map((doc, i) => ({
+      vector: allEmbeddings[i],
+      payload: doc
+    }));
+
+    if (qdrantDocs.length > 0) {
+      await upsertDocuments(qdrantDocs);
+      console.log('✓ Documents stored\n');
+    } else {
+      console.log('⚠️  No documents to store (all batches failed)\n');
+    }
+  } else {
+    console.log('✓ No changes detected, skipping embedding\n');
+  }
+
+  // Step 7: Final stats
   console.log('📊 Final stats:');
   const stats = await getStats();
   console.log(`  Total points: ${stats.points_count}`);
   console.log(`  Total vectors: ${stats.vectors_count}`);
   console.log(`  Status: ${stats.status}`);
 
-  console.log('\n✨ Embedding process complete!');
+  console.log('\n✨ Incremental embedding complete!');
 }
 
 // Run if called directly

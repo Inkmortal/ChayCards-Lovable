@@ -6,13 +6,37 @@
 import fetch from 'node-fetch';
 
 const EMBEDDING_SERVER_URL = 'http://localhost:8765';
+const TIMEOUT_MS = 300000; // 5 minutes
+
+/**
+ * Fetch with timeout support
+ */
+async function fetchWithTimeout(url, options = {}, timeoutMs = TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    return response;
+  } catch (error) {
+    clearTimeout(timeout);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs/1000}s`);
+    }
+    throw error;
+  }
+}
 
 /**
  * Check if embedding server is healthy
  */
 export async function checkHealth() {
   try {
-    const response = await fetch(`${EMBEDDING_SERVER_URL}/health`);
+    const response = await fetchWithTimeout(`${EMBEDDING_SERVER_URL}/health`);
     if (!response.ok) {
       throw new Error(`Server returned ${response.status}`);
     }
@@ -34,7 +58,7 @@ export async function embed(text) {
   }
 
   try {
-    const response = await fetch(`${EMBEDDING_SERVER_URL}/embed`, {
+    const response = await fetchWithTimeout(`${EMBEDDING_SERVER_URL}/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text })
@@ -68,7 +92,7 @@ export async function embedBatch(texts) {
   }
 
   try {
-    const response = await fetch(`${EMBEDDING_SERVER_URL}/embed-batch`, {
+    const response = await fetchWithTimeout(`${EMBEDDING_SERVER_URL}/embed-batch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ texts })

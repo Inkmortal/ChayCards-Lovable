@@ -1,6 +1,9 @@
 fastapi>=0.109.0
 uvicorn>=0.27.0
 sentence-transformers>=2.3.1
+# PyTorch with CUDA support - install from CUDA index for GPU acceleration
+# Use: pip install torch --index-url https://download.pytorch.org/whl/cu124
 torch>=2.2.0
 pydantic>=2.5.3
 numpy>=1.26.3
+requests>=2.31.0

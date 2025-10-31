@@ -110,3 +110,102 @@ venv-embedding/
 memory-bank/**/*.embedding
 memory-bank/**/*.vector
 .qdrant/
+memory-bank/.rag-errors.log
+
+# Cloudflare Tunnel Credentials
+cloudflared-credentials.json
+
+# Docker volumes and data persistence
+docker-data/
+postgres-data/
+qdrant-data/
+docker-compose.override.yml
+
+# Local development state
+.dev-state.json
+.last-sync.json
+.migration-state.json
+
+# IDE and editor workspace settings (keep shared configs)
+.vscode/settings.json
+.vscode/*.code-workspace
+*.code-workspace
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries/
+
+# macOS
+.AppleDouble
+.LSOverride
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Linux
+*~
+.nfs*
+
+# Windows
+desktop.ini
+$RECYCLE.BIN/
+*.stackdump
+ehthumbs.db
+
+# Build artifacts from different platforms
+/out-*/
+/build-*/
+/release-*/
+/packages/
+
+# Testing artifacts
+/playwright-report/
+/test-results/
+/screenshots/
+/__screenshots__/
+*.spec.png
+*.spec.jpg
+
+# Performance profiling
+*.cpuprofile
+*.heapprofile
+*.heapsnapshot
+flamegraph.html
+
+# Cache directories
+.cache/
+.parcel-cache/
+.turbo/
+.next/
+.nuxt/
+.output/
+
+# Lock files for alternate package managers (if you standardize on npm)
+# Uncomment if you want to force npm usage:
+# yarn.lock
+# pnpm-lock.yaml
+# bun.lockb
+
+# Local configuration overrides
+*.local.json
+*.local.ts
+*.local.js
+config.local.*
+settings.local.*
+
+# Backup files
+*.backup
+*.bak
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+
+# AI/LLM session data (keep examples/templates)
+.ai-sessions/
+.llm-cache/
+.prompt-cache/

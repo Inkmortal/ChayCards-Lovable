@@ -8,6 +8,34 @@ import fetch from 'node-fetch';
 
 const LLM_ENDPOINT = 'http://192.168.1.58:1243/v1/chat/completions';
 const MODEL_NAME = 'qwen';
+const TIMEOUT_MS = 600000; // 10 minutes
+
+/**
+ * Fetch with timeout support
+ * @param {string} url - URL to fetch
+ * @param {Object} options - Fetch options
+ * @param {number} timeoutMs - Timeout in milliseconds
+ * @returns {Promise<Response>}
+ */
+async function fetchWithTimeout(url, options = {}, timeoutMs = TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    return response;
+  } catch (error) {
+    clearTimeout(timeout);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs/1000}s`);
+    }
+    throw error;
+  }
+}
 
 /**
  * System prompt for compression
@@ -61,7 +89,7 @@ ${candidateList}
 Task: Compress ALL relevant information into the shortest possible reminder format. Focus on what exists, where it is (file:line), and what to avoid. Be aggressive - Claude Code can research details.`;
 
   try {
-    const response = await fetch(LLM_ENDPOINT, {
+    const response = await fetchWithTimeout(LLM_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -87,10 +115,7 @@ Task: Compress ALL relevant information into the shortest possible reminder form
     return compressed;
 
   } catch (error) {
-    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-      console.error('❌ Mac Mini LLM not reachable at', LLM_ENDPOINT);
-      throw new Error('LLM server not available. Check that LLM Studio is running on Mac Mini.');
-    }
+    // Silent failure - just throw without logging
     throw error;
   }
 }
@@ -167,7 +192,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
       case 'health':
         console.log('Checking LLM server health...');
-        const healthResponse = await fetch(LLM_ENDPOINT.replace('/chat/completions', '/models'));
+        const healthResponse = await fetchWithTimeout(LLM_ENDPOINT.replace('/chat/completions', '/models'));
         if (healthResponse.ok) {
           console.log('✓ LLM server is reachable');
           const models = await healthResponse.json();

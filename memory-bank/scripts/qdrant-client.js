@@ -9,13 +9,37 @@ import crypto from 'crypto';
 const QDRANT_URL = 'http://localhost:6333';
 const COLLECTION_NAME = 'chaycards_patterns';
 const VECTOR_SIZE = 1024; // BAAI/bge-large-en-v1.5 dimension
+const TIMEOUT_MS = 300000; // 5 minutes
+
+/**
+ * Fetch with timeout support
+ */
+async function fetchWithTimeout(url, options = {}, timeoutMs = TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetchWithTimeout(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    return response;
+  } catch (error) {
+    clearTimeout(timeout);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs/1000}s`);
+    }
+    throw error;
+  }
+}
 
 /**
  * Initialize collection with proper schema
  */
 export async function initCollection() {
   // Check if collection exists
-  const existsResponse = await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}`);
+  const existsResponse = await fetchWithTimeout(`${QDRANT_URL}/collections/${COLLECTION_NAME}`);
 
   if (existsResponse.ok) {
     console.log(`✓ Collection '${COLLECTION_NAME}' already exists`);
@@ -23,7 +47,7 @@ export async function initCollection() {
   }
 
   // Create collection
-  const response = await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}`, {
+  const response = await fetchWithTimeout(`${QDRANT_URL}/collections/${COLLECTION_NAME}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -60,7 +84,7 @@ export async function initCollection() {
 export async function upsertDocument(doc) {
   const id = doc.id || generateIdFromPath(doc.payload.path);
 
-  const response = await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points`, {
+  const response = await fetchWithTimeout(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -95,7 +119,7 @@ export async function upsertDocuments(docs) {
     }
   }));
 
-  const response = await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points`, {
+  const response = await fetchWithTimeout(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ points })
@@ -128,7 +152,7 @@ export async function search(vector, limit = 30, filter = null) {
     body.filter = filter;
   }
 
-  const response = await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points/search`, {
+  const response = await fetchWithTimeout(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points/search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -150,7 +174,7 @@ export async function search(vector, limit = 30, filter = null) {
  * Delete document by ID
  */
 export async function deleteDocument(id) {
-  const response = await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points/delete`, {
+  const response = await fetchWithTimeout(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points/delete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -167,7 +191,7 @@ export async function deleteDocument(id) {
  * Delete documents by file path
  */
 export async function deleteByPath(path) {
-  const response = await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points/delete`, {
+  const response = await fetchWithTimeout(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points/delete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -190,7 +214,7 @@ export async function deleteByPath(path) {
  */
 export async function clearCollection() {
   // Delete collection
-  await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}`, {
+  await fetchWithTimeout(`${QDRANT_URL}/collections/${COLLECTION_NAME}`, {
     method: 'DELETE'
   });
 
@@ -204,7 +228,7 @@ export async function clearCollection() {
  * Get collection stats
  */
 export async function getStats() {
-  const response = await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}`);
+  const response = await fetchWithTimeout(`${QDRANT_URL}/collections/${COLLECTION_NAME}`);
 
   if (!response.ok) {
     throw new Error(`Failed to get stats: ${await response.text()}`);
@@ -219,11 +243,39 @@ export async function getStats() {
 }
 
 /**
+ * Get all documents from collection
+ * Uses scroll API to retrieve all points with their payloads
+ */
+export async function getAllDocuments() {
+  const response = await fetchWithTimeout(`${QDRANT_URL}/collections/${COLLECTION_NAME}/points/scroll`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      limit: 10000,
+      with_payload: true,
+      with_vector: false
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get all documents: ${await response.text()}`);
+  }
+
+  const data = await response.json();
+  return data.result.points.map(point => ({
+    id: point.id,
+    ...point.payload
+  }));
+}
+
+/**
  * Generate deterministic ID from file path
  */
 function generateIdFromPath(path) {
   return crypto.createHash('md5').update(path).digest('hex');
 }
+
+export { generateIdFromPath };
 
 // CLI interface
 if (import.meta.url === `file://${process.argv[1]}`) {
