@@ -29,6 +29,7 @@ dist-ssr
 # Environment files
 .env
 .env.local
+.env.development
 .env.production
 server/.env
 
@@ -96,6 +97,7 @@ auth.json
 local-settings.json
 
 # Claude Code - ignore settings and hooks, but allow agent configs
+.claude/settings.json
 .claude/settings.local.json
 .claude/hooks/
 .claude/*.log
@@ -116,6 +118,7 @@ memory-bank/.rag-errors.log
 
 # Cloudflare Tunnel Credentials
 cloudflared-credentials.json
+cloudflared-config.yml
 
 # Docker volumes and data persistence
 docker-data/
