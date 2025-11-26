@@ -1,6 +1,6 @@
 /**
  * ThemeService - Manages theme switching and CSS variable application
- * Stores theme preference in its own storage key: 'core-theme:preference'
+ * Stores theme preference in its own storage key: 'chaycards/core-theme:preference'
  */
 
 import type { Theme } from '../themes';
@@ -9,9 +9,9 @@ import type { StorageAdapter } from '@/shared/storage';
 import { STORAGE_KEYS } from '@/shared/constants';
 
 const THEME_LOCALSTORAGE_KEY = 'chaycards-theme'; // Fallback for public pages
-const ALL_THEMES_KEY = 'core-theme:all-themes'; // All themes (plugin + custom) - single source of truth
-const CUSTOM_THEMES_KEY = 'core-theme:custom-themes'; // DEPRECATED: Migration only
-const FAVORITES_KEY = 'core-theme:favorites';
+const ALL_THEMES_KEY = 'chaycards/core-theme:all-themes'; // All themes (plugin + custom) - single source of truth
+const CUSTOM_THEMES_KEY = 'chaycards/core-theme:custom-themes'; // DEPRECATED: Migration only
+const FAVORITES_KEY = 'chaycards/core-theme:favorites';
 
 export class ThemeService {
   private currentTheme: Theme = DEFAULT_THEME;

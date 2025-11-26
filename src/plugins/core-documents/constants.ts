@@ -10,7 +10,7 @@ export const FOLDER_CONFIG = {
 } as const;
 
 export const STORAGE_KEYS = {
-  FILES: 'core-documents:files',
-  FOLDERS: 'core-documents:folders',
-  SCHEMA_VERSION: 'core-documents:schema-version',
+  FILES: 'chaycards/core-documents:files',
+  FOLDERS: 'chaycards/core-documents:folders',
+  SCHEMA_VERSION: 'chaycards/core-documents:schema-version',
 } as const;

@@ -2,7 +2,7 @@
  * SettingsService - Manages app-wide settings and plugin settings registry
  *
  * Architecture:
- * - App-wide settings: Stored in storage table under 'core-settings:app-settings'
+ * - App-wide settings: Stored in storage table under 'chaycards/core-settings:app-settings'
  * - Plugin settings: Each plugin stores its own settings under 'pluginId:settings'
  * - Settings registry: Plugins register their schemas for settings UI
  *

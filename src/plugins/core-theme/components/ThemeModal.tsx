@@ -41,7 +41,7 @@ interface ThemeModalProps {
 type TabValue = 'favorites' | 'browse' | 'custom';
 
 // localStorage key for unified category filter persistence
-const CATEGORY_FILTER_KEY = 'core-theme:category-filter';
+const CATEGORY_FILTER_KEY = 'chaycards/core-theme:category-filter';
 
 /**
  * ThemeModal component for comprehensive theme management
@@ -102,6 +102,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({ open, onOpenChange }) =>
     localStorage.removeItem('core-theme:browse-category-filter');
     localStorage.removeItem('core-theme:favorites-category-filter');
     localStorage.removeItem('core-theme:custom-category-filter');
+    localStorage.removeItem('core-theme:category-filter'); // Legacy non-namespaced key
   }, [categoryFilter]);
 
   // Filter themes based on search and category

@@ -3,9 +3,8 @@
 export const APP_NAME = 'ChayCards';
 export const APP_VERSION = '0.0.1';
 
-// API endpoints
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-export const API_TIMEOUT = 30000; // 30 seconds
+// API configuration moved to src/config/api.ts
+// Import from there instead: import { API_URL, API_ENDPOINTS } from '@/config/api';
 
 // Storage keys (legacy - consider using plugin-namespaced keys instead)
 export const STORAGE_KEYS = {
@@ -16,8 +15,8 @@ export const STORAGE_KEYS = {
   LAST_PROFILE_ID: 'last_profile_id', // Electron only: last used profile
 
   // Core plugin storage keys (plugin-namespaced)
-  CORE_SETTINGS: 'core-settings:app-settings',
-  CORE_THEME: 'core-theme:preference',
+  CORE_SETTINGS: 'chaycards/core-settings:app-settings',
+  CORE_THEME: 'chaycards/core-theme:preference',
 } as const;
 
 /**
@@ -57,13 +56,13 @@ export const STORAGE_KEY_PREFIX = {
  * @example
  * // Core settings plugin
  * const settingsKey = buildPluginStorageKey('chaycards/core-settings', 'app-settings');
- * // Returns: 'core-settings:app-settings'
+ * // Returns: 'chaycards/core-settings:app-settings'
  * await storage.set(settingsKey, { theme: 'dark' });
  *
  * @example
  * // Theme preference
  * const themeKey = buildPluginStorageKey('chaycards/core-theme', 'preference');
- * // Returns: 'core-theme:preference'
+ * // Returns: 'chaycards/core-theme:preference'
  * await storage.set(themeKey, 'catppuccin-latte');
  *
  * @example

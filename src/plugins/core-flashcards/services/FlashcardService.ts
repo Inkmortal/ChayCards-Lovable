@@ -28,7 +28,7 @@ import {
 import { EventBus } from '@/services/eventBus';
 import type { PluginManager, StorageAdapter } from '@/shared/plugin-system/types';
 import type { DocumentsService, Folder, StoredFile } from '@/plugins/core-documents';
-import { FOLDER_CONFIG } from '@/plugins/core-documents/constants';
+import { FOLDER_CONFIG, STORAGE_KEYS as DOCUMENTS_STORAGE_KEYS } from '@/plugins/core-documents/constants';
 import { buildPluginStorageKey } from '@/shared/constants';
 
 export class FlashcardService {
@@ -1399,7 +1399,7 @@ export class FlashcardService {
 
     // Add to documents files array
     files.push(storedFile);
-    await this.storage!.set('chaycards/core-documents:files', files);
+    await this.storage!.set(DOCUMENTS_STORAGE_KEYS.FILES, files);
 
     // Emit event so UI updates
     this.eventBus.emit('document:created', { file: storedFile });
@@ -1438,7 +1438,7 @@ export class FlashcardService {
       updatedAt: deck.updatedAt,
     };
 
-    await this.storage!.set('chaycards/core-documents:files', files);
+    await this.storage!.set(DOCUMENTS_STORAGE_KEYS.FILES, files);
     this.eventBus.emit('document:updated', { file: files[fileIndex] });
   }
 
@@ -1456,7 +1456,7 @@ export class FlashcardService {
     const filteredFiles = files.filter(f => f.id !== deckId);
 
     if (filteredFiles.length < files.length) {
-      await this.storage!.set('chaycards/core-documents:files', filteredFiles);
+      await this.storage!.set(DOCUMENTS_STORAGE_KEYS.FILES, filteredFiles);
       this.eventBus.emit('document:deleted', { fileId: deckId });
     }
   }
