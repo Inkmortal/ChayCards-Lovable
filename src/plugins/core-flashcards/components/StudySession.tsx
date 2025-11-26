@@ -231,13 +231,9 @@ export default function StudySession({ deckId: propDeckId, mode: propMode }: Stu
     }
   };
 
-  // Handle exit
+  // Handle exit - go back to previous view (context-aware)
   const handleExit = () => {
-    navigation.push({
-      type: 'component',
-      component: 'chaycards/core-flashcards/DeckView',
-      props: { deckId }
-    });
+    navigation.goBack();
   };
 
   // Loading state

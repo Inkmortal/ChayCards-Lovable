@@ -19,6 +19,7 @@ import { isPublicPage } from '@/utils/routeUtils';
 import type { StorageAdapter } from '../storage/StorageAdapter';
 import { CORE_PLUGINS, isCorePlugin, buildPluginStorageKey, STORAGE_KEYS } from '../constants';
 import { isWeb } from '@/utils/platform';
+import { API_ENDPOINTS } from '@/config/api';
 
 export class PluginManager implements IPluginManager {
   private static instance: PluginManager;
@@ -271,8 +272,6 @@ export class PluginManager implements IPluginManager {
     try {
       if (isWeb()) {
         // Web mode: Fetch from PostgreSQL users table via API
-        const storageUrl = import.meta.env.VITE_STORAGE_API_URL || 'https://api.chaycards.com/api/storage';
-        const baseApiUrl = storageUrl.replace(/\/storage$/, '');
         const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
 
         if (!token) {
@@ -283,7 +282,7 @@ export class PluginManager implements IPluginManager {
           };
         }
 
-        const response = await fetch(`${baseApiUrl}/users/me/plugins`, {
+        const response = await fetch(API_ENDPOINTS.USERS_ME_PLUGINS, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -364,7 +363,6 @@ export class PluginManager implements IPluginManager {
 
     // Reset storage flag so it reinitializes
     this.storageInitialized = false;
-    this.storageAdapter = null;
   }
 
   /**

@@ -74,6 +74,17 @@ export interface DocumentViewerContextValue {
    * navigateInTab({ type: 'component', component: 'chaycards/core-flashcards/CardEditor', props: { deckId: '123' } })
    */
   navigateInTab?: (item: NavigationItem) => void;
+
+  /**
+   * Go back in tab history (embedded only)
+   * Returns to previous location within the tab's navigation stack
+   */
+  goBack?: () => void;
+
+  /**
+   * Check if can go back in tab history (embedded only)
+   */
+  canGoBack?: boolean;
 }
 
 /**

@@ -40,6 +40,9 @@ export class DocumentsService {
   // FileHandler registry (kept - this is actual service state, not storage data)
   private fileHandlers: Map<string, FileHandler> = new Map();
 
+  // File cache for synchronous lookups (populated on load and kept in sync)
+  private fileCache: Map<string, StoredFile> = new Map();
+
   constructor() {
     // Initialization happens in initialize()
   }
@@ -91,7 +94,15 @@ export class DocumentsService {
 
     try {
       const result = await this.storage.get<StoredFile[]>(this.FILES_KEY);
-      return result?.data || [];
+      const files = result?.data || [];
+
+      // Update cache for synchronous lookups
+      this.fileCache.clear();
+      for (const file of files) {
+        this.fileCache.set(file.id, file);
+      }
+
+      return files;
     } catch (error) {
       console.error('[DocumentsService] Failed to get files:', error);
       return [];
@@ -1566,6 +1577,38 @@ export class DocumentsService {
    */
   getHandler(handlerId: string): FileHandler | undefined {
     return this.fileHandlers.get(handlerId);
+  }
+
+  /**
+   * Alias for getAllHandlers - for compatibility with useNavigation
+   */
+  getFileHandlers(): FileHandler[] {
+    return this.getAllHandlers();
+  }
+
+  /**
+   * Get a file from cache synchronously
+   * Used by useNavigation for route building
+   * Returns undefined if file not in cache (call getFiles() first to populate)
+   */
+  getCachedFile(fileId: string): StoredFile | undefined {
+    return this.fileCache.get(fileId);
+  }
+
+  /**
+   * Update cache when a file is modified
+   * Called internally after file operations
+   */
+  private updateFileCache(file: StoredFile): void {
+    this.fileCache.set(file.id, file);
+  }
+
+  /**
+   * Remove file from cache
+   * Called internally after file deletion
+   */
+  private removeFromFileCache(fileId: string): void {
+    this.fileCache.delete(fileId);
   }
 
   // ==================== Utility Methods ====================

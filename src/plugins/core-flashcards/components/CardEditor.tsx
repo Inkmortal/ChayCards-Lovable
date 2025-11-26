@@ -241,13 +241,9 @@ export default function CardEditor({ deckId: propDeckId, cardId: propCardId, mod
     }
   };
 
-  // Handle cancel
+  // Handle cancel - go back to previous view (context-aware)
   const handleCancel = () => {
-    navigation.push({
-      type: 'component',
-      component: 'chaycards/core-flashcards/DeckView',
-      props: { deckId }
-    });
+    navigation.goBack();
   };
 
   // Handle template customization

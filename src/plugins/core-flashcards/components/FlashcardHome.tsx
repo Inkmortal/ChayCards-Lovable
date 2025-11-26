@@ -19,7 +19,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { PluginManager } from '@/shared/plugin-system';
 import { useNavigation } from '@/plugins/core-documents/hooks/useNavigation';
 import { useFlashcards } from '../hooks/useFlashcards';
@@ -57,7 +56,8 @@ import { ActivityHeatmap } from './ActivityHeatmap';
 import { useActivityData } from '../hooks/useActivityData';
 
 export default function FlashcardHome() {
-  const navigate = useNavigate();
+  // Universal navigation hook - works in both embedded and standalone contexts
+  const navigation = useNavigation();
 
   // Get services from PluginManager
   const manager = PluginManager.getInstance();
@@ -147,37 +147,40 @@ export default function FlashcardHome() {
       }
     });
 
-  // Handlers
+  // Handlers - All use navigation.push() for context-aware routing
   const handleCreateDeck = async () => {
     try {
       const deck = await createDeck('New Deck', {
         preset: 'balanced',
       });
-      navigate(`/app/flashcards/deck/${deck.id}`);
+      // Navigate to the new deck using context-aware navigation
+      navigation.push({
+        type: 'component',
+        component: 'chaycards/core-flashcards/DeckView',
+        props: { deckId: deck.id }
+      });
     } catch (err) {
       console.error('[FlashcardHome] Failed to create deck:', err);
     }
   };
 
   const handleOpenDeck = (deckId: string) => {
-    navigate(`/app/flashcards/deck/${deckId}`);
+    // Navigate to deck using context-aware navigation
+    navigation.push({
+      type: 'component',
+      component: 'chaycards/core-flashcards/DeckView',
+      props: { deckId }
+    });
   };
-
-  const navigation = useNavigation();
 
   const handleStudyDeck = (deckId: string, mode?: StudyMode) => {
     // Navigate to study session with optional mode
-    if (mode) {
-      // If mode is provided, use navigation.push with props
-      navigation.push({
-        type: 'component',
-        component: 'chaycards/core-flashcards/StudySession',
-        props: { deckId, mode }
-      });
-    } else {
-      // Default to spaced-repetition via URL route
-      navigate(`/app/flashcards/study/${deckId}`);
-    }
+    // Default to spaced-repetition if no mode specified
+    navigation.push({
+      type: 'component',
+      component: 'chaycards/core-flashcards/StudySession',
+      props: { deckId, mode: mode || 'spaced-repetition' }
+    });
   };
 
   const handleStudyFolder = (folderId: string) => {

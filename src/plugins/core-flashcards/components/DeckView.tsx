@@ -229,9 +229,9 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
       <div className="flex flex-col items-center justify-center h-full">
         <BookMarked className="w-12 h-12 text-muted-foreground mb-4" />
         <p className="text-muted-foreground">Deck not found</p>
-        <Button onClick={() => navigation.push({ type: 'component', component: 'chaycards/core-flashcards/FlashcardHome', props: {} })} className="mt-4">
+        <Button onClick={() => navigation.goBack()} className="mt-4">
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Flashcards
+          Go Back
         </Button>
       </div>
     );
@@ -245,7 +245,8 @@ export default function DeckView({ fileId }: DeckViewProps = {}) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigation.push({ type: 'component', component: 'chaycards/core-flashcards/FlashcardHome', props: {} })}
+            onClick={() => navigation.goBack()}
+            title="Go back"
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>

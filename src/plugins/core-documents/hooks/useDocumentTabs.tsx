@@ -234,8 +234,39 @@ export const useDocumentTabs = (
 
       for (const tab of state.tabs) {
         if (tab.type === 'grid') {
-          // Grid tabs are always valid
-          validTabs.push(tab);
+          // Validate grid tabs - check if folderId still exists
+          if (tab.folderId) {
+            const folder = await documentsService.getFolder(tab.folderId);
+            if (!folder) {
+              console.warn(`[DocumentTabs] Resetting grid tab - folder not found: ${tab.folderId}`);
+              // Reset to root level and clear stale history entries
+              const cleanedHistory = tab.history.filter(entry => {
+                if (entry.type === 'grid' && entry.folderId) {
+                  // We can't async check each one here, so keep only root entries for now
+                  // The navigateToFolder will handle validation when user navigates
+                  return false;
+                }
+                return entry.type !== 'grid'; // Keep document/component entries
+              });
+              // Ensure at least one root entry
+              if (cleanedHistory.length === 0 || cleanedHistory[0].type !== 'grid') {
+                cleanedHistory.unshift({ type: 'grid', folderId: null, timestamp: Date.now(), scrollPosition: 0 });
+              }
+              validTabs.push({
+                ...tab,
+                folderId: null,
+                title: 'All Files',
+                breadcrumb: [{ id: 'root', name: 'All Documents', folderId: null }],
+                history: cleanedHistory,
+                historyIndex: 0
+              });
+            } else {
+              validTabs.push(tab);
+            }
+          } else {
+            // Root level grid tab is always valid
+            validTabs.push(tab);
+          }
         } else {
           // Validate document tabs - check if file still exists
           const file = await documentsService.getDocument(tab.fileId);
@@ -774,8 +805,15 @@ export const useDocumentTabs = (
     // Find folder in local tree (instant, no async)
     const folder = folderId ? findInTree(localTree, folderId) : null;
 
+    // VALIDATION: If folderId was provided but folder doesn't exist, reset to root
+    // This handles stale localStorage references to deleted folders
+    const validFolderId = folderId && !folder ? null : folderId;
+    if (folderId && !folder) {
+      console.warn(`[useDocumentTabs] Folder not found in tree, resetting to root: ${folderId}`);
+    }
+
     // Build breadcrumb from local tree (instant, no async)
-    const breadcrumb = buildBreadcrumbFromTree(localTree, folderId);
+    const breadcrumb = buildBreadcrumbFromTree(localTree, validFolderId);
 
     // Save current scroll position
     const currentState = captureCurrentState(activeTab);
@@ -792,10 +830,10 @@ export const useDocumentTabs = (
           ...currentState
         };
 
-        // Add new history entry
+        // Add new history entry (use validFolderId to prevent stale references)
         const newHistory = [
           ...updatedHistory.slice(0, t.historyIndex + 1),
-          { type: 'grid', folderId, scrollPosition: 0, timestamp: Date.now() }
+          { type: 'grid', folderId: validFolderId, scrollPosition: 0, timestamp: Date.now() }
         ];
 
         // Return updated tab with new history and updated properties
@@ -803,7 +841,7 @@ export const useDocumentTabs = (
           ...t,
           type: 'grid',
           title: folder ? folder.name : 'All Files',
-          folderId,
+          folderId: validFolderId,
           breadcrumb,
           history: newHistory,
           historyIndex: newHistory.length - 1

@@ -12,6 +12,8 @@ interface DocumentViewContentProps {
   closeTab: (tabId: string) => void;
   setTabDirty: (tabId: string, isDirty: boolean) => void;
   navigateInTab: (tabId: string, item: any) => void;
+  goBack: (tabId: string) => Promise<void>;
+  canGoBack: (tabId: string) => boolean;
 }
 
 export const DocumentViewContent: React.FC<DocumentViewContentProps> = ({
@@ -22,7 +24,9 @@ export const DocumentViewContent: React.FC<DocumentViewContentProps> = ({
   addDocumentTab,
   closeTab,
   setTabDirty,
-  navigateInTab
+  navigateInTab,
+  goBack,
+  canGoBack
 }) => {
   return (
     <DocumentViewerContext.Provider
@@ -44,7 +48,9 @@ export const DocumentViewContent: React.FC<DocumentViewContentProps> = ({
         },
         closeTab: () => closeTab(activeTabId),
         setTabDirty: (isDirty: boolean) => setTabDirty(activeTabId, isDirty),
-        navigateInTab: (item) => navigateInTab(activeTabId, item)
+        navigateInTab: (item) => navigateInTab(activeTabId, item),
+        goBack: () => goBack(activeTabId),
+        canGoBack: canGoBack(activeTabId)
       }}
     >
       <div className="document-viewer flex-1 overflow-auto">

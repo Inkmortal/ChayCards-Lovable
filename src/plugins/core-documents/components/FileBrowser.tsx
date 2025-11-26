@@ -1280,6 +1280,8 @@ export const FileBrowser: React.FC = () => {
           closeTab={closeTab}
           setTabDirty={setTabDirty}
           navigateInTab={navigateInTab}
+          goBack={goBack}
+          canGoBack={canGoBack}
         />
       ) : null}
     </div>

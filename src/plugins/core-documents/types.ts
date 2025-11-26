@@ -134,6 +134,31 @@ export interface FileHandler {
    * @example 'chaycards/core-flashcards/DeckSettings'
    */
   settingsComponent?: string;
+
+  /**
+   * Build a URL route for viewing this file type in standalone mode
+   * Required for navigation to work when not embedded in Documents tabs
+   * @param fileId - The file/entity ID
+   * @returns URL path for viewing this file
+   * @example (fileId) => `/app/flashcards/deck/${fileId}`
+   */
+  getViewerRoute?: (fileId: string) => string;
+
+  /**
+   * Callback when file metadata is updated from Documents UI
+   * Used for bidirectional sync between plugin storage and Documents
+   */
+  onFileUpdated?: (fileId: string, updates: Partial<StoredFile>) => Promise<void>;
+
+  /**
+   * Callback when file is deleted from Documents UI
+   */
+  onFileDeleted?: (fileId: string) => Promise<void>;
+
+  /**
+   * Callback when file is moved to a different folder from Documents UI
+   */
+  onFileMoved?: (fileId: string, oldFolderId: string | null, newFolderId: string | null) => Promise<void>;
 }
 
 /**

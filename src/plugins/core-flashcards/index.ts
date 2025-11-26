@@ -132,6 +132,9 @@ export const flashcardsPlugin: Plugin = {
         settingsComponent: 'chaycards/core-flashcards/DeckSettings', // Settings modal
         priority: 100,
 
+        // URL route for standalone navigation (when not embedded in Documents)
+        getViewerRoute: (fileId: string) => `/app/flashcards/deck/${fileId}`,
+
         // Bidirectional sync callbacks
         onFileUpdated: async (fileId: string, updates: Partial<any>) => {
           await service.syncFromStoredFile(fileId, updates);
