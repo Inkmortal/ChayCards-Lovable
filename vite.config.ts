@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: ['dev.chaycards.com'], // Allow Cloudflare tunnel domain
     strictPort: true, // Exit if port is already in use instead of trying another
     hmr: {
       overlay: true, // Show HMR errors in browser

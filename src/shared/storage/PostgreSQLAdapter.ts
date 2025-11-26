@@ -8,24 +8,15 @@
 import type { StorageAdapter } from './StorageAdapter';
 import { isPublicPage } from '@/utils/routeUtils';
 import { STORAGE_KEYS } from '@/shared/constants';
+import { API_ENDPOINTS } from '@/config/api';
 
 export class PostgreSQLAdapter implements StorageAdapter {
   private apiUrl: string;
 
   constructor(apiUrl?: string) {
-    // Priority:
-    // 1. Explicit apiUrl parameter
-    // 2. Environment variable (set via .env or build config)
-    // 3. Default: Cloudflare Tunnel (works everywhere)
-    //
-    // Why Cloudflare Tunnel as default?
-    // - Local dev can override with .env: VITE_STORAGE_API_URL=/api/storage
-    // - Lovable preview needs absolute URL (no backend/proxy available)
-    // - Production needs absolute URL
-    const envUrl = import.meta.env.VITE_STORAGE_API_URL;
-    const defaultUrl = 'https://api.chaycards.com/api/storage';
-
-    this.apiUrl = apiUrl || envUrl || defaultUrl;
+    // Use explicit parameter OR centralized config
+    // Config automatically loads correct URL from .env.development/.env.production
+    this.apiUrl = apiUrl || API_ENDPOINTS.STORAGE_BASE;
 
     if (import.meta.env.DEV) {
       console.log('[PostgreSQLAdapter] API URL:', this.apiUrl);

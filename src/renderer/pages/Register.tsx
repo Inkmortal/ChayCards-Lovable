@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { STORAGE_KEYS } from "@/shared/constants";
 import { PluginManager } from "@/shared/plugin-system";
+import { API_ENDPOINTS } from "@/config/api";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -47,7 +48,7 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('https://api.chaycards.com/api/auth/register', {
+      const response = await fetch(API_ENDPOINTS.AUTH_REGISTER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: trimmedUsername, password: trimmedPassword })

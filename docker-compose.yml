@@ -14,17 +14,19 @@ services:
     container_name: chaycards-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: dev
-      POSTGRES_DB: chaycards
-    ports:
-      - "5433:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev}
+      # Multiple databases created via init script
+    expose:
+      - "5432"
     volumes:
       - chaycards_pg_data:/var/lib/postgresql/data
+      - ./scripts/init-multi-db.sh:/docker-entrypoint-initdb.d/init-multi-db.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     restart: unless-stopped
     networks:
       - chaycards-network
@@ -37,18 +39,19 @@ services:
       - product
       - all
 
-  api:
+  api-dev:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: chaycards-api
+    container_name: chaycards-api-dev
     environment:
-      DATABASE_URL: postgresql://postgres:dev@postgres:5432/chaycards
-      PORT: 3101
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:dev@postgres:5432/chaycards_dev}
+      PORT: ${PORT:-3101}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080,http://localhost:5173}
-    ports:
-      - "3101:3101"
+      NODE_ENV: ${NODE_ENV:-development}
+      CORS_ORIGIN: https://dev.chaycards.com,http://dev.chaycards.com,http://localhost:8080
+    expose:
+      - "3101"
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,10 +129,10 @@ services:
     container_name: chaycards-notion-pm
     environment:
       NOTION_API_KEY: ${NOTION_API_KEY}
-      NOTION_PM_PORT: 3001
+      NOTION_PM_PORT: ${NOTION_PM_PORT:-3001}
       NOTION_PM_API_KEY: ${NOTION_PM_API_KEY:-dev-secret-key-change-in-production}
-    ports:
-      - "3001:3001"
+    expose:
+      - "3001"
     volumes:
       - ./.notion-pm-cache.json:/app/.notion-pm-cache.json
     restart: unless-stopped
@@ -147,7 +150,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: chaycards-cloudflared
-    command: tunnel --no-autoupdate --credentials-file /etc/cloudflared/credentials.json run
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
     environment:
       - TUNNEL_ID=6c780a88-8816-46f3-8e89-fd866d5006fd
     volumes:
@@ -155,11 +158,20 @@ services:
         source: ./cloudflared-credentials.json
         target: /etc/cloudflared/credentials.json
         read_only: true
+      - type: bind
+        source: ./cloudflared-config.yml
+        target: /etc/cloudflared/config.yml
+        read_only: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     networks:
       - chaycards-network
     depends_on:
-      - api
+      api-dev:
+        condition: service_started
+      notion-pm:
+        condition: service_started
     logging:
       driver: "json-file"
       options:

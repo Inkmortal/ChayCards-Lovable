@@ -14,17 +14,18 @@ const jwt = require('jsonwebtoken');
 const app = express();
 
 // Default plugins for new users (sync with src/shared/constants.ts)
+// IMPORTANT: These must match the namespaced plugin IDs in CORE_PLUGINS
 const DEFAULT_PLUGINS = [
-  'core-settings',
-  'core-theme',
-  'core-ui',
-  'core-documents',
-  'theme-catppuccin',
-  'theme-dracula',
-  'theme-gruvbox',
-  'theme-tokyonight',
-  'theme-chay',
-  'demo-plugin',
+  'chaycards/core-settings',
+  'chaycards/core-theme',
+  'chaycards/core-ui',
+  'chaycards/core-documents',
+  'chaycards/theme-catppuccin',
+  'chaycards/theme-dracula',
+  'chaycards/theme-gruvbox',
+  'chaycards/theme-tokyonight',
+  'chaycards/theme-chay',
+  'chaycards/demo-plugin',
 ];
 
 // JWT secret (use environment variable in production)

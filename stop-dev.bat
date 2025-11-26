@@ -44,14 +44,17 @@ echo.
 echo [2/4] Killing orphaned processes on ports...
 echo.
 
-REM Kill processes on specific ports
+REM Stop Vite via PID file first
+wsl bash -c "[ -f .vite.pid ] && kill \$(cat .vite.pid) 2>/dev/null || true && rm -f .vite.pid" 2>nul
+
+REM Stop Embedding Watcher via PID file
+wsl bash -c "[ -f .embedding-watcher.pid ] && kill \$(cat .embedding-watcher.pid) 2>/dev/null || true && rm -f .embedding-watcher.pid" 2>nul
+echo [OK] Stopped Embedding Watcher
+
+REM Kill any remaining process on port 8080 (only host-exposed service)
 call :kill_port 8080 "Vite Dev Server"
-call :kill_port 3101 "Express API"
-call :kill_port 5433 "PostgreSQL"
-call :kill_port 6333 "Qdrant HTTP"
-call :kill_port 6334 "Qdrant gRPC"
-call :kill_port 8765 "Embedding Server"
-call :kill_port 3001 "Notion PM Sync"
+
+REM Note: Docker services don't expose ports to host anymore
 
 echo.
 echo [3/4] Killing Electron processes...

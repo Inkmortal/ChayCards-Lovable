@@ -15,6 +15,7 @@ import { PluginManager } from "../../../shared/plugin-system";
 import { useState, useEffect } from "react";
 import { isElectron } from "@/utils/platform";
 import { STORAGE_KEYS } from "@/shared/constants";
+import { API_ENDPOINTS } from "@/config/api";
 
 export const DemoPage = () => {
   const pluginManager = PluginManager.getInstance();
@@ -136,9 +137,6 @@ export const DemoPage = () => {
         console.log('[Demo] Loaded users from Electron:', userList);
       } else {
         // Real data from PostgreSQL API
-        // Extract base API URL (remove /storage suffix if present)
-        const storageUrl = import.meta.env.VITE_STORAGE_API_URL || 'https://api.chaycards.com/api/storage';
-        const baseApiUrl = storageUrl.replace(/\/storage$/, '');
         const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
 
         if (!token) {
@@ -149,7 +147,7 @@ export const DemoPage = () => {
 
         console.log('[Demo] Fetching users from:', `${baseApiUrl}/users`);
 
-        const response = await fetch(`${baseApiUrl}/users`, {
+        const response = await fetch(API_ENDPOINTS.USERS_LIST, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

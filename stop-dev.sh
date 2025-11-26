@@ -47,6 +47,28 @@ echo "ChayCards - Stop Development Services"
 echo "========================================"
 echo ""
 
+# Stop Vite if PID file exists
+if [ -f ".vite.pid" ]; then
+    VITE_PID=$(cat .vite.pid)
+    if ps -p $VITE_PID > /dev/null 2>&1; then
+        echo "Stopping Vite process (PID: $VITE_PID)..."
+        kill $VITE_PID 2>/dev/null || true
+    fi
+    rm -f .vite.pid
+fi
+
+# Stop Embedding Watcher if PID file exists
+if [ -f ".embedding-watcher.pid" ]; then
+    WATCHER_PID=$(cat .embedding-watcher.pid)
+    if ps -p $WATCHER_PID > /dev/null 2>&1; then
+        echo "Stopping Embedding Watcher (PID: $WATCHER_PID)..."
+        kill $WATCHER_PID 2>/dev/null || true
+    fi
+    rm -f .embedding-watcher.pid
+fi
+
+echo ""
+
 # Check if Docker is running
 if ! docker info > /dev/null 2>&1; then
     echo -e "${RED}[ERROR] Docker is not running${NC}"
@@ -89,14 +111,11 @@ kill_port() {
     fi
 }
 
-# Kill processes on specific ports
+# Kill processes on specific ports (only host-exposed services)
 kill_port 8080 "Vite Dev Server"
-kill_port 3101 "Express API"
-kill_port 5433 "PostgreSQL"
-kill_port 6333 "Qdrant HTTP"
-kill_port 6334 "Qdrant gRPC"
-kill_port 8765 "Embedding Server"
-kill_port 3001 "Notion PM Sync"
+
+# Note: Docker services don't expose ports to host anymore,
+# so we don't need to kill them individually
 
 echo ""
 echo -e "${BLUE}[3/4] Killing Electron processes...${NC}"
