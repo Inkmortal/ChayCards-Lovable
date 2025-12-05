@@ -1,0 +1,66 @@
+{
+  "$schema": "./memory-bank/schemas/vibe.schema.json",
+  "enabled": true,
+  "projectName": "chaycards",
+
+  "embedding": {
+    "url": "http://localhost:8765",
+    "model": "BAAI/bge-large-en-v1.5",
+    "paths": [
+      "memory-bank/**/*.md",
+      "src/plugins/**/CLAUDE.md",
+      "src/renderer/CLAUDE.md",
+      "electron/CLAUDE.md",
+      "CLAUDE.md"
+    ],
+    "chunkSize": 1500,
+    "chunkOverlap": 200
+  },
+
+  "qdrant": {
+    "url": "http://localhost:6333",
+    "collection": "chaycards_patterns"
+  },
+
+  "llm": {
+    "baseUrl": "http://192.168.1.58:1243/v1",
+    "model": "qwen3-next-80b-a3b-instruct",
+    "apiKey": "",
+    "maxOutputTokens": 16384,
+    "contextLength": 262144,
+    "temperature": 0.7,
+    "topP": 0.8,
+    "topK": 20,
+    "presencePenalty": 0.5,
+    "frequencyPenalty": 0,
+    "streaming": false,
+    "useToolCalling": true
+  },
+
+  "rag": {
+    "mode": "manual",
+    "topK": 20,
+    "minScore": 0.5,
+    "alwaysInclude": [
+      "memory-bank/core/activeContext.md"
+    ],
+    "enableKeywords": ["!rag", "!deep", "!research", "!context"],
+    "skipKeywords": ["!skip", "!fast", "!quick", "!norag"]
+  },
+
+  "search": {
+    "serper": {
+      "enabled": false,
+      "apiKey": ""
+    },
+    "searxng": {
+      "enabled": false,
+      "url": ""
+    }
+  },
+
+  "notifications": {
+    "enabled": true,
+    "soundFile": null
+  }
+}
