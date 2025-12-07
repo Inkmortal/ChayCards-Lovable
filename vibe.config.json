@@ -41,6 +41,7 @@
     "mode": "manual",
     "topK": 20,
     "minScore": 0.5,
+    "maxConversationMessages": 10,
     "alwaysInclude": [
       "memory-bank/core/activeContext.md"
     ],
@@ -50,8 +51,8 @@
 
   "search": {
     "serper": {
-      "enabled": false,
-      "apiKey": ""
+      "enabled": true,
+      "apiKey": "2515572ed5829d3bbe3733e2d3aa05003a4e4c62"
     },
     "searxng": {
       "enabled": false,
