@@ -178,43 +178,12 @@ goto wait_api
 :after_api
 echo.
 
-REM Wait for Qdrant (check if running, max 20 seconds, non-critical)
-echo    Qdrant:
-set /a count=0
-:wait_qdrant
-for /f "delims=" %%i in ('docker inspect --format "{{.State.Status}}" chaycards-qdrant 2^>nul') do set STATUS=%%i
-if "%STATUS%"=="running" (
-    echo ✓ Ready
-    goto after_qdrant
-)
-set /a count+=1
-if !count! geq 20 (
-    echo ⚠️  Not responding (may still be starting)
-    goto after_qdrant
-)
-timeout /t 1 /nobreak >nul
-goto wait_qdrant
-:after_qdrant
-echo.
-
 echo ✓ All core services are ready
 echo.
 
-REM Start Embedding Watcher (background process)
-echo 🔮 Starting Embedding Watcher...
-echo.
-
-REM Kill any existing watcher process
-if exist ".embedding-watcher.pid" (
-    set /p OLD_PID=<.embedding-watcher.pid
-    taskkill /PID %OLD_PID% /F >nul 2>&1
-)
-
-REM Start embedding watcher in background
-start /B cmd /c "node memory-bank/scripts/embedding-watcher.js > embedding-watcher.log 2>&1"
-echo    ✓ Embedding Watcher started
-echo      Watching: memory-bank/ + src/ for changes
-echo      Logs: type embedding-watcher.log
+REM NOTE: RAG services (Qdrant, Embedding) are now handled by Vibe Master
+echo 💡 RAG services are handled by Vibe Master
+echo    Start them with: vibe-master\scripts\start-services.bat
 echo.
 
 REM Start Vite on host
@@ -262,10 +231,10 @@ echo    Dev Tools:        https://dev-tools.chaycards.com
 echo.
 echo 📊 Service Status:
 echo    Docker services:  docker-compose ps
-echo    Vite logs:        wsl tail -f vite-dev.log
-echo    Watcher logs:     type embedding-watcher.log
+echo    Vite logs:        type vite-dev.log
 echo    API logs:         docker-compose logs -f api-dev
 echo    Postgres logs:    docker-compose logs -f postgres
+echo    RAG (Vibe Master): vibe-master\scripts\health-check.bat
 echo.
 echo 🛑 Stop services:
 echo    stop-dev.bat

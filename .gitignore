@@ -26,12 +26,13 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment files
+# Environment and config files (contain secrets)
 .env
 .env.local
 .env.development
 .env.production
 server/.env
+vibe.config.json
 
 # Build outputs
 /out

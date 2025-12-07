@@ -1,0 +1,93 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2024-12-03",
+  "IMPORTANT": "DO NOT mark 'status' as 'complete' without end-to-end verification using Puppeteer MCP",
+  "categories": {
+    "core": "Core platform functionality",
+    "plugins": "Plugin system and individual plugins",
+    "infrastructure": "Dev tooling, RAG, deployment",
+    "ui": "User interface and theming"
+  },
+  "features": [
+    {
+      "id": "plugin-system",
+      "category": "core",
+      "name": "Plugin registry and dynamic loading",
+      "status": "complete",
+      "verified": true,
+      "notes": "PluginManager with dependency-aware loading waves"
+    },
+    {
+      "id": "storage-system",
+      "category": "core",
+      "name": "SQLite + file system storage",
+      "status": "complete",
+      "verified": true,
+      "notes": "SQLiteAdapter with graceful degradation"
+    },
+    {
+      "id": "event-bus",
+      "category": "core",
+      "name": "Local event bus for plugin communication",
+      "status": "complete",
+      "verified": true,
+      "notes": "EventBus pattern implemented"
+    },
+    {
+      "id": "theme-system",
+      "category": "ui",
+      "name": "Theme switching and customization",
+      "status": "in-progress",
+      "verified": false,
+      "notes": "Core theme plugin exists, needs verification"
+    },
+    {
+      "id": "document-tabs",
+      "category": "plugins",
+      "name": "Multi-tab document editing",
+      "status": "in-progress",
+      "verified": false,
+      "notes": "useDocumentTabs hook exists"
+    },
+    {
+      "id": "flashcard-system",
+      "category": "plugins",
+      "name": "Spaced repetition flashcards",
+      "status": "in-progress",
+      "verified": false,
+      "notes": "core-flashcards plugin with streak tracking"
+    },
+    {
+      "id": "navigation-tree",
+      "category": "ui",
+      "name": "Hierarchical navigation sidebar",
+      "status": "planned",
+      "verified": false,
+      "notes": "Spec exists in docs/features/NAVIGATION_TREE_SPEC.md"
+    },
+    {
+      "id": "rag-hook",
+      "category": "infrastructure",
+      "name": "RAG context injection for Claude Code",
+      "status": "complete",
+      "verified": true,
+      "notes": "383-line hook with Qwen 70B curation"
+    },
+    {
+      "id": "notion-integration",
+      "category": "infrastructure",
+      "name": "Notion MCP for task tracking",
+      "status": "complete",
+      "verified": true,
+      "notes": "Database IDs in notion-quick-ref.md"
+    },
+    {
+      "id": "dual-env-setup",
+      "category": "infrastructure",
+      "name": "WSL + Windows development environment",
+      "status": "complete",
+      "verified": true,
+      "notes": "start-electron-windows.bat for Windows, npm run dev for WSL"
+    }
+  ]
+}

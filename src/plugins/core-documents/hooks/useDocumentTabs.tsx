@@ -288,19 +288,19 @@ export const useDocumentTabs = (
         validTabs.push(createDefaultGridTab());
       }
 
-      // Ensure first grid tab is not closeable ONLY if it's the only grid tab
-      const gridTabs = validTabs.filter(t => t.type === 'grid');
-      if (gridTabs.length === 1) {
-        // Make only grid tab uncloseable
-        validTabs = validTabs.map(tab =>
-          tab.type === 'grid' ? { ...tab, closeable: false } : tab
-        );
-      } else if (gridTabs.length > 1) {
-        // Make all grid tabs closeable when there are multiple
-        validTabs = validTabs.map(tab =>
-          tab.type === 'grid' ? { ...tab, closeable: true } : tab
-        );
-      }
+      // Ensure correct closeable values for all tab types
+      const gridTabCount = validTabs.filter(t => t.type === 'grid').length;
+      validTabs = validTabs.map(tab => {
+        if (tab.type === 'grid') {
+          // Grid tabs: closeable only if multiple grid tabs exist
+          return { ...tab, closeable: gridTabCount > 1 };
+        }
+        if (tab.type === 'document') {
+          // Document tabs: always closeable
+          return { ...tab, closeable: true };
+        }
+        return tab;
+      });
 
       // Validate active tab ID
       let newActiveTabId = state.activeTabId;
@@ -595,17 +595,27 @@ export const useDocumentTabs = (
 
   /**
    * Restore UI state from history entry
+   *
+   * This function updates tab state to match a history entry WITHOUT navigating
+   * away from /app/documents. The Documents plugin renders embedded viewers based
+   * on tab state (history entries), NOT based on URL.
+   *
+   * History entry types:
+   * - 'grid': Folder view - update tab type to 'grid', set folderId
+   * - 'document': File viewer - update tab type to 'document', set handler/fileId
+   * - 'component': In-plugin navigation (e.g., StudySession) - component info is
+   *   self-contained in the history entry, DocumentViewContent reads it directly
    */
   const restoreHistoryEntry = useCallback(async (
     tab: DocumentTabType,
     entry: TabHistoryEntry
   ) => {
     if (entry.type === 'grid') {
-      // Restore grid view
+      // Restore grid view - changes tab type to 'grid'
       const folder = entry.folderId ? await documentsService.getFolder(entry.folderId) : null;
       const breadcrumb = await generateBreadcrumb(entry.folderId, documentsService);
 
-      // Update tab
+      // Update tab to grid type
       setTabs(tabs.map(t => {
         if (t.id !== tab.id) return t;
         return {
@@ -624,17 +634,43 @@ export const useDocumentTabs = (
           gridElement.scrollTop = entry.scrollPosition;
         }
       });
-    } else {
-      // Restore document view
+    } else if (entry.type === 'component') {
+      // Restore component view (e.g., StudySession, CardEditor within a deck)
+      //
+      // Component entries are SELF-CONTAINED - the component path and props are
+      // stored directly in the history entry (entry.component, entry.componentProps).
+      // DocumentViewContent reads currentHistory and renders the component directly.
+      //
+      // We don't need to update tab metadata here because:
+      // 1. historyIndex is already updated by goBack/goForward
+      // 2. DocumentViewContent reads history[historyIndex] on each render
+      // 3. Component info comes from the history entry, not tab metadata
+
+      // Just restore scroll position
+      requestAnimationFrame(() => {
+        const docElement = document.querySelector('.document-viewer');
+        if (docElement && entry.scrollPosition !== undefined) {
+          docElement.scrollTop = entry.scrollPosition;
+        }
+      });
+    } else if (entry.type === 'document') {
+      // Restore document view - update tab metadata for file viewer
       const file = await documentsService.getDocument(entry.fileId!);
-      if (!file) return;
+      if (!file) {
+        console.warn('[restoreHistoryEntry] File not found:', entry.fileId);
+        return;
+      }
 
       const handler = documentsService.getHandlerForFile(file);
-      if (!handler) return;
+      if (!handler) {
+        console.warn('[restoreHistoryEntry] No handler for file:', file.extension);
+        return;
+      }
 
       const breadcrumb = await generateBreadcrumb(file.folderId, documentsService);
 
-      // Update tab
+      // Update tab metadata - DocumentViewContent will render based on this
+      // DO NOT call navigate() - stay at /app/documents, let embedded viewer render
       setTabs(tabs.map(t => {
         if (t.id !== tab.id) return t;
         return {
@@ -648,18 +684,14 @@ export const useDocumentTabs = (
         } as DocumentTab;
       }));
 
-      // Navigate to plugin route
-      navigate(handler.getViewerRoute(file.id), { replace: true });
-
-      // Restore scroll/cursor position (next frame)
+      // Restore scroll/cursor position (next frame to allow render)
       requestAnimationFrame(() => {
-        // For scrollable documents
         const docElement = document.querySelector('.document-viewer');
         if (docElement && entry.scrollPosition !== undefined) {
           docElement.scrollTop = entry.scrollPosition;
         }
 
-        // For text editors (plugin-specific)
+        // For text editors (plugin-specific cursor restoration)
         if (entry.cursorPosition !== undefined) {
           window.dispatchEvent(new CustomEvent('document-cursor-restore', {
             detail: { position: entry.cursorPosition }
@@ -667,7 +699,7 @@ export const useDocumentTabs = (
         }
       });
     }
-  }, [tabs, documentsService, navigate]);
+  }, [tabs, documentsService]);
 
   /**
    * Go back in tab history

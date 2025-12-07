@@ -70,57 +70,8 @@ services:
   # ========================================
   # DEVELOPMENT SERVERS
   # ========================================
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: chaycards-qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - ./qdrant_storage:/qdrant/storage
-    environment:
-      - QDRANT__SERVICE__GRPC_PORT=6334
-    restart: unless-stopped
-    networks:
-      - chaycards-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    profiles:
-      - dev
-      - all
-
-  embedding:
-    build:
-      context: ./memory-bank/scripts
-      dockerfile: Dockerfile.embedding
-    container_name: chaycards-embedding
-    ports:
-      - "8765:8765"
-    environment:
-      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-    restart: unless-stopped
-    networks:
-      - chaycards-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    profiles:
-      - dev
-      - all
-    # GPU support (requires nvidia-docker: https://github.com/NVIDIA/nvidia-docker)
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+  # NOTE: Qdrant and Embedding services are now handled by Vibe Master
+  # Run vibe-master/scripts/start-services.bat to start RAG infrastructure
 
   notion-pm:
     build:

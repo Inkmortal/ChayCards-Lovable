@@ -5,11 +5,12 @@
 # One-click script to start all services:
 # - PostgreSQL (with dev/staging/prod databases)
 # - API server (Express backend)
-# - Qdrant (vector database)
-# - Embedding service (GPU-accelerated)
 # - Notion PM (project management)
 # - Cloudflare tunnel (external access)
 # - Vite dev server (frontend on host)
+#
+# NOTE: RAG services (Qdrant, Embedding) are now handled by Vibe Master
+# Start them separately with: vibe-master/scripts/start-services.sh
 
 set -e
 
@@ -157,46 +158,13 @@ for i in {1..30}; do
     echo -n "."
 done
 
-# Wait for Qdrant (check if container is running)
-echo -n "   Qdrant: "
-for i in {1..20}; do
-    STATUS=$(docker inspect --format='{{.State.Status}}' chaycards-qdrant 2>/dev/null || echo "starting")
-    if [ "$STATUS" = "running" ]; then
-        echo "✓ Ready"
-        break
-    fi
-    if [ $i -eq 20 ]; then
-        echo "⚠️  Not responding (may still be starting)"
-        break
-    fi
-    sleep 1
-    echo -n "."
-done
-
 echo ""
 echo "✓ All core services are ready"
 echo ""
 
-# Start Embedding Watcher (background process)
-echo "🔮 Starting Embedding Watcher..."
-echo ""
-
-# Kill any existing watcher process
-if [ -f ".embedding-watcher.pid" ]; then
-    OLD_PID=$(cat .embedding-watcher.pid)
-    if kill -0 "$OLD_PID" 2>/dev/null; then
-        echo "   Stopping existing watcher (PID: $OLD_PID)..."
-        kill "$OLD_PID" 2>/dev/null || true
-    fi
-fi
-
-# Start embedding watcher in background
-node memory-bank/scripts/embedding-watcher.js > embedding-watcher.log 2>&1 &
-WATCHER_PID=$!
-echo $WATCHER_PID > .embedding-watcher.pid
-echo "   ✓ Embedding Watcher started (PID: $WATCHER_PID)"
-echo "     Watching: memory-bank/ + src/ for changes"
-echo "     Logs: tail -f embedding-watcher.log"
+# NOTE: RAG services (Qdrant, Embedding) are now handled by Vibe Master
+echo "💡 RAG services are handled by Vibe Master"
+echo "   Start them with: vibe-master/scripts/start-services.sh"
 echo ""
 
 # Start Vite on host (background process)
@@ -244,9 +212,9 @@ echo ""
 echo "📊 Service Status:"
 echo "   Docker services:  docker-compose ps"
 echo "   Vite logs:        tail -f vite-dev.log"
-echo "   Watcher logs:     tail -f embedding-watcher.log"
 echo "   API logs:         docker-compose logs -f api-dev"
 echo "   Postgres logs:    docker-compose logs -f postgres"
+echo "   RAG (Vibe Master): vibe-master/scripts/health-check.sh"
 echo ""
 echo "🛑 Stop services:"
 echo "   ./stop-dev.sh"

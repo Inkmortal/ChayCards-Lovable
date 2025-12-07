@@ -1,5 +1,4 @@
 # CLAUDE.md
-@memory-bank/coreInstructions.md
 
 ## Project: ChayCards
 
