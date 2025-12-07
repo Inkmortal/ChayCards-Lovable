@@ -2,51 +2,50 @@
 
 This file tracks the current session state for Claude Code. It provides continuity across context window resets.
 
-**Last Updated**: 2024-12-03
+**Last Updated**: 2024-12-07
 
 ## Current Focus
 
 ### Active Work
-- Vibe Master architecture complete - multi-project RAG system
+- Vibe Master RAG system operational and tested
 
 ### Branch
 `lovable/first-mock`
 
 ## Recently Completed
 
-### Session 2024-12-03 (Vibe Master)
+### Session 2024-12-07 (RAG Pipeline Fixes)
+- [x] Fixed embedding API mismatch (`{ text }` → `{ inputs }` for TEI server)
+- [x] Fixed transcript parsing (nested `{ type, message: { role, content } }` format)
+- [x] Fixed volume mounts for Docker on Windows (`/c/Users:/c/Users:ro`)
+- [x] Fixed Qdrant health check endpoint (`/health` → `/healthz`)
+- [x] Implemented semantic chunking with 413 retry/split logic
+- [x] Added conversation history support via `transcript_path`
+- [x] Added `maxConversationMessages` config option (default 10)
+- [x] Pass 3 messages to embedding, all 10 to LLM curation
+- [x] Pushed updates to both Vibe Master and ChayCards repos
+
+### Session 2024-12-03 (Vibe Master Architecture)
 - [x] Created `vibe.config.json` - per-project RAG configuration
 - [x] Created `VIBE_SETUP.md` - instructions for Claude to configure new projects
-- [x] Updated hook to read from vibe.config.json with fallbacks
-- [x] Researched Qwen3-Next-80B optimal settings (temp 0.7, top_p 0.8, 262K context)
 - [x] Created `VIBE_MASTER_ARCHITECTURE.md` - full architecture documentation
 - [x] Designed central watcher architecture (auto-scans all registered projects)
-- [x] Created `memory-bank-update.cjs` hook - triggered by "update memory bank" keywords
-- [x] Registered memory-bank-update hook in settings.json
 
-### Key Architectural Decisions
-- **Central Watcher**: Daemon in vibe_master monitors `projects.json`, auto-embeds files
-- **Per-Project Config**: `vibe.config.json` with `enabled: false` default
-- **Hook Fallbacks**: Silent exit when disabled or services unavailable
-- **Memory Bank Update Hook**: Keyword-triggered, injects update instructions (no RAG)
+## RAG Pipeline Status
 
-### Previous Session
-- [x] AI system review and optimization (84% score)
-- [x] Semantic chunking improvements in embed-patterns.js
-
-## In Progress
-
-None - Vibe Master architecture complete
-
-## Blockers
-
-None currently.
+| Component | Status | Details |
+|-----------|--------|---------|
+| Qdrant | Running | 593 points in `chaycards_patterns` |
+| Embedding | Running | TEI with BGE-large-en-v1.5 |
+| Watcher | Running | Monitoring 42 files |
+| Conversation | Working | 10 messages from transcript |
 
 ## Technical Decisions Made
 
-1. **RAG Hook Architecture**: Multi-turn tool-calling agent using Qwen 70B for curation
-2. **Streaming Disabled for Tools**: Qwen3-thinking model doesn't emit proper `tool_calls` in streaming mode
-3. **Memory-Bank Purpose**: Patterns/docs for RAG retrieval + session state for continuity
+1. **Conversation History**: 10 messages loaded, 3 for embedding, all 10 for LLM curation
+2. **TEI API**: Uses `{ inputs: "..." }` field, returns `[[...]]` array
+3. **Transcript Format**: Nested `{ type, message: { role, content } }` structure
+4. **Semantic Chunking**: Splits by headers → paragraphs → sentences with context headers
 
 ## Environment Notes
 
@@ -59,5 +58,5 @@ None currently.
 ## Next Session Priorities
 
 1. Continue with pending feature work (check features.json)
-2. Update this file before session ends
-3. Keep activeContext.md lean per memory-bank-management.md pattern
+2. Test RAG with more complex queries
+3. Consider tuning chunk sizes or embedding parameters
